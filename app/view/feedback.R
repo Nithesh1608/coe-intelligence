@@ -42,7 +42,7 @@ ui <- function(id) {
         card(
           full_screen = TRUE,
           card_header("Category A — PQP, renewals, exits"),
-          card_body(echarts4rOutput(ns("loop"), height = "480px"))
+          card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("loop"), height = "400px"))
         )
       )
     )

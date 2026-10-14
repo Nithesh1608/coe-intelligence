@@ -54,12 +54,12 @@ ui <- function(id) {
       card(
         full_screen = TRUE,
         card_header("Deregistrations — history and illustrated path"),
-        card_body(echarts4rOutput(ns("fan"), height = "400px"))
+        card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("fan"), height = "400px"))
       ),
       card(
         full_screen = TRUE,
         card_header("Implied quarterly replacement quota"),
-        card_body(echarts4rOutput(ns("quota"), height = "360px"))
+        card_body(class = "chart-frame", echarts4rOutput(ns("quota"), height = "340px"))
       )
     )
   )

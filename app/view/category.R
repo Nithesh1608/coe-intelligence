@@ -24,18 +24,18 @@ ui <- function(id) {
       card(
         full_screen = TRUE,
         card_header("Premium spread"),
-        card_body(echarts4rOutput(ns("spread"), height = "380px"))
+        card_body(class = "chart-frame", echarts4rOutput(ns("spread"), height = "340px"))
       ),
       card(
         full_screen = TRUE,
         card_header("Share of successful bids (A / B / E)"),
-        card_body(echarts4rOutput(ns("share"), height = "380px"))
+        card_body(class = "chart-frame", echarts4rOutput(ns("share"), height = "340px"))
       )
     ),
     card(
       full_screen = TRUE,
       card_header("Cars aged 8 to under 11 (A and B share this stock)"),
-      card_body(echarts4rOutput(ns("age"), height = "320px"))
+      card_body(class = "chart-frame", echarts4rOutput(ns("age"), height = "340px"))
     )
   )
 }
