@@ -27,7 +27,7 @@ axis <- list(
 style_chart <- function(p) {
   p |>
     e_theme("dark") |>
-    e_grid(left = 56, right = 18, top = 40, bottom = 44) |>
+    e_grid(left = 12, right = 16, top = 44, bottom = 16, containLabel = TRUE) |>
     e_tooltip(trigger = "axis") |>
     e_legend(right = 8, top = 4, textStyle = list(color = "#a3a3a3")) |>
     e_x_axis(

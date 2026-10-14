@@ -66,7 +66,7 @@ ui <- function(id) {
       card(
         full_screen = TRUE,
         card_header("Quarterly COE outlay"),
-        card_body(echarts4rOutput(ns("bars"), height = "380px"))
+        card_body(class = "chart-frame", echarts4rOutput(ns("bars"), height = "340px"))
       )
     )
   )

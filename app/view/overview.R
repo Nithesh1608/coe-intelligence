@@ -36,8 +36,8 @@ ui <- function(id) {
         tags$h1("Price the pipeline. Not the rumour."),
         tags$p(
           class = "lede",
-          "A Next-style ops console on official LTA series. Quota is mostly last year's ",
-          "exits. Premiums stay a stress you apply — never a claimed forecast."
+          "Official LTA series only. Quota is mostly last year's exits. ",
+          "Premiums stay a stress you apply — never a claimed forecast."
         )
       ),
       div(
@@ -79,12 +79,12 @@ ui <- function(id) {
       card(
         full_screen = TRUE,
         card_header("Premium path — Categories A, B, E"),
-        card_body(echarts4rOutput(ns("spread"), height = "420px"))
+        card_body(class = "chart-frame", echarts4rOutput(ns("spread"), height = "340px"))
       ),
       card(
         full_screen = TRUE,
         card_header("Cat A swing inside each quarter"),
-        card_body(echarts4rOutput(ns("swing"), height = "420px"))
+        card_body(class = "chart-frame", echarts4rOutput(ns("swing"), height = "340px"))
       )
     ),
     tags$p(
