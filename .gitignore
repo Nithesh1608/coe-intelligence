@@ -1,0 +1,11 @@
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+.env
+node_modules/
+.rhino/
+.DS_Store
+Thumbs.db
+rsconnect/

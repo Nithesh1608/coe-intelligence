@@ -1,0 +1,2 @@
+"n_rows","n_duplicate_keys","month_min","month_max","n_missing_months","missing_months","classes","n_success_above_quota","n_one_exercise_months","one_exercise_months"
+1985,0,"2010-01-01","2026-10-01",3,"2020-04-01; 2020-05-01; 2020-06-01","Category A; Category B; Category C; Category D; Category E",0,1,"2026-10-01"
