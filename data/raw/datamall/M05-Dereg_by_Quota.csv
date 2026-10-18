@@ -1,0 +1,913 @@
+"month","category","number"
+"2014-01","Category A",1011
+"2014-01","Category B",927
+"2014-01","Category C",711
+"2014-01","Category D",760
+"2014-01","Taxis",143
+"2014-01","Vehicles Exempted From VQS",78
+"2014-02","Category A",1104
+"2014-02","Category B",926
+"2014-02","Category C",832
+"2014-02","Category D",668
+"2014-02","Taxis",286
+"2014-02","Vehicles Exempted From VQS",101
+"2014-03","Category A",1330
+"2014-03","Category B",1308
+"2014-03","Category C",1700
+"2014-03","Category D",796
+"2014-03","Taxis",546
+"2014-03","Vehicles Exempted From VQS",125
+"2014-04","Category A",1347
+"2014-04","Category B",1068
+"2014-04","Category C",1267
+"2014-04","Category D",742
+"2014-04","Taxis",358
+"2014-04","Vehicles Exempted From VQS",76
+"2014-05","Category A",1271
+"2014-05","Category B",1101
+"2014-05","Category C",590
+"2014-05","Category D",637
+"2014-05","Taxis",214
+"2014-05","Vehicles Exempted From VQS",63
+"2014-06","Category A",1291
+"2014-06","Category B",1127
+"2014-06","Category C",716
+"2014-06","Category D",643
+"2014-06","Taxis",278
+"2014-06","Vehicles Exempted From VQS",78
+"2014-07","Category A",1507
+"2014-07","Category B",1217
+"2014-07","Category C",951
+"2014-07","Category D",733
+"2014-07","Taxis",297
+"2014-07","Vehicles Exempted From VQS",129
+"2014-08","Category A",1415
+"2014-08","Category B",1224
+"2014-08","Category C",1162
+"2014-08","Category D",673
+"2014-08","Taxis",317
+"2014-08","Vehicles Exempted From VQS",101
+"2014-09","Category A",1875
+"2014-09","Category B",1312
+"2014-09","Category C",842
+"2014-09","Category D",624
+"2014-09","Taxis",363
+"2014-09","Vehicles Exempted From VQS",126
+"2014-10","Category A",2080
+"2014-10","Category B",1433
+"2014-10","Category C",1178
+"2014-10","Category D",631
+"2014-10","Taxis",35
+"2014-10","Vehicles Exempted From VQS",131
+"2014-11","Category A",2068
+"2014-11","Category B",1449
+"2014-11","Category C",1082
+"2014-11","Category D",592
+"2014-11","Taxis",84
+"2014-11","Vehicles Exempted From VQS",104
+"2014-12","Category A",2263
+"2014-12","Category B",1719
+"2014-12","Category C",837
+"2014-12","Category D",553
+"2014-12","Taxis",230
+"2014-12","Vehicles Exempted From VQS",165
+"2015-01","Category A",3174
+"2015-01","Category B",2095
+"2015-01","Category C",834
+"2015-01","Category D",693
+"2015-01","Taxis",462
+"2015-01","Vehicles Exempted From VQS",125
+"2015-02","Category A",2142
+"2015-02","Category B",1474
+"2015-02","Category C",761
+"2015-02","Category D",613
+"2015-02","Taxis",204
+"2015-02","Vehicles Exempted From VQS",143
+"2015-03","Category A",4030
+"2015-03","Category B",2416
+"2015-03","Category C",1796
+"2015-03","Category D",759
+"2015-03","Taxis",364
+"2015-03","Vehicles Exempted From VQS",83
+"2015-04","Category A",3618
+"2015-04","Category B",2289
+"2015-04","Category C",1029
+"2015-04","Category D",763
+"2015-04","Taxis",410
+"2015-04","Vehicles Exempted From VQS",98
+"2015-05","Category A",3627
+"2015-05","Category B",2191
+"2015-05","Category C",576
+"2015-05","Category D",757
+"2015-05","Taxis",443
+"2015-05","Vehicles Exempted From VQS",95
+"2015-06","Category A",3761
+"2015-06","Category B",2362
+"2015-06","Category C",629
+"2015-06","Category D",738
+"2015-06","Taxis",357
+"2015-06","Vehicles Exempted From VQS",84
+"2015-07","Category A",3798
+"2015-07","Category B",2382
+"2015-07","Category C",697
+"2015-07","Category D",735
+"2015-07","Taxis",310
+"2015-07","Vehicles Exempted From VQS",54
+"2015-08","Category A",3252
+"2015-08","Category B",1939
+"2015-08","Category C",2211
+"2015-08","Category D",646
+"2015-08","Taxis",231
+"2015-08","Vehicles Exempted From VQS",79
+"2015-09","Category A",3756
+"2015-09","Category B",2308
+"2015-09","Category C",1860
+"2015-09","Category D",691
+"2015-09","Taxis",409
+"2015-09","Vehicles Exempted From VQS",79
+"2015-10","Category A",4496
+"2015-10","Category B",2529
+"2015-10","Category C",1658
+"2015-10","Category D",774
+"2015-10","Taxis",403
+"2015-10","Vehicles Exempted From VQS",32
+"2015-11","Category A",4216
+"2015-11","Category B",2634
+"2015-11","Category C",1439
+"2015-11","Category D",657
+"2015-11","Taxis",498
+"2015-11","Vehicles Exempted From VQS",59
+"2015-12","Category A",4580
+"2015-12","Category B",2683
+"2015-12","Category C",1484
+"2015-12","Category D",757
+"2015-12","Taxis",446
+"2015-12","Vehicles Exempted From VQS",82
+"2016-01","Category A",4497
+"2016-01","Category B",3060
+"2016-01","Category C",1319
+"2016-01","Category D",707
+"2016-01","Taxis",247
+"2016-01","Vehicles Exempted From VQS",88
+"2016-02","Category A",4105
+"2016-02","Category B",2579
+"2016-02","Category C",1006
+"2016-02","Category D",804
+"2016-02","Taxis",121
+"2016-02","Vehicles Exempted From VQS",64
+"2016-03","Category A",5937
+"2016-03","Category B",3890
+"2016-03","Category C",2218
+"2016-03","Category D",1008
+"2016-03","Taxis",416
+"2016-03","Vehicles Exempted From VQS",111
+"2016-04","Category A",4575
+"2016-04","Category B",3011
+"2016-04","Category C",2341
+"2016-04","Category D",688
+"2016-04","Taxis",469
+"2016-04","Vehicles Exempted From VQS",62
+"2016-05","Category A",4493
+"2016-05","Category B",2957
+"2016-05","Category C",1001
+"2016-05","Category D",781
+"2016-05","Taxis",458
+"2016-05","Vehicles Exempted From VQS",69
+"2016-06","Category A",4064
+"2016-06","Category B",2712
+"2016-06","Category C",1234
+"2016-06","Category D",794
+"2016-06","Taxis",389
+"2016-06","Vehicles Exempted From VQS",141
+"2016-07","Category A",4244
+"2016-07","Category B",2652
+"2016-07","Category C",1371
+"2016-07","Category D",730
+"2016-07","Taxis",483
+"2016-07","Vehicles Exempted From VQS",54
+"2016-08","Category A",4027
+"2016-08","Category B",2666
+"2016-08","Category C",1404
+"2016-08","Category D",712
+"2016-08","Taxis",428
+"2016-08","Vehicles Exempted From VQS",58
+"2016-09","Category A",3798
+"2016-09","Category B",2756
+"2016-09","Category C",1502
+"2016-09","Category D",751
+"2016-09","Taxis",501
+"2016-09","Vehicles Exempted From VQS",59
+"2016-10","Category A",4475
+"2016-10","Category B",2875
+"2016-10","Category C",944
+"2016-10","Category D",742
+"2016-10","Taxis",342
+"2016-10","Vehicles Exempted From VQS",62
+"2016-11","Category A",4463
+"2016-11","Category B",3115
+"2016-11","Category C",1128
+"2016-11","Category D",761
+"2016-11","Taxis",303
+"2016-11","Vehicles Exempted From VQS",65
+"2016-12","Category A",4513
+"2016-12","Category B",2853
+"2016-12","Category C",1219
+"2016-12","Category D",687
+"2016-12","Taxis",362
+"2016-12","Vehicles Exempted From VQS",86
+"2017-01","Category A",4389
+"2017-01","Category B",2916
+"2017-01","Category C",1245
+"2017-01","Category D",846
+"2017-01","Taxis",646
+"2017-01","Vehicles Exempted From VQS",38
+"2017-02","Category A",3588
+"2017-02","Category B",2570
+"2017-02","Category C",1648
+"2017-02","Category D",710
+"2017-02","Taxis",275
+"2017-02","Vehicles Exempted From VQS",78
+"2017-03","Category A",4428
+"2017-03","Category B",3107
+"2017-03","Category C",7040
+"2017-03","Category D",1023
+"2017-03","Taxis",333
+"2017-03","Vehicles Exempted From VQS",160
+"2017-04","Category A",3914
+"2017-04","Category B",2585
+"2017-04","Category C",1905
+"2017-04","Category D",969
+"2017-04","Taxis",282
+"2017-04","Vehicles Exempted From VQS",113
+"2017-05","Category A",4074
+"2017-05","Category B",2962
+"2017-05","Category C",1079
+"2017-05","Category D",878
+"2017-05","Taxis",474
+"2017-05","Vehicles Exempted From VQS",36
+"2017-06","Category A",3886
+"2017-06","Category B",2813
+"2017-06","Category C",979
+"2017-06","Category D",916
+"2017-06","Taxis",658
+"2017-06","Vehicles Exempted From VQS",9
+"2017-07","Category A",3762
+"2017-07","Category B",2995
+"2017-07","Category C",1445
+"2017-07","Category D",848
+"2017-07","Taxis",652
+"2017-07","Vehicles Exempted From VQS",141
+"2017-08","Category A",3720
+"2017-08","Category B",2945
+"2017-08","Category C",1355
+"2017-08","Category D",1044
+"2017-08","Taxis",734
+"2017-08","Vehicles Exempted From VQS",93
+"2017-09","Category A",3495
+"2017-09","Category B",3019
+"2017-09","Category C",1007
+"2017-09","Category D",914
+"2017-09","Taxis",665
+"2017-09","Vehicles Exempted From VQS",78
+"2017-10","Category A",3554
+"2017-10","Category B",3055
+"2017-10","Category C",1030
+"2017-10","Category D",936
+"2017-10","Taxis",787
+"2017-10","Vehicles Exempted From VQS",49
+"2017-11","Category A",3371
+"2017-11","Category B",2939
+"2017-11","Category C",1087
+"2017-11","Category D",784
+"2017-11","Taxis",791
+"2017-11","Vehicles Exempted From VQS",63
+"2017-12","Category A",3440
+"2017-12","Category B",3261
+"2017-12","Category C",865
+"2017-12","Category D",918
+"2017-12","Taxis",867
+"2017-12","Vehicles Exempted From VQS",95
+"2018-01","Category A",3778
+"2018-01","Category B",3244
+"2018-01","Category C",960
+"2018-01","Category D",1052
+"2018-01","Taxis",249
+"2018-01","Vehicles Exempted From VQS",48
+"2018-02","Category A",2458
+"2018-02","Category B",2238
+"2018-02","Category C",659
+"2018-02","Category D",907
+"2018-02","Taxis",451
+"2018-02","Vehicles Exempted From VQS",50
+"2018-03","Category A",3310
+"2018-03","Category B",3043
+"2018-03","Category C",1296
+"2018-03","Category D",1188
+"2018-03","Taxis",694
+"2018-03","Vehicles Exempted From VQS",26
+"2018-04","Category A",3604
+"2018-04","Category B",2783
+"2018-04","Category C",1246
+"2018-04","Category D",1237
+"2018-04","Taxis",310
+"2018-04","Vehicles Exempted From VQS",58
+"2018-05","Category A",3653
+"2018-05","Category B",2873
+"2018-05","Category C",1224
+"2018-05","Category D",1872
+"2018-05","Taxis",203
+"2018-05","Vehicles Exempted From VQS",49
+"2018-06","Category A",3823
+"2018-06","Category B",2757
+"2018-06","Category C",1219
+"2018-06","Category D",1607
+"2018-06","Taxis",106
+"2018-06","Vehicles Exempted From VQS",73
+"2018-07","Category A",4213
+"2018-07","Category B",2916
+"2018-07","Category C",1311
+"2018-07","Category D",1541
+"2018-07","Taxis",118
+"2018-07","Vehicles Exempted From VQS",297
+"2018-08","Category A",4001
+"2018-08","Category B",2749
+"2018-08","Category C",1224
+"2018-08","Category D",1412
+"2018-08","Taxis",95
+"2018-08","Vehicles Exempted From VQS",62
+"2018-09","Category A",3886
+"2018-09","Category B",2556
+"2018-09","Category C",1106
+"2018-09","Category D",1375
+"2018-09","Taxis",202
+"2018-09","Vehicles Exempted From VQS",49
+"2018-10","Category A",3656
+"2018-10","Category B",2634
+"2018-10","Category C",1460
+"2018-10","Category D",1530
+"2018-10","Taxis",375
+"2018-10","Vehicles Exempted From VQS",71
+"2018-11","Category A",3872
+"2018-11","Category B",2688
+"2018-11","Category C",1190
+"2018-11","Category D",1304
+"2018-11","Taxis",447
+"2018-11","Vehicles Exempted From VQS",100
+"2018-12","Category A",3465
+"2018-12","Category B",2661
+"2018-12","Category C",922
+"2018-12","Category D",1490
+"2018-12","Taxis",653
+"2018-12","Vehicles Exempted From VQS",153
+"2019-01","Category A",3438
+"2019-01","Category B",2534
+"2019-01","Category C",1161
+"2019-01","Category D",1649
+"2019-01","Taxis",442
+"2019-01","Vehicles Exempted From VQS",96
+"2019-02","Category A",2570
+"2019-02","Category B",2160
+"2019-02","Category C",937
+"2019-02","Category D",1225
+"2019-02","Taxis",226
+"2019-02","Vehicles Exempted From VQS",50
+"2019-03","Category A",3477
+"2019-03","Category B",2891
+"2019-03","Category C",1906
+"2019-03","Category D",1632
+"2019-03","Taxis",415
+"2019-03","Vehicles Exempted From VQS",108
+"2019-04","Category A",2724
+"2019-04","Category B",2412
+"2019-04","Category C",1523
+"2019-04","Category D",1437
+"2019-04","Taxis",487
+"2019-04","Vehicles Exempted From VQS",53
+"2019-05","Category A",2316
+"2019-05","Category B",2265
+"2019-05","Category C",1255
+"2019-05","Category D",1418
+"2019-05","Taxis",536
+"2019-05","Vehicles Exempted From VQS",57
+"2019-06","Category A",2001
+"2019-06","Category B",2262
+"2019-06","Category C",1020
+"2019-06","Category D",1121
+"2019-06","Taxis",473
+"2019-06","Vehicles Exempted From VQS",54
+"2019-07","Category A",2450
+"2019-07","Category B",2510
+"2019-07","Category C",1164
+"2019-07","Category D",1447
+"2019-07","Taxis",702
+"2019-07","Vehicles Exempted From VQS",59
+"2019-08","Category A",2176
+"2019-08","Category B",2123
+"2019-08","Category C",929
+"2019-08","Category D",1342
+"2019-08","Taxis",334
+"2019-08","Vehicles Exempted From VQS",40
+"2019-09","Category A",2146
+"2019-09","Category B",2103
+"2019-09","Category C",987
+"2019-09","Category D",1219
+"2019-09","Taxis",274
+"2019-09","Vehicles Exempted From VQS",65
+"2019-10","Category A",2192
+"2019-10","Category B",2127
+"2019-10","Category C",1054
+"2019-10","Category D",1258
+"2019-10","Taxis",385
+"2019-10","Vehicles Exempted From VQS",61
+"2019-11","Category A",2143
+"2019-11","Category B",2126
+"2019-11","Category C",1030
+"2019-11","Category D",1175
+"2019-11","Taxis",492
+"2019-11","Vehicles Exempted From VQS",77
+"2019-12","Category A",2145
+"2019-12","Category B",2270
+"2019-12","Category C",875
+"2019-12","Category D",1010
+"2019-12","Taxis",822
+"2019-12","Vehicles Exempted From VQS",47
+"2020-01","Category A",2239
+"2020-01","Category B",2111
+"2020-01","Category C",787
+"2020-01","Category D",1278
+"2020-01","Taxis",163
+"2020-01","Vehicles Exempted From VQS",171
+"2020-02","Category A",1778
+"2020-02","Category B",2030
+"2020-02","Category C",914
+"2020-02","Category D",1182
+"2020-02","Taxis",270
+"2020-02","Vehicles Exempted From VQS",66
+"2020-03","Category A",2397
+"2020-03","Category B",2279
+"2020-03","Category C",1407
+"2020-03","Category D",1291
+"2020-03","Taxis",530
+"2020-03","Vehicles Exempted From VQS",72
+"2020-04","Category A",1707
+"2020-04","Category B",1394
+"2020-04","Category C",663
+"2020-04","Category D",582
+"2020-04","Taxis",597
+"2020-04","Vehicles Exempted From VQS",33
+"2020-05","Category A",1184
+"2020-05","Category B",852
+"2020-05","Category C",301
+"2020-05","Category D",368
+"2020-05","Taxis",1036
+"2020-05","Vehicles Exempted From VQS",21
+"2020-06","Category A",1756
+"2020-06","Category B",1599
+"2020-06","Category C",853
+"2020-06","Category D",735
+"2020-06","Taxis",121
+"2020-06","Vehicles Exempted From VQS",31
+"2020-07","Category A",1697
+"2020-07","Category B",1762
+"2020-07","Category C",914
+"2020-07","Category D",757
+"2020-07","Taxis",208
+"2020-07","Vehicles Exempted From VQS",41
+"2020-08","Category A",1750
+"2020-08","Category B",1790
+"2020-08","Category C",1095
+"2020-08","Category D",841
+"2020-08","Taxis",36
+"2020-08","Vehicles Exempted From VQS",105
+"2020-09","Category A",1537
+"2020-09","Category B",1705
+"2020-09","Category C",930
+"2020-09","Category D",710
+"2020-09","Taxis",316
+"2020-09","Vehicles Exempted From VQS",66
+"2020-10","Category A",1518
+"2020-10","Category B",1659
+"2020-10","Category C",805
+"2020-10","Category D",709
+"2020-10","Taxis",281
+"2020-10","Vehicles Exempted From VQS",55
+"2020-11","Category A",1506
+"2020-11","Category B",1582
+"2020-11","Category C",683
+"2020-11","Category D",693
+"2020-11","Taxis",447
+"2020-11","Vehicles Exempted From VQS",61
+"2020-12","Category A",1425
+"2020-12","Category B",1590
+"2020-12","Category C",699
+"2020-12","Category D",1007
+"2020-12","Taxis",208
+"2020-12","Vehicles Exempted From VQS",92
+"2021-01","Category A",1383
+"2021-01","Category B",1427
+"2021-01","Category C",660
+"2021-01","Category D",1009
+"2021-01","Taxis",108
+"2021-01","Vehicles Exempted From VQS",119
+"2021-02","Category A",1268
+"2021-02","Category B",1198
+"2021-02","Category C",705
+"2021-02","Category D",912
+"2021-02","Taxis",139
+"2021-02","Vehicles Exempted From VQS",93
+"2021-03","Category A",1918
+"2021-03","Category B",1804
+"2021-03","Category C",935
+"2021-03","Category D",1150
+"2021-03","Taxis",182
+"2021-03","Vehicles Exempted From VQS",66
+"2021-04","Category A",1607
+"2021-04","Category B",1647
+"2021-04","Category C",663
+"2021-04","Category D",876
+"2021-04","Taxis",44
+"2021-04","Vehicles Exempted From VQS",89
+"2021-05","Category A",1872
+"2021-05","Category B",1798
+"2021-05","Category C",638
+"2021-05","Category D",910
+"2021-05","Taxis",170
+"2021-05","Vehicles Exempted From VQS",69
+"2021-06","Category A",1864
+"2021-06","Category B",1680
+"2021-06","Category C",740
+"2021-06","Category D",872
+"2021-06","Taxis",146
+"2021-06","Vehicles Exempted From VQS",42
+"2021-07","Category A",1249
+"2021-07","Category B",1332
+"2021-07","Category C",686
+"2021-07","Category D",750
+"2021-07","Taxis",79
+"2021-07","Vehicles Exempted From VQS",29
+"2021-08","Category A",1256
+"2021-08","Category B",1336
+"2021-08","Category C",615
+"2021-08","Category D",913
+"2021-08","Taxis",118
+"2021-08","Vehicles Exempted From VQS",28
+"2021-09","Category A",1039
+"2021-09","Category B",1240
+"2021-09","Category C",663
+"2021-09","Category D",800
+"2021-09","Taxis",148
+"2021-09","Vehicles Exempted From VQS",30
+"2021-10","Category A",1243
+"2021-10","Category B",1328
+"2021-10","Category C",638
+"2021-10","Category D",762
+"2021-10","Taxis",119
+"2021-10","Vehicles Exempted From VQS",29
+"2021-11","Category A",1198
+"2021-11","Category B",1165
+"2021-11","Category C",604
+"2021-11","Category D",772
+"2021-11","Taxis",450
+"2021-11","Vehicles Exempted From VQS",29
+"2021-12","Category A",1097
+"2021-12","Category B",1167
+"2021-12","Category C",693
+"2021-12","Category D",889
+"2021-12","Taxis",276
+"2021-12","Vehicles Exempted From VQS",43
+"2022-01","Category A",1383
+"2022-01","Category B",1199
+"2022-01","Category C",663
+"2022-01","Category D",991
+"2022-01","Taxis",40
+"2022-01","Vehicles Exempted From VQS",136
+"2022-02","Category A",1042
+"2022-02","Category B",947
+"2022-02","Category C",619
+"2022-02","Category D",1006
+"2022-02","Taxis",145
+"2022-02","Vehicles Exempted From VQS",75
+"2022-03","Category A",1641
+"2022-03","Category B",1363
+"2022-03","Category C",1005
+"2022-03","Category D",1351
+"2022-03","Taxis",191
+"2022-03","Vehicles Exempted From VQS",67
+"2022-04","Category A",1128
+"2022-04","Category B",977
+"2022-04","Category C",916
+"2022-04","Category D",944
+"2022-04","Taxis",116
+"2022-04","Vehicles Exempted From VQS",50
+"2022-05","Category A",955
+"2022-05","Category B",921
+"2022-05","Category C",638
+"2022-05","Category D",783
+"2022-05","Taxis",134
+"2022-05","Vehicles Exempted From VQS",70
+"2022-06","Category A",1089
+"2022-06","Category B",849
+"2022-06","Category C",681
+"2022-06","Category D",954
+"2022-06","Taxis",157
+"2022-06","Vehicles Exempted From VQS",169
+"2022-07","Category A",953
+"2022-07","Category B",888
+"2022-07","Category C",673
+"2022-07","Category D",834
+"2022-07","Taxis",123
+"2022-07","Vehicles Exempted From VQS",91
+"2022-08","Category A",961
+"2022-08","Category B",906
+"2022-08","Category C",705
+"2022-08","Category D",839
+"2022-08","Taxis",119
+"2022-08","Vehicles Exempted From VQS",133
+"2022-09","Category A",1010
+"2022-09","Category B",906
+"2022-09","Category C",828
+"2022-09","Category D",807
+"2022-09","Taxis",91
+"2022-09","Vehicles Exempted From VQS",60
+"2022-10","Category A",1028
+"2022-10","Category B",779
+"2022-10","Category C",706
+"2022-10","Category D",797
+"2022-10","Taxis",48
+"2022-10","Vehicles Exempted From VQS",82
+"2022-11","Category A",1424
+"2022-11","Category B",990
+"2022-11","Category C",909
+"2022-11","Category D",915
+"2022-11","Taxis",53
+"2022-11","Vehicles Exempted From VQS",50
+"2022-12","Category A",857
+"2022-12","Category B",742
+"2022-12","Category C",700
+"2022-12","Category D",924
+"2022-12","Taxis",92
+"2022-12","Vehicles Exempted From VQS",157
+"2023-01","Category A",808
+"2023-01","Category B",699
+"2023-01","Category C",411
+"2023-01","Category D",941
+"2023-01","Taxis",73
+"2023-01","Vehicles Exempted From VQS",44
+"2023-02","Category A",848
+"2023-02","Category B",711
+"2023-02","Category C",803
+"2023-02","Category D",995
+"2023-02","Taxis",93
+"2023-02","Vehicles Exempted From VQS",72
+"2023-03","Category A",1369
+"2023-03","Category B",1120
+"2023-03","Category C",1704
+"2023-03","Category D",1457
+"2023-03","Taxis",102
+"2023-03","Vehicles Exempted From VQS",258
+"2023-04","Category A",1461
+"2023-04","Category B",1002
+"2023-04","Category C",318
+"2023-04","Category D",907
+"2023-04","Taxis",56
+"2023-04","Vehicles Exempted From VQS",153
+"2023-05","Category A",1735
+"2023-05","Category B",1175
+"2023-05","Category C",451
+"2023-05","Category D",957
+"2023-05","Taxis",129
+"2023-05","Vehicles Exempted From VQS",48
+"2023-06","Category A",1253
+"2023-06","Category B",1128
+"2023-06","Category C",478
+"2023-06","Category D",800
+"2023-06","Taxis",136
+"2023-06","Vehicles Exempted From VQS",79
+"2023-07","Category A",1310
+"2023-07","Category B",1065
+"2023-07","Category C",607
+"2023-07","Category D",954
+"2023-07","Taxis",90
+"2023-07","Vehicles Exempted From VQS",71
+"2023-08","Category A",1485
+"2023-08","Category B",1127
+"2023-08","Category C",553
+"2023-08","Category D",914
+"2023-08","Taxis",142
+"2023-08","Vehicles Exempted From VQS",64
+"2023-09","Category A",1510
+"2023-09","Category B",1039
+"2023-09","Category C",519
+"2023-09","Category D",794
+"2023-09","Taxis",159
+"2023-09","Vehicles Exempted From VQS",104
+"2023-10","Category A",1542
+"2023-10","Category B",1023
+"2023-10","Category C",486
+"2023-10","Category D",873
+"2023-10","Taxis",180
+"2023-10","Vehicles Exempted From VQS",65
+"2023-11","Category A",1654
+"2023-11","Category B",1041
+"2023-11","Category C",372
+"2023-11","Category D",745
+"2023-11","Taxis",128
+"2023-11","Vehicles Exempted From VQS",60
+"2023-12","Category A",1939
+"2023-12","Category B",1045
+"2023-12","Category C",414
+"2023-12","Category D",837
+"2023-12","Taxis",144
+"2023-12","Vehicles Exempted From VQS",66
+"2024-01","Category A",1918
+"2024-01","Category B",1236
+"2024-01","Category C",502
+"2024-01","Category D",1019
+"2024-01","Taxis",135
+"2024-01","Vehicles Exempted From VQS",53
+"2024-02","Category A",1672
+"2024-02","Category B",1112
+"2024-02","Category C",556
+"2024-02","Category D",963
+"2024-02","Taxis",71
+"2024-02","Vehicles Exempted From VQS",54
+"2024-03","Category A",2420
+"2024-03","Category B",1246
+"2024-03","Category C",949
+"2024-03","Category D",694
+"2024-03","Taxis",233
+"2024-03","Vehicles Exempted From VQS",54
+"2024-04","Category A",2506
+"2024-04","Category B",1052
+"2024-04","Category C",586
+"2024-04","Category D",562
+"2024-04","Taxis",173
+"2024-04","Vehicles Exempted From VQS",35
+"2024-05","Category A",1757
+"2024-05","Category B",1027
+"2024-05","Category C",477
+"2024-05","Category D",598
+"2024-05","Taxis",151
+"2024-05","Vehicles Exempted From VQS",146
+"2024-06","Category A",1059
+"2024-06","Category B",895
+"2024-06","Category C",477
+"2024-06","Category D",545
+"2024-06","Taxis",146
+"2024-06","Vehicles Exempted From VQS",90
+"2024-07","Category A",1221
+"2024-07","Category B",1092
+"2024-07","Category C",927
+"2024-07","Category D",771
+"2024-07","Taxis",143
+"2024-07","Vehicles Exempted From VQS",74
+"2024-08","Category A",1776
+"2024-08","Category B",1221
+"2024-08","Category C",703
+"2024-08","Category D",747
+"2024-08","Taxis",108
+"2024-08","Vehicles Exempted From VQS",69
+"2024-09","Category A",1887
+"2024-09","Category B",1327
+"2024-09","Category C",597
+"2024-09","Category D",703
+"2024-09","Taxis",184
+"2024-09","Vehicles Exempted From VQS",63
+"2024-10","Category A",1906
+"2024-10","Category B",1481
+"2024-10","Category C",816
+"2024-10","Category D",709
+"2024-10","Taxis",171
+"2024-10","Vehicles Exempted From VQS",66
+"2024-11","Category A",1421
+"2024-11","Category B",1391
+"2024-11","Category C",478
+"2024-11","Category D",531
+"2024-11","Taxis",173
+"2024-11","Vehicles Exempted From VQS",63
+"2024-12","Category A",1973
+"2024-12","Category B",1541
+"2024-12","Category C",514
+"2024-12","Category D",650
+"2024-12","Taxis",130
+"2024-12","Vehicles Exempted From VQS",70
+"2025-01","Category A",2072
+"2025-01","Category B",1533
+"2025-01","Category C",517
+"2025-01","Category D",710
+"2025-01","Taxis",152
+"2025-01","Vehicles Exempted From VQS",94
+"2025-02","Category A",1704
+"2025-02","Category B",1496
+"2025-02","Category C",543
+"2025-02","Category D",700
+"2025-02","Taxis",151
+"2025-02","Vehicles Exempted From VQS",116
+"2025-03","Category A",2070
+"2025-03","Category B",1746
+"2025-03","Category C",1120
+"2025-03","Category D",758
+"2025-03","Taxis",156
+"2025-03","Vehicles Exempted From VQS",75
+"2025-04","Category A",1964
+"2025-04","Category B",1874
+"2025-04","Category C",652
+"2025-04","Category D",702
+"2025-04","Taxis",225
+"2025-04","Vehicles Exempted From VQS",81
+"2025-05","Category A",2112
+"2025-05","Category B",1935
+"2025-05","Category C",556
+"2025-05","Category D",694
+"2025-05","Taxis",222
+"2025-05","Vehicles Exempted From VQS",109
+"2025-06","Category A",2288
+"2025-06","Category B",1969
+"2025-06","Category C",676
+"2025-06","Category D",752
+"2025-06","Taxis",145
+"2025-06","Vehicles Exempted From VQS",105
+"2025-07","Category A",2191
+"2025-07","Category B",1870
+"2025-07","Category C",696
+"2025-07","Category D",768
+"2025-07","Taxis",126
+"2025-07","Vehicles Exempted From VQS",126
+"2025-08","Category A",2891
+"2025-08","Category B",2023
+"2025-08","Category C",877
+"2025-08","Category D",661
+"2025-08","Taxis",89
+"2025-08","Vehicles Exempted From VQS",128
+"2025-09","Category A",2263
+"2025-09","Category B",1974
+"2025-09","Category C",913
+"2025-09","Category D",632
+"2025-09","Taxis",62
+"2025-09","Vehicles Exempted From VQS",764
+"2025-10","Category A",2672
+"2025-10","Category B",2011
+"2025-10","Category C",759
+"2025-10","Category D",641
+"2025-10","Taxis",60
+"2025-10","Vehicles Exempted From VQS",172
+"2025-11","Category A",2311
+"2025-11","Category B",1877
+"2025-11","Category C",607
+"2025-11","Category D",547
+"2025-11","Taxis",94
+"2025-11","Vehicles Exempted From VQS",309
+"2025-12","Category A",2677
+"2025-12","Category B",2027
+"2025-12","Category C",997
+"2025-12","Category D",750
+"2025-12","Taxis",164
+"2025-12","Vehicles Exempted From VQS",245
+"2026-01","Category A",2978
+"2026-01","Category B",2303
+"2026-01","Category C",621
+"2026-01","Category D",925
+"2026-01","Taxis",28
+"2026-01","Vehicles Exempted From VQS",125
+"2026-02","Category A",2337
+"2026-02","Category B",1807
+"2026-02","Category C",499
+"2026-02","Category D",593
+"2026-02","Taxis",48
+"2026-02","Vehicles Exempted From VQS",211
+"2026-03","Category A",3343
+"2026-03","Category B",2516
+"2026-03","Category C",577
+"2026-03","Category D",626
+"2026-03","Taxis",59
+"2026-03","Vehicles Exempted From VQS",196
+"2026-04","Category A",3275
+"2026-04","Category B",2492
+"2026-04","Category C",566
+"2026-04","Category D",655
+"2026-04","Taxis",59
+"2026-04","Vehicles Exempted From VQS",108
+"2026-05","Category A",3588
+"2026-05","Category B",2806
+"2026-05","Category C",588
+"2026-05","Category D",616
+"2026-05","Taxis",79
+"2026-05","Vehicles Exempted From VQS",61
+"2026-06","Category A",3415
+"2026-06","Category B",2615
+"2026-06","Category C",729
+"2026-06","Category D",651
+"2026-06","Taxis",99
+"2026-06","Vehicles Exempted From VQS",126
+"2026-07","Category A",3091
+"2026-07","Category B",2449
+"2026-07","Category C",864
+"2026-07","Category D",691
+"2026-07","Taxis",132
+"2026-07","Vehicles Exempted From VQS",303
+"2026-08","Category A",2964
+"2026-08","Category B",2385
+"2026-08","Category C",805
+"2026-08","Category D",745
+"2026-08","Taxis",244
+"2026-08","Vehicles Exempted From VQS",117

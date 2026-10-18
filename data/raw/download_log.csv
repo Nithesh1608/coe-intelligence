@@ -1,5 +1,0 @@
-"source_id","path","status","bytes","url","recorded_at"
-"quota_premium_pqp","data/raw/datagov/quota_premium_pqp.csv","cached",75188,"https://api-open.data.gov.sg/v1/public/api/datasets/d_22094bf608253d36c0c63b52d852dd6e/initiate-download","2026-10-14T09:47:02Z"
-"deregistrations_vqs_monthly","data/raw/datagov/deregistrations_vqs_monthly.csv","cached",18068,"https://api-open.data.gov.sg/v1/public/api/datasets/d_d520d6034b5e0c4f883b4e480de28f97/initiate-download","2026-10-14T09:47:02Z"
-"population_vqs_monthly","data/raw/datagov/population_vqs_monthly.csv","cached",25666,"https://api-open.data.gov.sg/v1/public/api/datasets/d_ede1a559013d10f234d209ac5e9fd9b4/initiate-download","2026-10-14T09:47:02Z"
-"new_registrations_vqs_monthly","data/raw/datagov/new_registrations_vqs_monthly.csv","cached",21940,"https://api-open.data.gov.sg/v1/public/api/datasets/d_d94cf5d839fc11a144f24ef971705d3e/initiate-download","2026-10-14T09:47:02Z"

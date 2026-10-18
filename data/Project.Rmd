@@ -1,0 +1,436 @@
+---
+title: "Project"
+output: html_document
+date: "2026-10-16"
+---
+
+```{r setup}
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(stringr)
+library(readxl)
+
+raw   <- "raw/"
+out   <- "processed/"
+audit <- "audit/"
+dir.create(raw,   recursive = TRUE, showWarnings = FALSE)
+dir.create(out,   recursive = TRUE, showWarnings = FALSE)
+dir.create(audit, recursive = TRUE, showWarnings = FALSE)
+
+# Dates that matter for every dataset ------------------------------------------
+# Feb 2014: Cat A gained a power cap (<= 97 kW / 130 bhp) on top of <= 1600 cc.
+# May 2022: Cat A/B redefined around EV power output (<= 110 kW => Cat A).
+# Apr-Jun 2020: bidding exercises suspended during the circuit breaker.
+REGIME_BREAKS <- ymd(c("2014-02-01", "2022-05-01"))
+SUSPENDED     <- ymd(c("2020-04-01", "2020-05-01", "2020-06-01"))
+
+add_regime <- function(df) {
+  df |>
+    mutate(cat_regime = case_when(
+      month <  REGIME_BREAKS[1] ~ "R1: pre-Feb-2014 (A = <=1600cc)",
+      month <  REGIME_BREAKS[2] ~ "R2: Feb-2014 to Apr-2022 (A = <=1600cc & <=97kW)",
+      TRUE                      ~ "R3: May-2022 onward (EV power redefinition)"
+    ))
+}
+
+# -----------------------------------------------------------------------------
+# Helper 1: LTA DataMall "M" files are already tidy; months look like "2016-01".
+# -----------------------------------------------------------------------------
+read_lta_long <- function(file) {
+  read_csv(paste0(raw, file), col_types = cols(.default = col_character()),
+           show_col_types = FALSE) |>
+    mutate(
+      month = ym(month),
+      across(where(~ is.character(.x) &&
+                     all(is.na(.x) | str_detect(.x, "^-?[0-9][0-9,]*(\\.[0-9]+)?$"))),
+             parse_number)
+    ) |>
+    arrange(month)
+}
+
+# -----------------------------------------------------------------------------
+# Helper 2: SingStat files are WIDE (one column per month, newest first) and use
+# "na" and "-" for missing. Series names are indented with spaces to show
+# hierarchy. This pivots them to long format: series | month | value.
+# -----------------------------------------------------------------------------
+read_singstat_wide <- function(file, value_name = "value") {
+  read_csv(paste0(raw, file),
+           col_types = cols(.default = col_character()),
+           na = c("na", "-", "", "NA")) |>
+    mutate(series = str_squish(DataSeries), .keep = "unused") |>
+    pivot_longer(-series, names_to = "month_chr", values_to = value_name) |>
+    mutate(
+      yr    = as.integer(substr(month_chr, 1, 4)),
+      mo    = match(substr(month_chr, 5, 7), month.abb),   # "Aug" -> 8
+      month = make_date(yr, mo, 1),
+      !!value_name := parse_number(.data[[value_name]])
+    ) |>
+    select(series, month, all_of(value_name)) |>
+    arrange(series, month)
+}
+
+# Map the SingStat series labels onto the COE category codes used everywhere else
+singstat_category <- function(series) {
+  case_when(
+    str_detect(series, "^Total")                     ~ "Total",
+    str_detect(series, "Category A")                 ~ "A",
+    str_detect(series, "Category B")                 ~ "B",
+    str_detect(series, "Category C.*Not Under ETS")  ~ "C_not_ETS",
+    str_detect(series, "Category C.*Under ETS")      ~ "C_ETS",
+    str_detect(series, "Category C")                 ~ "C",
+    str_detect(series, "Category D")                 ~ "D",
+    str_detect(series, "Taxis")                      ~ "Taxi",
+    str_detect(series, "Weekend|Off Peak")           ~ "OPC",
+    str_detect(series, "Exempted")                   ~ "Exempt",
+    TRUE                                             ~ series
+  )
+}
+
+# =============================================================================
+# 1. M11-coe_results.csv  -- bidding results, Jan 2010 to Oct 2026
+# =============================================================================
+coe_results <- read_lta_long("datamall/M11-coe_results.csv") |>
+  rename(category = vehicle_class) |>
+  mutate(category = str_remove(category, "Category ")) |>        # "Category A" -> "A"
+  # Insert the Apr-Jun 2020 suspended exercises as explicit NA rows (not zero)
+  complete(month = seq(min(month), max(month), by = "month"),
+           bidding_no = 1:2,
+           category   = c("A", "B", "C", "D", "E")) |>
+  mutate(
+    suspended     = month %in% SUSPENDED,
+    exercise_id   = sprintf("%s-%d", format(month, "%Y-%m"), bidding_no),
+    # exercise dates are not in the file; approximate 1st = early month, 2nd = +2 wks
+    exercise_date = month + days(if_else(bidding_no == 1, 3L, 17L)),
+    quarter       = floor_date(month, "quarter"),
+    bid_quota_ratio = bids_received / quota
+  ) |>
+  add_regime() |>
+  arrange(month, bidding_no, category)
+
+stopifnot(all(is.na(coe_results$premium[coe_results$suspended])))
+write_rds(coe_results, paste0(out, "coe_results.rds"))
+
+# =============================================================================
+# 2. M11-coe_results_pqp.csv  -- monthly PQP by category, Feb 2010 to Oct 2026
+# =============================================================================
+pqp <- read_lta_long("datamall/M11-coe_results_pqp.csv") |>
+  rename(category = vehicle_class) |>
+  mutate(category = str_remove(category, "Category ")) |>
+  complete(month = seq(min(month), max(month), by = "month"),
+           category = c("A", "B", "C", "D")) |>                 # no PQP for Cat E
+  mutate(suspended = month %in% SUSPENDED) |>
+  add_regime()
+
+write_rds(pqp, paste0(out, "pqp.rds"))
+
+# =============================================================================
+# 3. quota_premium_pqp.csv  -- SingStat monthly quota / bids / QP / PQP,
+#    Feb 2002 to Sep 2026. One series per category x metric x bidding round.
+# =============================================================================
+singstat_coe <- read_singstat_wide("datagov/quota_premium_pqp.csv") |>
+  # "Cars Up To 1600cc And 97kW, Quota Premium, 1st Bidding" -> three columns
+  separate_wider_delim(series, delim = ", ",
+                       names = c("cat_label", "metric", "bidding"),
+                       too_few = "align_start") |>
+  # "Total Quota, 1st Bidding" has only two parts: shift them into place
+  mutate(
+    bidding   = coalesce(bidding, metric),
+    metric    = if_else(str_starts(cat_label, "Total"), cat_label, metric),
+    cat_label = if_else(str_starts(cat_label, "Total"), "Total", cat_label),
+    bidding_no = if_else(str_detect(bidding, "1st"), 1L, 2L),
+    category = case_when(
+      cat_label == "Total"                        ~ "Total",
+      str_detect(cat_label, "Up To 1600cc")       ~ "A",
+      str_detect(cat_label, "Above 1600cc")       ~ "B",
+      str_detect(cat_label, "Goods Vehicles")     ~ "C",
+      str_detect(cat_label, "Motorcycles")        ~ "D",
+      str_detect(cat_label, "Open")               ~ "E"
+    ),
+    metric = metric |>
+      str_remove("^Total ") |>
+      str_replace_all(c("Prevailing Quota Premium" = "pqp",      # must come before "Quota Premium"
+                        "Quota Premium"            = "premium",
+                        "Successful Bids"          = "bids_success",
+                        "Bids Received"            = "bids_received",
+                        "^Quota$"                  = "quota")),
+    suspended = month %in% SUSPENDED
+  ) |>
+  select(month, category, bidding_no, metric, value, suspended) |>
+  pivot_wider(names_from = metric, values_from = value) |>
+  add_regime() |>
+  arrange(month, bidding_no, category)
+
+write_rds(singstat_coe, paste0(out, "singstat_coe.rds"))
+
+# =============================================================================
+# 4-6. SingStat registrations / deregistrations / population,
+#      May 1990 to Aug 2026, by VQS category
+# =============================================================================
+registrations <- read_singstat_wide("datagov/new_registrations_vqs_monthly.csv", "registrations") |>
+  mutate(category = singstat_category(series)) |>
+  select(month, category, registrations)
+
+deregistrations <- read_singstat_wide("datagov/deregistrations_vqs_monthly.csv", "deregistrations") |>
+  mutate(category = singstat_category(series)) |>
+  select(month, category, deregistrations)
+
+population <- read_singstat_wide("datagov/population_vqs_monthly.csv", "population") |>
+  mutate(category = singstat_category(series)) |>
+  select(month, category, population)
+
+# One monthly stock-and-flow table per category: the backbone of the cohort model
+vehicle_flows <- registrations |>
+  full_join(deregistrations, by = c("month", "category")) |>
+  full_join(population,      by = c("month", "category")) |>
+  filter(!category %in% c("C_not_ETS", "C_ETS")) |>   # keep the C total only
+  add_regime() |>
+  arrange(category, month)
+
+# Sanity check: does registrations - deregistrations track the change in stock?
+flow_check <- vehicle_flows |>
+  group_by(category) |>
+  mutate(implied_change = registrations - deregistrations,
+         actual_change  = population - lag(population),
+         residual       = actual_change - implied_change) |>
+  ungroup()
+
+write_rds(vehicle_flows, paste0(out, "vehicle_flows.rds"))
+write_rds(flow_check,    paste0(audit, "vehicle_flow_check.rds"))
+
+# =============================================================================
+# 7. M05-Dereg_by_Quota.csv  -- LTA deregistrations by quota category,
+#    Jan 2014 to Aug 2026. Second, independent source for the same quantity.
+# =============================================================================
+dereg_lta <- read_lta_long("datamall/M05-Dereg_by_Quota.csv") |>
+  rename(deregistrations_lta = number) |>
+  mutate(category = case_when(
+    str_detect(category, "Category") ~ str_remove(category, "Category "),
+    category == "Taxis"              ~ "Taxi",
+    TRUE                             ~ "Exempt"
+  ))
+
+# Reconcile LTA against SingStat for the overlapping months
+dereg_reconcile <- dereg_lta |>
+  inner_join(deregistrations, by = c("month", "category")) |>
+  mutate(diff = deregistrations_lta - deregistrations,
+         pct_diff = diff / deregistrations)
+
+write_rds(dereg_lta,       paste0(out, "dereg_lta.rds"))
+write_rds(dereg_reconcile, paste0(audit, "dereg_reconcile.rds"))
+
+# =============================================================================
+# 8. M01-03M-Age.csv  -- vehicle population by type and age band,
+#    Jan 2016 to Aug 2026. Input to the survival curves.
+# =============================================================================
+pop_by_age <- read_lta_long("datamall/M01-03M-Age.csv") |>
+  rename(vehicle_type = type, population = number) |>
+  mutate(
+    # Label changed in Aug 2023 from "20 and above" to "20 & above": unify it
+    age = str_replace(age, "20 & above", "20 and above"),
+    age_lower = parse_number(age),                      # "9 - < 10" -> 9
+    age_upper = if_else(str_detect(age, "above"), NA_real_, age_lower + 1),
+    # DataMall types are not COE categories; map as closely as possible
+    coe_group = case_when(
+      vehicle_type == "Cars"                      ~ "A+B",
+      vehicle_type == "Motorcycles"               ~ "D",
+      vehicle_type %in% c("Buses",
+                          "Goods and Other Vehicles") ~ "C",
+      TRUE                                        ~ vehicle_type
+    )
+  ) |>
+  arrange(month, vehicle_type, age_lower)
+
+stopifnot(n_distinct(pop_by_age$age) == 21)
+write_rds(pop_by_age, paste0(out, "pop_by_age.rds"))
+
+# =============================================================================
+# 9. M10-Monthly_COE_Revalidation.csv  -- COE renewals (5-yr and 10-yr),
+#    Jan 2015 to Jul 2026. This is the renewal side of the feedback loop.
+# =============================================================================
+revalidation <- read_lta_long("datamall/M10-Monthly_COE_Revalidation.csv") |>
+  rename(revalidations = number) |>
+  mutate(category     = str_remove(category, "Category "),
+         tenure_years = parse_number(type)) |>
+  select(month, category, tenure_years, revalidations)
+
+# Monthly renew-vs-scrap table: the quantity the feedback model regresses on PQP
+renewal_rate <- revalidation |>
+  group_by(month, category) |>
+  summarise(revalidations = sum(revalidations), .groups = "drop") |>
+  inner_join(dereg_lta, by = c("month", "category")) |>
+  inner_join(pqp,       by = c("month", "category")) |>
+  mutate(coes_expiring = revalidations + deregistrations_lta,
+         renewal_rate  = revalidations / coes_expiring) |>
+  select(month, category, revalidations, deregistrations_lta,
+         coes_expiring, renewal_rate, pqp, cat_regime)
+
+write_rds(revalidation, paste0(out, "revalidation.rds"))
+write_rds(renewal_rate, paste0(out, "renewal_rate.rds"))
+
+# =============================================================================
+# 10. M032-Car_Cost_Update.xlsx  -- LTA's monthly Car Cost Update: per-model
+#     average OMV, tiered ARF, VES/EEAI, COE premium and dealer prices.
+#     One sheet named after the month ("Aug 2026"); 3 header rows; 22 columns;
+#     footnotes below the data whose column A also holds small integers.
+#     Missing values: engine_cc "" for EVs; dealer prices 0 when no quote;
+#     the difference columns "-" in the same cases.
+# =============================================================================
+xlsx_path <- paste0(raw, "datamall/M032-Car_Cost_Update.xlsx")
+stopifnot("Put M032-Car_Cost_Update.xlsx in data-raw/" = file.exists(xlsx_path))
+
+# -----------------------------------------------------------------------------
+# 10a. Read: skip the 3 header rows and name the 22 columns ourselves
+# -----------------------------------------------------------------------------
+car_cost_cols <- c(
+  "sn", "make", "model", "coe_category", "engine_cc", "max_power_kw",
+  "fuel_code", "co2_gkm", "ves_band", "omv_avg", "gst_excise", "arf_tiered",
+  "ves_amount", "eeai_amount", "regn_fee", "coe_premium",
+  "basic_cost_ex_coe", "basic_cost_incl_coe",
+  "dealer_price_ex_coe", "dealer_price_incl_coe",
+  "diff_ex_coe", "diff_incl_coe"
+)
+
+sheet_name <- excel_sheets(xlsx_path)[1]            # "Aug 2026"
+cost_month <- my(sheet_name)                        # -> 2026-08-01
+stopifnot(!is.na(cost_month))
+
+raw_tbl <- read_excel(xlsx_path, sheet = 1, skip = 3,
+                      col_names = car_cost_cols, col_types = "text")
+
+# -----------------------------------------------------------------------------
+# 10b. Keep only model rows: a make, a model and a COE category of A or B.
+#    This drops the blank row, "Note:" and every footnote.
+# -----------------------------------------------------------------------------
+car_cost <- raw_tbl |>
+  filter(!is.na(make), !is.na(model), coe_category %in% c("A", "B")) |>
+  mutate(
+    # numbers: "" and "-" become NA; readxl may have written floats like "7409.864"
+    across(c(sn, engine_cc, max_power_kw, co2_gkm, omv_avg:diff_incl_coe),
+           ~ parse_number(.x, na = c("", "-", "NA"))),
+    # dealer price 0 means "no quote supplied", not a free car
+    across(c(dealer_price_ex_coe, dealer_price_incl_coe),
+           ~ na_if(.x, 0)),
+    # LTA rounds each line to the dollar 
+    across(c(gst_excise, basic_cost_ex_coe, basic_cost_incl_coe,
+             diff_ex_coe, diff_incl_coe), round),
+    sn = as.integer(sn),
+    fuel_type = recode_values(fuel_code,
+      "P" ~ "Petrol",             "H" ~ "Petrol-Electric",
+      "R" ~ "Petrol-Electric Plug-In", "B" ~ "Petrol-CNG",
+      "C" ~ "CNG",                "E" ~ "Electric",
+      "Y" ~ "Diesel-Electric",    "Q" ~ "Diesel-Electric Plug-In",
+      default = fuel_code),
+    is_ev      = fuel_code == "E",
+    make       = str_squish(make),
+    model      = str_squish(model),
+    cost_month = cost_month
+  ) |>
+  relocate(cost_month) |>
+  arrange(sn)
+
+# Sanity checks on shape and content
+stopifnot(
+  nrow(car_cost) > 100,
+  all(diff(car_cost$sn) == 1),                        # no row lost or duplicated
+  all(car_cost$regn_fee == 350),
+  all(is.na(car_cost$engine_cc[car_cost$is_ev])),     # EVs have no cc
+  all(!is.na(car_cost$engine_cc[!car_cost$is_ev]))
+)
+message(nrow(car_cost), " models for ", format(cost_month, "%b %Y"),
+        " (", sum(car_cost$is_ev), " EVs, ",
+        sum(!is.na(car_cost$dealer_price_incl_coe)), " with a dealer price)")
+
+# -----------------------------------------------------------------------------
+# 10c. Reproduce LTA's arithmetic. If this passes, the cost model in the app
+#    can be trusted; if it fails, a tier or rate has changed.
+# -----------------------------------------------------------------------------
+arf_tiers <- tibble(lower = c(0, 20000, 40000, 60000, 80000),
+                    upper = c(20000, 40000, 60000, 80000, Inf),
+                    rate  = c(1.00, 1.40, 1.90, 2.50, 3.20))
+
+arf_payable <- function(omv) {
+  vapply(omv, function(v) sum(pmax(0, pmin(v, arf_tiers$upper) - arf_tiers$lower) * arf_tiers$rate),
+         numeric(1))
+}
+gst_excise_calc <- function(omv) 0.20 * omv + 0.09 * omv * 1.20   # excise, then 9% GST on OMV + excise
+
+check <- car_cost |>
+  mutate(
+    arf_err   = arf_payable(omv_avg) - arf_tiered,
+    duty_err  = round(gst_excise_calc(omv_avg)) - gst_excise,
+    total_err = (omv_avg + gst_excise + arf_tiered + ves_amount + eeai_amount +
+                 regn_fee + coe_premium) - basic_cost_incl_coe
+  )
+bad <- check |> filter(abs(arf_err) > 2 | abs(duty_err) > 2 | abs(total_err) > 2)
+if (nrow(bad) == 0) {
+  message("Cost build-up reproduces LTA's figures for every model.")
+} else {
+  warning(nrow(bad), " models disagree with LTA by more than $2; inspect `bad`.")
+  print(select(bad, make, model, omv_avg, arf_err, duty_err, total_err))
+}
+
+# -----------------------------------------------------------------------------
+# 10d. Cross-check the COE premium in the workbook against coe_results
+#    (the workbook uses the month's 1st bidding exercise)
+# -----------------------------------------------------------------------------
+coe_check <- car_cost |>
+  distinct(coe_category, coe_premium_workbook = coe_premium) |>
+  left_join(
+    coe_results |>
+      filter(month == cost_month, bidding_no == 1, category %in% c("A", "B")) |>
+      select(coe_category = category, premium_m11 = premium),
+    by = "coe_category"
+  )
+print(coe_check)
+stopifnot(all(coe_check$coe_premium_workbook == coe_check$premium_m11, na.rm = TRUE))
+
+# -----------------------------------------------------------------------------
+# 10e. Save: this month's table, a running archive, and the per-category
+#    OMV summary the exposure calculator uses
+# -----------------------------------------------------------------------------
+write_rds(car_cost, paste0(out, "car_cost_", format(cost_month, "%Y_%m"), ".rds"))
+
+archive_path <- paste0(out, "car_cost_archive.rds")
+archive <- if (file.exists(archive_path)) read_rds(archive_path) else car_cost[0, ]
+archive <- bind_rows(filter(archive, cost_month != !!cost_month), car_cost) |>
+  arrange(cost_month, sn)
+write_rds(archive, archive_path)
+
+omv_by_category <- car_cost |>
+  group_by(cost_month, coe_category) |>
+  summarise(
+    n_models    = n(),
+    share_ev    = mean(is_ev),
+    omv_median  = median(omv_avg),
+    omv_p25     = quantile(omv_avg, 0.25),
+    omv_p75     = quantile(omv_avg, 0.75),
+    arf_median  = median(arf_tiered),
+    coe_premium = first(coe_premium),
+    # how much of a typical car's upfront cost is the COE
+    coe_share_of_cost = median(coe_premium / basic_cost_incl_coe),
+    .groups = "drop"
+  )
+write_rds(omv_by_category, paste0(out, "omv_by_category.rds"))
+print(omv_by_category)
+
+
+# =============================================================================
+# Data-quality log: what came in, what went out
+# =============================================================================
+dq <- bind_rows(
+  tibble(table = "coe_results",   rows = nrow(coe_results),   from = min(coe_results$month),   to = max(coe_results$month)),
+  tibble(table = "pqp",           rows = nrow(pqp),           from = min(pqp$month),           to = max(pqp$month)),
+  tibble(table = "singstat_coe",  rows = nrow(singstat_coe),  from = min(singstat_coe$month),  to = max(singstat_coe$month)),
+  tibble(table = "vehicle_flows", rows = nrow(vehicle_flows), from = min(vehicle_flows$month), to = max(vehicle_flows$month)),
+  tibble(table = "dereg_lta",     rows = nrow(dereg_lta),     from = min(dereg_lta$month),     to = max(dereg_lta$month)),
+  tibble(table = "pop_by_age",    rows = nrow(pop_by_age),    from = min(pop_by_age$month),    to = max(pop_by_age$month)),
+  tibble(table = "revalidation",  rows = nrow(revalidation),  from = min(revalidation$month),  to = max(revalidation$month)),
+  tibble(table = "car_cost",      rows = nrow(car_cost),      from = min(car_cost$cost_month),  to = max(car_cost$cost_month))
+)
+print(dq)
+write_csv(dq, paste0(audit, "data_quality_log.csv"))
+
+message("Done. Clean tables written to ", normalizePath(out))
