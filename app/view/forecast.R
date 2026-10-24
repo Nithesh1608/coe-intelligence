@@ -1,5 +1,5 @@
 box::use(
-  shiny[NS, moduleServer, div, tags, selectInput, renderUI, uiOutput],
+  shiny[NS, moduleServer, div, tags, selectInput, renderUI, uiOutput, renderText],
   bslib[layout_columns, card, card_header, card_body],
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
@@ -11,7 +11,11 @@ fmt_int <- function(x) {
   format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE)
 }
 
-#' Results: dereg track record + quota (published + outlook)
+fmt_pct <- function(x) {
+  sprintf("%.0f%%", 100 * as.numeric(x))
+}
+
+#' Results: dereg track record + calibrated quota outlook
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -22,8 +26,8 @@ ui <- function(id) {
     tags$p(
       class = "lede lede--wide",
       "Held-out months from September 2024. Official deregistrations versus our forecast ",
-      "and a trailing-average baseline. Quota below shows what LTA actually released to the market ",
-      "alongside our mechanical supply outlook from exits."
+      "and a trailing-average baseline. Quota below compares what LTA actually released ",
+      "to an exit-driven outlook scaled to tender size."
     ),
     selectInput(
       ns("cat"),
@@ -47,27 +51,51 @@ ui <- function(id) {
     ),
     tags$hr(class = "desk-rule"),
     tags$p(class = "eyebrow", "Quota"),
-    tags$h2("What was released vs our supply outlook"),
+    tags$h2("Published tender quota vs our outlook"),
     tags$p(
       class = "lede lede--wide",
-      "White = certificates LTA put up for bidding that month (sum of exercises). ",
-      "Green = our monthly supply outlook from predicted exits. ",
-      "Grey dashed = the same outlook using actual exits — so you can see forecast error separately from policy."
+      "White = certificates LTA put up for bidding that month. ",
+      "Green = our outlook: predicted exits, mapped to monthly tender scale. ",
+      "Grey dashed = the same map using actual exits (isolates exit-forecast error from the quota link)."
+    ),
+    div(
+      class = "nx-metrics",
+      div(
+        class = "nx-metric",
+        tags$span(class = "nx-kicker", "Typical miss vs published"),
+        div(class = "nx-num", shiny::textOutput(ns("kpi_mape"), inline = TRUE)),
+        tags$span(class = "nx-hint", "Calibrated outlook · held-out months")
+      ),
+      div(
+        class = "nx-metric",
+        tags$span(class = "nx-kicker", "How the link is built"),
+        div(class = "nx-num nx-num--sm", "Exits → tender scale"),
+        tags$span(class = "nx-hint", shiny::textOutput(ns("kpi_alpha"), inline = TRUE))
+      ),
+      div(
+        class = "nx-metric",
+        tags$span(class = "nx-kicker", "What we do not claim"),
+        div(class = "nx-num nx-num--sm", "Not LTA’s internal rule"),
+        tags$span(class = "nx-hint", "Policy injections can still move the print")
+      ),
+      div(
+        class = "nx-metric",
+        tags$span(class = "nx-kicker", "Why not raw 25%?"),
+        div(class = "nx-num nx-num--sm", "Wrong scale for monthly"),
+        tags$span(class = "nx-hint", "Textbook identity ≠ fortnightly release")
+      )
     ),
     div(
       class = "formula-card",
-      tags$p(
-        class = "formula-label",
-        "Mechanical rule (then shown as a monthly rate)"
-      ),
-      tags$code("A/B annual ≈ 0.90 × 0.25 × trailing 12-month exits   →   monthly ≈ annual ÷ 12")
+      tags$p(class = "formula-label", "Exit-driven monthly outlook"),
+      tags$code("monthly quota outlook ≈ α × trailing 12-month exits   (α fit on history through Aug 2024)")
     ),
     layout_columns(
       col_widths = c(12),
       card(
         class = "desk-card",
         full_screen = TRUE,
-        card_header("Monthly quota — published tender vs outlook"),
+        card_header("Monthly quota — published vs calibrated outlook"),
         card_body(
           class = "chart-frame chart-frame--tall",
           echarts4rOutput(ns("quota_chart"), height = "400px")
@@ -76,8 +104,9 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "Published quota is the official release. The outlook is the replacement identity from exits; ",
-      "LTA can still inject, reallocate, or time supply differently — the gap is informative, not a bug."
+      "The raw “25% of annual exits” rule is an annual replacement identity. ",
+      "Monthly tender quotas sit on a different scale, so we calibrate α on pre-test history ",
+      "and keep exits as the driver. That is the product-honest way to show both series together."
     )
   )
 }
@@ -122,6 +151,22 @@ server <- function(id, store) {
       div(class = "ex-grid", cards)
     })
 
+    output$kpi_mape <- renderText({
+      sc <- store$quota_scores
+      if (is.null(sc)) return("—")
+      row <- sc[sc$category == input$cat, ]
+      if (!nrow(row)) return("—")
+      fmt_pct(row$MAPE[[1]])
+    })
+
+    output$kpi_alpha <- renderText({
+      a <- store$quota_alpha
+      if (is.null(a)) return("—")
+      row <- a[a$category == input$cat, ]
+      if (!nrow(row)) return("—")
+      sprintf("α = %.3f for Cat %s", row$alpha[[1]], input$cat)
+    })
+
     output$dereg_chart <- renderEcharts4r({
       dm <- store$dereg_monthly
       cat <- input$cat
@@ -138,17 +183,16 @@ server <- function(id, store) {
     })
 
     output$quota_chart <- renderEcharts4r({
-      q <- store$quota_test
+      q <- store$quota_outlook
+      if (is.null(q)) return(NULL)
       cat <- input$cat
-      primary <- store$meta$primary_model
-      one <- q[q$category == cat & q$model == primary, ]
+      one <- q[q$category == cat, ]
       one <- one[order(one$month), ]
-      # Formula series are annual replacement; convert to monthly for scale with published
       df <- data.frame(
         month = one$month,
-        published = one$quota_published,
-        from_pred = one$quota_from_pred_exits / 12,
-        from_actual = one$quota_from_actual_exits / 12,
+        published = one$published,
+        from_pred = one$outlook_from_forecast,
+        from_actual = one$outlook_from_actual_exits,
         stringsAsFactors = FALSE
       )
       quota_compare_chart(df)

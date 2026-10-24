@@ -101,9 +101,11 @@ ui <- function(id) {
     tags$h3(class = "section-title", "Quota layer"),
     tags$p(
       class = "lede lede--wide",
-      "After exits are forecast, we apply the mechanical replacement rule ",
-      "(about 25% of trailing twelve-month exits; A/B retain 90%, 10% feeds Category E). ",
-      "Published tender quotas can still differ when LTA adjusts for policy — the Forecast tab shows both."
+      "Exits drive quota. The textbook “25% of annual exits” rule is an annual replacement identity — ",
+      "it does not sit on the same scale as monthly tender releases. ",
+      "We therefore map trailing twelve-month exits to monthly published quota with a category factor α ",
+      "fit only on history through August 2024, then apply that map to predicted exits. ",
+      "The Forecast tab shows published certificates beside that calibrated outlook."
     )
   )
 }

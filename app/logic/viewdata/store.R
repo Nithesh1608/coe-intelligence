@@ -82,6 +82,9 @@ load_store <- function(root = project_root()) {
   dereg_examples <- read_csv_safe(file.path(exp, "dereg_first_page_examples.csv"))
   dereg_rollup <- read_csv_safe(file.path(exp, "dereg_actual_vs_predicted_rollup.csv"))
   quota_test <- read_csv_safe(file.path(exp, "level2_quota_test.csv"))
+  quota_outlook <- read_csv_safe(file.path(exp, "quota_outlook_calibrated.csv"))
+  quota_alpha <- read_csv_safe(file.path(exp, "quota_calibration_alpha.csv"))
+  quota_scores <- read_csv_safe(file.path(exp, "quota_outlook_scores.csv"))
   selection <- read_csv_safe(file.path(exp, "selection_summary.csv"))
   shortlist <- read_csv_safe(file.path(exp, "models_beat_baseline_both_categories.csv"))
   lasso_feat <- read_csv_safe(file.path(exp, "lasso_selected_features.csv"))
@@ -102,6 +105,9 @@ load_store <- function(root = project_root()) {
     dereg_examples = dereg_examples,
     dereg_rollup = dereg_rollup,
     quota_test = quota_test,
+    quota_outlook = quota_outlook,
+    quota_alpha = quota_alpha,
+    quota_scores = quota_scores,
     selection = selection,
     shortlist = shortlist,
     lasso_feat = lasso_feat,
