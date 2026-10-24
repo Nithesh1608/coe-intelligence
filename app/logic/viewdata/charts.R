@@ -63,10 +63,9 @@ fan_chart <- function(hist, fwd) {
     e_datazoom(type = "inside")
 }
 
-#' Actual vs model vs baseline for dereg (audience chart)
+#' Actual vs model vs baseline for dereg
 #' @export
 actual_vs_pred_chart <- function(df) {
-  # expects columns: month, actual, model, baseline
   plot_df <- df
   plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
   plot_df |>
@@ -75,25 +74,28 @@ actual_vs_pred_chart <- function(df) {
            lineStyle = list(width = 2.5)) |>
     e_line(model, name = "Our forecast", symbol = "none",
            lineStyle = list(width = 2, type = "solid")) |>
-    e_line(baseline, name = "Old baseline", symbol = "none",
+    e_line(baseline, name = "Trailing-average baseline", symbol = "none",
            lineStyle = list(width = 1.5, type = "dashed", opacity = 0.75)) |>
     e_color(c("#fafafa", "#ff5c1a", "#737373")) |>
     style_chart() |>
     e_datazoom(type = "inside")
 }
 
-#' Quota: formula from predicted exits vs formula from actual exits
+#' Quota: published tender + formula outlook (monthly scale)
+#' expects: month, published, from_pred, from_actual
 #' @export
 quota_compare_chart <- function(df) {
   plot_df <- df
   plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
   plot_df |>
     e_charts(month) |>
-    e_line(from_actual, name = "Quota if exits known", symbol = "none",
-           lineStyle = list(width = 2.2)) |>
-    e_line(from_pred, name = "Quota from our exit forecast", symbol = "none",
+    e_line(published, name = "Published tender quota", symbol = "circle",
+           symbolSize = 5, lineStyle = list(width = 2.5)) |>
+    e_line(from_pred, name = "Our supply outlook", symbol = "none",
            lineStyle = list(width = 2)) |>
-    e_color(c("#fafafa", "#c8f542")) |>
+    e_line(from_actual, name = "Outlook if exits known", symbol = "none",
+           lineStyle = list(width = 1.5, type = "dashed", opacity = 0.8)) |>
+    e_color(c("#fafafa", "#c8f542", "#737373")) |>
     style_chart() |>
     e_datazoom(type = "inside")
 }
@@ -112,23 +114,24 @@ spread_chart <- function(df) {
 }
 
 #' @export
-bar_chart <- function(df, x, y) {
+bar_chart <- function(df, x, y, name = NULL) {
   plot_df <- df[, c(x, y), drop = FALSE]
   names(plot_df) <- c("x", "value")
+  nm <- if (is.null(name)) y else name
   plot_df |>
     e_charts(x) |>
-    e_bar(value, name = y, itemStyle = list(color = "#ff5c1a")) |>
+    e_bar(value, name = nm, itemStyle = list(color = "#ff5c1a")) |>
     style_chart()
 }
 
-#' Side-by-side grouped bars for example months
+#' Grouped cost bars: base vs stressed
 #' @export
-example_bars_chart <- function(df) {
-  # long: label, series, value
+exposure_bars_chart <- function(df) {
+  # columns: quarter, at_last_print, with_stress
   df |>
-    e_charts(label) |>
-    e_bar(actual, name = "Actual", stack = NULL) |>
-    e_bar(forecast, name = "Forecast") |>
-    e_color(c("#fafafa", "#ff5c1a")) |>
+    e_charts(quarter) |>
+    e_bar(at_last_print, name = "At last print") |>
+    e_bar(with_stress, name = "With your stress") |>
+    e_color(c("#a3a3a3", "#ff5c1a")) |>
     style_chart()
 }

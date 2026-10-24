@@ -3,105 +3,107 @@ box::use(
   bslib[layout_columns, card, card_header, card_body],
 )
 
-#' Technical ideas in plain language
+#' How the supply engine works — product tone
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk",
-    tags$p(class = "eyebrow", "Method · simple words"),
-    tags$h2("What we tried, and what we kept"),
+    tags$p(class = "eyebrow", "Method"),
+    tags$h2("How the supply engine works"),
     tags$p(
       class = "lede lede--wide",
-      "This page is for markers and curious dealers. Same story as Forecast, with the names of the tools."
+      "We estimate how many Category A and B cars leave the fleet each month, ",
+      "then translate those exits into replacement quota using LTA’s published identity. ",
+      "Everything below is designed to be auditable by a dealer ops or finance lead."
     ),
     layout_columns(
       col_widths = c(4, 4, 4),
       card(
         class = "desk-card gloss",
-        card_header("Target"),
+        card_header("What we forecast"),
         card_body(
           tags$p(tags$strong("Monthly deregistrations"), " for Cat A and Cat B."),
-          tags$p("How many cars in that category leave the fleet that month.")
+          tags$p("The flow that largely determines how many new COEs come back.")
         )
       ),
       card(
         class = "desk-card gloss",
-        card_header("Baseline"),
+        card_header("What we compare against"),
         card_body(
-          tags$p(tags$strong("Trailing 12-month average."), " Next month ≈ average of the last year."),
-          tags$p("Simple. Often used in practice. Our model has to beat it.")
+          tags$p(tags$strong("Trailing twelve-month average"), " of exits."),
+          tags$p("A practical rule of thumb. The production model must beat it on held-out months.")
         )
       ),
       card(
         class = "desk-card gloss",
-        card_header("Train / test"),
+        card_header("Validation window"),
         card_body(
-          tags$p(tags$strong("Train"), " on data up to Aug 2024."),
-          tags$p(tags$strong("Test"), " only Sep 2024 onward — never used to pick the model.")
+          tags$p(tags$strong("Fit"), " on history through August 2024."),
+          tags$p(tags$strong("Score"), " only on September 2024 onward — unused when choosing the model.")
         )
       )
     ),
-    tags$h3(class = "section-title", "Features we feed the model"),
+    tags$h3(class = "section-title", "Signals used (known before the month)"),
     tags$p(
       class = "lede lede--wide",
-      "Only things known before the month starts — no peeking at the answer."
+      "No look-ahead. Each input is observable from the official series before the month opens."
     ),
     div(
       class = "feat-grid",
-      div(class = "feat-chip", tags$strong("due10"), " Cars about to hit the 10-year COE expiry."),
-      div(class = "feat-chip", tags$strong("due15 / due_near"), " Later expiry cohorts + near-term due stock."),
-      div(class = "feat-chip", tags$strong("recent12 / lags"), " Recent exit history (last year, last few months)."),
-      div(class = "feat-chip", tags$strong("reval5 lags"), " 5-year renewals — high renewals delay exits."),
-      div(class = "feat-chip", tags$strong("lpqp"), " Prevailing Quota Premium — renewal feedback cue."),
-      div(class = "feat-chip", tags$strong("post_2022"), " Flag after May 2022 A/B EV-power redefinition.")
+      div(class = "feat-chip", tags$strong("10-year due stock"), " Vehicles approaching first COE expiry."),
+      div(class = "feat-chip", tags$strong("Near-term due stock"), " Later expiries and near-window cohorts."),
+      div(class = "feat-chip", tags$strong("Recent exits"), " Last year and short lags of deregistrations."),
+      div(class = "feat-chip", tags$strong("5-year renewals"), " Revalidations that push exits later."),
+      div(class = "feat-chip", tags$strong("Prevailing Quota Premium"), " Price level linked to renewal behaviour."),
+      div(class = "feat-chip", tags$strong("Post-May 2022 regime"), " A/B redefinition around EV power.")
     ),
-    tags$h3(class = "section-title", "Models we compared"),
+    tags$h3(class = "section-title", "Model family"),
     div(
       class = "model-grid",
       div(
         class = "model-card",
-        tags$h4("Ridge / Lasso / Elastic net"),
+        tags$h4("Regularised regression"),
         tags$p(
-          "Modern regularised regression. They shrink noisy coefficients so a small monthly ",
-          "dataset does not overfit. Elastic net mixes ridge and lasso — our primary pick."
+          "Ridge, lasso, and elastic net. Shrinkage keeps the fit stable when predictors move together. ",
+          "Elastic net is the production choice."
         )
       ),
       div(
         class = "model-card",
-        tags$h4("OLS (due / lean / full)"),
+        tags$h4("Linear benchmarks"),
         tags$p(
-          "Ordinary linear regression with different feature sets. ",
-          "Full set overfit; due-stock version stayed honest and made the shortlist."
+          "Ordinary least squares with lean and due-stock feature sets. ",
+          "A compact due-stock specification remains on the shortlist."
         )
       ),
       div(
         class = "model-card",
-        tags$h4("GAM + seasonal naive"),
+        tags$h4("Reference checks"),
         tags$p(
-          "Smooth curves on due stock, and “same month last year.” ",
-          "Useful checks — not the winners on the locked test."
+          "Seasonal carry-forward and a smooth due-stock curve. ",
+          "Useful diagnostics; not selected for production."
         )
       )
     ),
-    tags$h3(class = "section-title", "Cross-validation (in one sentence)"),
+    tags$h3(class = "section-title", "How we validate"),
     tags$p(
       class = "lede lede--wide",
-      "Inside the train window we walk forward in time: train on the past, predict the next six months, ",
-      "repeat. That picks stable models before we ever touch 2024–26."
+      "Inside the fit window we roll forward in time: train on the past, score the next six months, repeat. ",
+      "Only after that do we evaluate September 2024–August 2026 once."
     ),
-    tags$h3(class = "section-title", "Shortlist that beat the baseline on both A and B"),
+    tags$h3(class = "section-title", "Production shortlist"),
+    tags$p(
+      class = "lede lede--wide",
+      "Models that beat the trailing-average baseline on both Category A and B in the held-out window."
+    ),
     uiOutput(ns("shortlist")),
-    tags$h3(class = "section-title", "Why training looked “fast”"),
+    tags$h3(class = "section-title", "Quota layer"),
     tags$p(
       class = "lede lede--wide",
-      "We have a few hundred monthly rows and about a dozen features. ",
-      "These are linear models with shrinkage — not image neural nets. ",
-      "Seconds on a laptop is normal and correct for this problem size."
-    ),
-    tags$p(
-      class = "footnote",
-      "Artifacts live in data/processed/model_experiment/. Re-run: Rscript scripts/run_model_experiment.R"
+      "After exits are forecast, we apply the mechanical replacement rule ",
+      "(about 25% of trailing twelve-month exits; A/B retain 90%, 10% feeds Category E). ",
+      "Published tender quotas can still differ when LTA adjusts for policy — the Forecast tab shows both."
     )
   )
 }
@@ -112,19 +114,32 @@ server <- function(id, store) {
     output$shortlist <- renderUI({
       sl <- store$shortlist
       if (is.null(sl) || !nrow(sl)) {
-        return(tags$p("Shortlist not loaded — run the experiment script."))
+        return(tags$p(class = "footnote", "Shortlist unavailable."))
       }
-      tiles <- lapply(seq_len(nrow(sl)), function(i) {
-        row <- sl[i, ]
+      # Keep primary + top two others for a product feel
+      show <- utils::head(sl, 3)
+      tiles <- lapply(seq_len(nrow(show)), function(i) {
+        row <- show[i, ]
+        label <- switch(
+          as.character(row$model),
+          elastic_net = "Elastic net",
+          ols_due = "Due-stock linear",
+          lasso = "Lasso",
+          gam_due = "Smooth due-stock",
+          ridge = "Ridge",
+          ols_lean = "Lean linear",
+          as.character(row$model)
+        )
         div(
           class = paste("short-tile", if (i == 1) "short-tile--primary"),
-          tags$span(class = "nx-kicker", if (i == 1) "Primary" else "Shortlist"),
-          tags$p(class = "short-name", row$model),
+          tags$span(class = "nx-kicker", if (i == 1) "Production" else "Reserve"),
+          tags$p(class = "short-name", label),
           tags$p(
             class = "short-meta",
             sprintf(
-              "Avg miss ~%.0f cars/mo (A %.0f · B %.0f)",
-              row$MAE_mean, row$A, row$B
+              "Typical monthly miss · A %s · B %s",
+              format(round(row$A), big.mark = ","),
+              format(round(row$B), big.mark = ",")
             )
           )
         )

@@ -1,5 +1,5 @@
 box::use(
-  shiny[NS, moduleServer, div, tags, selectInput, renderUI, uiOutput, reactive],
+  shiny[NS, moduleServer, div, tags, selectInput, renderUI, uiOutput],
   bslib[layout_columns, card, card_header, card_body],
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
@@ -11,18 +11,19 @@ fmt_int <- function(x) {
   format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE)
 }
 
-#' Simple showcase: dereg examples + quota from formula
+#' Results: dereg track record + quota (published + outlook)
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk",
-    tags$p(class = "eyebrow", "Results · plain numbers"),
-    tags$h2("Did the forecast match real exits?"),
+    tags$p(class = "eyebrow", "Forecast"),
+    tags$h2("Exits first — then quota"),
     tags$p(
       class = "lede lede--wide",
-      "Same months. Official deregistrations versus our forecast and the old trailing-average baseline. ",
-      "No jargon on this page — Method explains the terms."
+      "Held-out months from September 2024. Official deregistrations versus our forecast ",
+      "and a trailing-average baseline. Quota below shows what LTA actually released to the market ",
+      "alongside our mechanical supply outlook from exits."
     ),
     selectInput(
       ns("cat"),
@@ -37,7 +38,7 @@ ui <- function(id) {
       card(
         class = "desk-card",
         full_screen = TRUE,
-        card_header("Full test window — exits"),
+        card_header("Deregistrations — held-out window"),
         card_body(
           class = "chart-frame chart-frame--tall",
           echarts4rOutput(ns("dereg_chart"), height = "400px")
@@ -45,24 +46,28 @@ ui <- function(id) {
       )
     ),
     tags$hr(class = "desk-rule"),
-    tags$p(class = "eyebrow", "Level 2 · quota"),
-    tags$h2("From exits to replacement quota"),
+    tags$p(class = "eyebrow", "Quota"),
+    tags$h2("What was released vs our supply outlook"),
     tags$p(
       class = "lede lede--wide",
-      "LTA’s mechanical idea: about a quarter of the last twelve months of exits comes back as ",
-      "new COE supply. Categories A and B keep 90% of that base; 10% feeds Category E. ",
-      "We plug our predicted exits into that formula and compare to plugging in the true exits."
+      "White = certificates LTA put up for bidding that month (sum of exercises). ",
+      "Green = our monthly supply outlook from predicted exits. ",
+      "Grey dashed = the same outlook using actual exits — so you can see forecast error separately from policy."
     ),
     div(
       class = "formula-card",
-      tags$code("A/B quota ≈ 0.90 × 0.25 × (sum of last 12 months of exits)")
+      tags$p(
+        class = "formula-label",
+        "Mechanical rule (then shown as a monthly rate)"
+      ),
+      tags$code("A/B annual ≈ 0.90 × 0.25 × trailing 12-month exits   →   monthly ≈ annual ÷ 12")
     ),
     layout_columns(
       col_widths = c(12),
       card(
         class = "desk-card",
         full_screen = TRUE,
-        card_header("Formula quota from our exits vs from actual exits"),
+        card_header("Monthly quota — published tender vs outlook"),
         card_body(
           class = "chart-frame chart-frame--tall",
           echarts4rOutput(ns("quota_chart"), height = "400px")
@@ -71,9 +76,8 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "Published tender quotas can differ from this formula (policy injections, taxis, timing). ",
-      "Here we judge whether bad exit forecasts spoil the quota identity — not whether LTA ",
-      "published the exact same number."
+      "Published quota is the official release. The outlook is the replacement identity from exits; ",
+      "LTA can still inject, reallocate, or time supply differently — the gap is informative, not a bug."
     )
   )
 }
@@ -93,8 +97,8 @@ server <- function(id, store) {
         a <- dm[dm$category == cat & dm$model == "elastic_net" & dm$month == m, ]
         b <- dm[dm$category == cat & dm$model == "historic_avg" & dm$month == m, ]
         if (!nrow(a)) return(NULL)
-        gap <- a$predicted[[1]] - a$actual[[1]]
-        better <- abs(gap) < abs(b$predicted[[1]] - b$actual[[1]])
+        better <- abs(a$predicted[[1]] - a$actual[[1]]) <
+          abs(b$predicted[[1]] - b$actual[[1]])
         div(
           class = paste("ex-tile", if (better) "ex-tile--win" else "ex-tile--miss"),
           tags$span(class = "ex-month", strftime(as.Date(m), "%b %Y")),
@@ -105,7 +109,7 @@ server <- function(id, store) {
           ),
           tags$div(
             class = "ex-row ex-row--accent",
-            tags$span("Our forecast"),
+            tags$span("Forecast"),
             tags$strong(fmt_int(a$predicted[[1]]))
           ),
           tags$div(
@@ -139,10 +143,12 @@ server <- function(id, store) {
       primary <- store$meta$primary_model
       one <- q[q$category == cat & q$model == primary, ]
       one <- one[order(one$month), ]
+      # Formula series are annual replacement; convert to monthly for scale with published
       df <- data.frame(
         month = one$month,
-        from_actual = one$quota_from_actual_exits,
-        from_pred = one$quota_from_pred_exits,
+        published = one$quota_published,
+        from_pred = one$quota_from_pred_exits / 12,
+        from_actual = one$quota_from_actual_exits / 12,
         stringsAsFactors = FALSE
       )
       quota_compare_chart(df)

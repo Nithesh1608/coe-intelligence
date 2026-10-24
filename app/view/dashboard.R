@@ -36,10 +36,10 @@ ui <- function(id) {
       ),
       div(
         class = "desk-hero__status",
-        tags$span(class = "status-pill status-pill--live", "Model live"),
-        tags$p(class = "status-label", "Primary engine"),
+        tags$span(class = "status-pill status-pill--live", "Production"),
+        tags$p(class = "status-label", "Supply engine"),
         tags$p(class = "status-value", shiny::textOutput(ns("primary_name"), inline = TRUE)),
-        tags$p(class = "status-note", "Trained ≤ Aug 2024 · Tested Sep 2024 → Aug 2026")
+        tags$p(class = "status-note", "Fit through Aug 2024 · held out Sep 2024 → Aug 2026")
       )
     ),
     div(
@@ -119,8 +119,9 @@ ui <- function(id) {
           ),
           tags$p(
             class = "footnote",
-            "Open ", tags$strong("Forecast"), " for month examples and the quota formula. ",
-            "Open ", tags$strong("Method"), " for plain-English tech. EDA comes later."
+            tags$strong("Forecast"), " — month-by-month track record and published quota. ",
+            tags$strong("Exposure"), " — size the COE short on a locked order book. ",
+            tags$strong("Method"), " — how the engine is built."
           )
         )
       )
