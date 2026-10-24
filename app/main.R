@@ -4,11 +4,12 @@ box::use(
 )
 box::use(
   app/logic/viewdata/store[load_store, project_root],
-  app/view/overview,
-  app/view/supply,
-  app/view/feedback,
-  app/view/category,
+  app/view/dashboard,
+  app/view/forecast,
+  app/view/method,
+  app/view/eda,
   app/view/exposure,
+  app/view/about,
 )
 
 read_asset <- function(rel) {
@@ -47,13 +48,14 @@ ui <- function(id) {
     fillable = FALSE,
     window_title = "COE Intelligence",
     header = inline_assets(),
-    nav_panel("Overview", overview$ui(ns("overview"))),
-    nav_panel("Supply", supply$ui(ns("supply"))),
-    nav_panel("Feedback", feedback$ui(ns("feedback"))),
-    nav_panel("Categories", category$ui(ns("category"))),
+    nav_panel("Desk", dashboard$ui(ns("dashboard"))),
+    nav_panel("Forecast", forecast$ui(ns("forecast"))),
+    nav_panel("Method", method$ui(ns("method"))),
+    nav_panel("EDA", eda$ui(ns("eda"))),
     nav_panel("Exposure", exposure$ui(ns("exposure"))),
+    nav_panel("About", about$ui(ns("about"))),
     nav_spacer(),
-    nav_item(tags$span(class = "badge-live", "Supply, not premiums"))
+    nav_item(tags$span(class = "badge-live", "Supply desk · not premiums"))
   )
 }
 
@@ -61,10 +63,11 @@ ui <- function(id) {
 server <- function(id) {
   moduleServer(id, function(input, output, session) {
     store <- load_store()
-    overview$server("overview", store)
-    supply$server("supply", store)
-    feedback$server("feedback", store)
-    category$server("category", store)
+    dashboard$server("dashboard", store)
+    forecast$server("forecast", store)
+    method$server("method", store)
+    eda$server("eda", store)
     exposure$server("exposure", store)
+    about$server("about", store)
   })
 }

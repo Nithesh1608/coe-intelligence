@@ -63,6 +63,41 @@ fan_chart <- function(hist, fwd) {
     e_datazoom(type = "inside")
 }
 
+#' Actual vs model vs baseline for dereg (audience chart)
+#' @export
+actual_vs_pred_chart <- function(df) {
+  # expects columns: month, actual, model, baseline
+  plot_df <- df
+  plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
+  plot_df |>
+    e_charts(month) |>
+    e_line(actual, name = "What happened", symbol = "circle", symbolSize = 6,
+           lineStyle = list(width = 2.5)) |>
+    e_line(model, name = "Our forecast", symbol = "none",
+           lineStyle = list(width = 2, type = "solid")) |>
+    e_line(baseline, name = "Old baseline", symbol = "none",
+           lineStyle = list(width = 1.5, type = "dashed", opacity = 0.75)) |>
+    e_color(c("#fafafa", "#ff5c1a", "#737373")) |>
+    style_chart() |>
+    e_datazoom(type = "inside")
+}
+
+#' Quota: formula from predicted exits vs formula from actual exits
+#' @export
+quota_compare_chart <- function(df) {
+  plot_df <- df
+  plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
+  plot_df |>
+    e_charts(month) |>
+    e_line(from_actual, name = "Quota if exits known", symbol = "none",
+           lineStyle = list(width = 2.2)) |>
+    e_line(from_pred, name = "Quota from our exit forecast", symbol = "none",
+           lineStyle = list(width = 2)) |>
+    e_color(c("#fafafa", "#c8f542")) |>
+    style_chart() |>
+    e_datazoom(type = "inside")
+}
+
 #' @export
 spread_chart <- function(df) {
   df$month <- format(as.Date(df$month), "%Y-%m")
@@ -83,5 +118,17 @@ bar_chart <- function(df, x, y) {
   plot_df |>
     e_charts(x) |>
     e_bar(value, name = y, itemStyle = list(color = "#ff5c1a")) |>
+    style_chart()
+}
+
+#' Side-by-side grouped bars for example months
+#' @export
+example_bars_chart <- function(df) {
+  # long: label, series, value
+  df |>
+    e_charts(label) |>
+    e_bar(actual, name = "Actual", stack = NULL) |>
+    e_bar(forecast, name = "Forecast") |>
+    e_color(c("#fafafa", "#ff5c1a")) |>
     style_chart()
 }
