@@ -12,43 +12,38 @@ ui <- function(id) {
     tags$h1("COE Intelligence"),
     tags$p(
       class = "lede lede--wide",
-      "Built for dealers, parallel importers, and fleet operators who buy Certificates of Entitlement ",
-      "continuously — not for a one-time retail bidder."
+      "Supply visibility for dealers and fleets who buy Certificates of Entitlement continuously — ",
+      "Category A and Category B — and carry exposure when they lock package prices."
     ),
     layout_columns(
       col_widths = c(6, 6),
       card(
         class = "desk-card",
-        card_header("Problem statement"),
+        card_header("Problem"),
         card_body(
           tags$p(
-            "Can COE supply be forecast far enough ahead, and with honest uncertainty, ",
-            "for a dealer or fleet operator to price and time real financial exposure?"
+            "Can COE supply be forecast far enough ahead, with honest uncertainty, ",
+            "to price and time real financial exposure?"
           )
         )
       ),
       card(
         class = "desk-card",
-        card_header("Question we answer"),
+        card_header("What we ship"),
         card_body(
-          tags$p("What is my COE cost exposure, and how do I time against it?")
+          tags$p(
+            "Category A and Category B supply forecasts, then Your risk — where predicted quota ",
+            "sets how hard to stress a locked order book. Not a premium tip. Not Category E."
+          )
         )
       )
     ),
-    layout_columns(
-      col_widths = c(3, 3, 3, 3),
-      div(class = "about-stat", tags$span(class = "nx-kicker", "1"), tags$p("Supply pipeline")),
-      div(class = "about-stat", tags$span(class = "nx-kicker", "2"), tags$p("Feedback")),
-      div(class = "about-stat", tags$span(class = "nx-kicker", "3"), tags$p("Categories")),
-      div(class = "about-stat", tags$span(class = "nx-kicker", "4"), tags$p("Exposure"))
-    ),
     div(
       class = "about-promise",
-      tags$h3("Scope and honesty"),
+      tags$h3("Honesty"),
       tags$p(
-        "We forecast ", tags$strong("supply"), ", which is largely mechanical, ",
-        "and we quantify ", tags$strong("exposure"), " under uncertainty. ",
-        "We do not claim to forecast premiums."
+        "We forecast ", tags$strong("supply"), " and quantify ", tags$strong("exposure"),
+        " under stress. We do not claim to forecast premiums."
       )
     )
   )

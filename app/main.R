@@ -6,8 +6,6 @@ box::use(
   app/logic/viewdata/store[load_store, project_root],
   app/view/dashboard,
   app/view/forecast,
-  app/view/feedback,
-  app/view/category,
   app/view/exposure,
   app/view/method,
   app/view/about,
@@ -50,16 +48,13 @@ ui <- function(id) {
     fillable = FALSE,
     window_title = "COE Intelligence",
     header = inline_assets(),
-    # Four proposal views first
-    nav_panel("Supply", dashboard$ui(ns("dashboard"))),
-    nav_panel("Feedback", feedback$ui(ns("feedback"))),
-    nav_panel("Categories", category$ui(ns("category"))),
-    nav_panel("Exposure", exposure$ui(ns("exposure"))),
-    nav_spacer(),
-    nav_panel("Backtest", forecast$ui(ns("forecast"))),
+    nav_panel("Home", dashboard$ui(ns("dashboard"))),
+    nav_panel("Results", forecast$ui(ns("forecast"))),
+    nav_panel("Your risk", exposure$ui(ns("exposure"))),
     nav_panel("How it works", method$ui(ns("method"))),
     nav_panel("About", about$ui(ns("about"))),
     nav_panel("EDA", eda$ui(ns("eda"))),
+    nav_spacer(),
     nav_item(tags$span(class = "badge-live", "Supply · not premiums"))
   )
 }
@@ -70,8 +65,6 @@ server <- function(id) {
     store <- load_store()
     dashboard$server("dashboard", store)
     forecast$server("forecast", store)
-    feedback$server("feedback", store)
-    category$server("category", store)
     exposure$server("exposure", store)
     method$server("method", store)
     about$server("about", store)

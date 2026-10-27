@@ -7,7 +7,7 @@ box::use(
   app/logic/viewdata/charts[quota_track_chart],
 )
 
-#' Proposal view 1 — Supply pipeline
+#' Home — supply forecast (unchanged model display)
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -17,12 +17,12 @@ ui <- function(id) {
       class = "desk-hero desk-hero--pitch",
       div(
         class = "desk-hero__copy",
-        tags$p(class = "eyebrow", "Supply pipeline"),
-        tags$h1("What is my COE cost exposure, and how do I time against it?"),
+        tags$p(class = "eyebrow", "COE Intelligence"),
+        tags$h1("Forecast COE supply. Price the risk."),
         tags$p(
           class = "lede lede--wide",
-          "We forecast Category A and Category B supply — certificates coming to market — ",
-          "so dealers and fleets can plan. We do not forecast premiums."
+          "Dealers and fleets buy certificates every month. We project Category A and Category B quota ",
+          "so they can time purchases and size exposure — not guess the next premium."
         )
       ),
       div(
@@ -52,25 +52,25 @@ ui <- function(id) {
         class = "nx-metric",
         tags$span(class = "nx-kicker", "Typical miss versus released quota"),
         div(class = "nx-num", shiny::textOutput(ns("kpi_mape"), inline = TRUE)),
-        tags$span(class = "nx-hint", "Held-out backtest · selected forecast")
+        tags$span(class = "nx-hint", "Held-out months · selected forecast")
       ),
       div(
         class = "nx-metric nx-metric--accent",
-        tags$span(class = "nx-kicker", "We forecast"),
+        tags$span(class = "nx-kicker", "What we forecast"),
         div(class = "nx-num nx-num--sm", "Supply"),
-        tags$span(class = "nx-hint", "Quota driven largely by exits")
+        tags$span(class = "nx-hint", "Certificates coming to market")
       ),
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "We do not forecast"),
+        tags$span(class = "nx-kicker", "What we do not forecast"),
         div(class = "nx-num nx-num--sm", "Premiums"),
-        tags$span(class = "nx-hint", "Stated in the proposal · kept here")
+        tags$span(class = "nx-hint", "Use Your risk to size the book")
       )
     ),
     card(
       class = "desk-card",
       full_screen = TRUE,
-      card_header("Certificates released versus supply forecast"),
+      card_header("Certificates released versus forecast"),
       card_body(
         class = "chart-frame chart-frame--tall",
         echarts4rOutput(ns("quota"), height = "420px")
@@ -78,8 +78,7 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "White = certificates released. Orange = selected forecast. Grey dashed = simple twelve-month average. ",
-      "Open Exposure to turn a forward book into dollars and shift timing by quarters."
+      "White = certificates released. Orange = selected forecast. Grey dashed = simple twelve-month average."
     )
   )
 }
