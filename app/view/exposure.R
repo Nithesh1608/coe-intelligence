@@ -253,7 +253,7 @@ server <- function(id, store) {
         class = "story-list-wrap",
         tags$p(
           sprintf(
-            "You are carrying %s Cat %s certificates. At the last print that book costs %s in COE.",
+            "You are carrying %s Category %s certificates. At the last print that book costs %s.",
             fmt_int(n), input$category, fmt_sgd(sum(schedule()$at_last_print))
           )
         ),
