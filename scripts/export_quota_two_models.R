@@ -69,7 +69,7 @@ for (model in c("core_forecast", "momentum_forecast", "simple_average")) {
       d12 <- trailing_12(cat, tm, model)
       p <- pub$published[pub$month == tm & pub$category == cat]
       out[[length(out) + 1]] <- data.frame(
-        month = as.character(tm),
+        month = as.character(as.Date(tm)),
         category = cat,
         model = model,
         label = unname(label_of[[model]]),

@@ -931,6 +931,46 @@ body {
   line-height: 1.5;
 }
 
+.tight-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1.1rem 1.2rem;
+  margin: 0.35rem 0 1rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tight-card h3 {
+  font-family: "Syne", sans-serif;
+  letter-spacing: -0.04em;
+  margin: 0.35rem 0 0.45rem;
+  font-size: 1.35rem;
+}
+
+.tight-card p {
+  margin: 0 0 0.35rem;
+  color: #d4d4d4;
+  line-height: 1.45;
+}
+
+.tight-suggest {
+  color: var(--fg) !important;
+  font-weight: 600;
+}
+
+.tight-card--tight {
+  border-color: rgba(255, 92, 26, 0.5);
+  background: linear-gradient(135deg, rgba(255, 92, 26, 0.12), transparent 60%);
+}
+
+.tight-card--loose {
+  border-color: rgba(200, 245, 66, 0.45);
+  background: linear-gradient(135deg, rgba(200, 245, 66, 0.1), transparent 60%);
+}
+
+.tight-card--mid {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
 .desk-rule {
   border: 0;
   border-top: 1px solid var(--line);
