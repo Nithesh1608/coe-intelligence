@@ -3,98 +3,87 @@ box::use(
   bslib[layout_columns, card, card_header, card_body],
 )
 
-#' Single production engine — startup product tone
+#' Technical page — separate from the front story
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk",
-    tags$p(class = "eyebrow", "Engine"),
-    tags$h2("One supply engine. Two outputs."),
+    tags$p(class = "eyebrow", "How it works · technical"),
+    tags$h2("Detail for people who want the method"),
     tags$p(
       class = "lede lede--wide",
-      "COE Intelligence forecasts how many Category A and B cars leave the fleet, ",
-      "then turns that into a monthly quota outlook dealers can put next to real LTA releases. ",
-      "Premiums are not forecast — they stay a stress you apply on the Exposure desk."
+      "The front pages stay in plain language. This page is the engineering note: ",
+      "what we fit, how we prove it, and what the two forecasts are."
     ),
     layout_columns(
       col_widths = c(6, 6),
       card(
         class = "desk-card gloss",
-        card_header("1 · Exit forecast"),
+        card_header("Core supply forecast"),
         card_body(
           tags$p(
-            tags$strong("Monthly deregistrations"),
-            " for Cat A and Cat B — the flow that largely sets future supply."
+            "Regularised regression (elastic net) on Category A and Category B monthly exits."
           ),
           tags$p(
-            "Built from due stock, recent exits, renewals, and the post-2022 category regime. ",
-            "Validated on held-out months from September 2024 onward."
+            "Inputs known before the month: due stock near ten-year expiry, recent exits, ",
+            "five-year renewals, prevailing quota premium, and the May 2022 category regime flag."
           )
         )
       ),
       card(
         class = "desk-card gloss",
-        card_header("2 · Quota outlook"),
+        card_header("Momentum supply forecast"),
         card_body(
           tags$p(
-            tags$strong("Monthly tender-scale outlook"),
-            " from trailing exits — matched to the size of certificates LTA actually puts up."
+            "Same elastic-net family, plus momentum features: year-on-year change in due stock, ",
+            "short-run exit acceleration."
           ),
           tags$p(
-            "Not a claim to own LTA’s internal rule. An exit-driven map so supply and releases ",
-            "can be read on the same chart."
+            "Same locked test window. Shown beside Core so the audience can see both tracks."
           )
         )
       )
     ),
-    tags$h3(class = "section-title", "What goes into the exit forecast"),
-    tags$p(
-      class = "lede lede--wide",
-      "Only information known before the month starts."
-    ),
-    div(
-      class = "feat-grid",
-      div(class = "feat-chip", tags$strong("10-year due stock"), " Vehicles approaching first COE expiry."),
-      div(class = "feat-chip", tags$strong("Near-term due stock"), " Later expiries and near-window cohorts."),
-      div(class = "feat-chip", tags$strong("Recent exits"), " Last year and short lags of deregistrations."),
-      div(class = "feat-chip", tags$strong("5-year renewals"), " Revalidations that push exits later."),
-      div(class = "feat-chip", tags$strong("Prevailing Quota Premium"), " Price level linked to renewal behaviour."),
-      div(class = "feat-chip", tags$strong("Post-May 2022 regime"), " A/B redefinition around EV power.")
-    ),
-    tags$h3(class = "section-title", "How we know it works"),
+    tags$h3(class = "section-title", "Proof rules"),
     layout_columns(
       col_widths = c(4, 4, 4),
       card(
         class = "desk-card gloss",
-        card_header("Fit vs prove"),
+        card_header("Fit window"),
         card_body(
-          tags$p(tags$strong("Fit"), " on history through August 2024."),
-          tags$p(tags$strong("Prove"), " only on September 2024 onward — never used to tune.")
+          tags$p("History through August 2024 only.")
         )
       ),
       card(
         class = "desk-card gloss",
-        card_header("Beat the rule of thumb"),
+        card_header("Test window"),
         card_body(
-          tags$p("Compared against a trailing twelve-month average of exits."),
-          tags$p("That is what many desks already use. We have to beat it.")
+          tags$p("September 2024 onward — never used to choose the method.")
         )
       ),
       card(
         class = "desk-card gloss",
-        card_header("Where we still miss"),
+        card_header("Comparison"),
         card_body(
-          tags$p("The sharpest 2026 exit spikes still run hotter than the forecast."),
-          tags$p("We under-shoot less than the rule of thumb — and we show the miss on the Desk.")
+          tags$p("Simple average of the last twelve months of exits — a common desk rule of thumb.")
         )
       )
     ),
-    tags$h3(class = "section-title", "What we refuse to sell"),
+    tags$h3(class = "section-title", "Quota map"),
     tags$p(
       class = "lede lede--wide",
-      "We do not forecast the next COE premium. Demand, credit, and policy still move the print. ",
-      "Our job is supply timing and the dollar exposure on a locked book — not a price tip."
+      "Monthly published tender quotas do not sit on the same scale as the textbook ",
+      "“twenty-five percent of annual exits” identity. We map trailing twelve-month exits ",
+      "to monthly certificate volume with a category factor fit on pre-test history only, ",
+      "then apply that map to forecasted exits."
+    ),
+    tags$h3(class = "section-title", "What we refuse to claim"),
+    tags$p(
+      class = "lede lede--wide",
+      "We do not forecast the next Certificate of Entitlement premium. ",
+      "Demand, credit, and policy still move the price. ",
+      "Our product is supply timing and the dollar exposure on a locked order book."
     )
   )
 }

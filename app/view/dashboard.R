@@ -4,75 +4,94 @@ box::use(
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
 box::use(
-  app/logic/viewdata/charts[actual_vs_pred_chart],
+  app/logic/viewdata/charts[two_model_chart],
 )
 
 fmt_int <- function(x) {
   format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE)
 }
 
-fmt_pct <- function(x) {
-  sprintf("%+.0f%%", 100 * x)
-}
-
-#' Landing desk — startup product home
+#' Front page — instantly clear for any audience
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk",
     tags$section(
-      class = "desk-hero",
+      class = "desk-hero desk-hero--pitch",
       div(
         class = "desk-hero__copy",
         tags$p(class = "eyebrow", "COE Intelligence"),
-        tags$h1("Supply visibility for people who buy COEs every week."),
+        tags$h1("We tell dealers how many cars will leave — before new COE certificates are released."),
         tags$p(
           class = "lede lede--wide",
-          "We forecast Category A and B exits, turn them into a monthly quota outlook, ",
-          "and size the COE short on your locked order book. ",
-          "We do not pretend to call the next premium."
+          "Every month, cars in Category A and Category B leave the road. ",
+          "Those exits largely decide how many new certificates come back. ",
+          "We forecast the exits. You plan the business."
         )
       ),
       div(
         class = "desk-hero__status",
-        tags$span(class = "status-pill status-pill--live", "Live"),
-        tags$p(class = "status-label", "Product"),
-        tags$p(class = "status-value", "Supply desk"),
-        tags$p(class = "status-note", "Official LTA series · Cat A & B · Singapore")
+        tags$span(class = "status-pill status-pill--live", "What you are looking at"),
+        tags$p(class = "status-value status-value--sm", "Cars leaving the fleet"),
+        tags$p(
+          class = "status-note",
+          "White = real numbers. Orange and green = our two forecasts. Grey = a simple average people already use."
+        )
       )
     ),
     div(
-      class = "nx-metrics nx-metrics--5",
+      class = "pitch-strip",
+      div(
+        class = "pitch-item",
+        tags$span(class = "pitch-n", "1"),
+        tags$div(
+          tags$strong("Predict exits"),
+          tags$p("How many Category A and Category B cars leave each month.")
+        )
+      ),
+      div(
+        class = "pitch-item",
+        tags$span(class = "pitch-n", "2"),
+        tags$div(
+          tags$strong("Read quota"),
+          tags$p("Turn those exits into an outlook for certificates released.")
+        )
+      ),
+      div(
+        class = "pitch-item",
+        tags$span(class = "pitch-n", "3"),
+        tags$div(
+          tags$strong("Size your risk"),
+          tags$p("If you already sold cars, see the COE cost if the price moves.")
+        )
+      )
+    ),
+    div(
+      class = "nx-metrics",
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "2025 Cat A exits"),
-        div(class = "nx-num", shiny::textOutput(ns("kpi_a_act"), inline = TRUE)),
-        tags$span(class = "nx-hint", shiny::textOutput(ns("kpi_a_gap"), inline = TRUE))
+        tags$span(class = "nx-kicker", "Full year 2025 · Category A"),
+        div(class = "nx-num", shiny::textOutput(ns("kpi_a"), inline = TRUE)),
+        tags$span(class = "nx-hint", shiny::textOutput(ns("kpi_a_note"), inline = TRUE))
       ),
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "2025 Cat B exits"),
-        div(class = "nx-num", shiny::textOutput(ns("kpi_b_act"), inline = TRUE)),
-        tags$span(class = "nx-hint", shiny::textOutput(ns("kpi_b_gap"), inline = TRUE))
+        tags$span(class = "nx-kicker", "Full year 2025 · Category B"),
+        div(class = "nx-num", shiny::textOutput(ns("kpi_b"), inline = TRUE)),
+        tags$span(class = "nx-hint", shiny::textOutput(ns("kpi_b_note"), inline = TRUE))
       ),
       div(
         class = "nx-metric nx-metric--accent",
-        tags$span(class = "nx-kicker", "Months within 10%"),
+        tags$span(class = "nx-kicker", "Months we were within 10%"),
         div(class = "nx-num", shiny::textOutput(ns("kpi_hit"), inline = TRUE)),
-        tags$span(class = "nx-hint", "vs rule-of-thumb 42% / 12%")
+        tags$span(class = "nx-hint", "Core forecast · versus the simple average")
       ),
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "Beats rule of thumb"),
-        div(class = "nx-num", "A and B"),
-        tags$span(class = "nx-hint", "Held-out Sep 2024 → Aug 2026")
-      ),
-      div(
-        class = "nx-metric",
-        tags$span(class = "nx-kicker", "Not in scope"),
-        div(class = "nx-num nx-num--sm", "Premium tips"),
-        tags$span(class = "nx-hint", "Stress them on Exposure instead")
+        tags$span(class = "nx-kicker", "We do not forecast"),
+        div(class = "nx-num nx-num--sm", "COE prices"),
+        tags$span(class = "nx-hint", "Only supply and your exposure")
       )
     ),
     layout_columns(
@@ -83,65 +102,54 @@ ui <- function(id) {
         card_header(
           div(
             class = "card-head-row",
-            tags$span("Actual exits vs our forecast"),
+            tags$span("Cars leaving each month — real versus forecast"),
             selectInput(
               ns("cat"),
               NULL,
               choices = c("Category A" = "A", "Category B" = "B"),
               selected = "A",
-              width = "140px"
+              width = "160px"
             )
           )
         ),
         card_body(
           class = "chart-frame chart-frame--tall",
-          echarts4rOutput(ns("track"), height = "400px")
+          echarts4rOutput(ns("track"), height = "420px")
         )
       ),
       card(
         class = "desk-card desk-card--story",
-        card_header("30-second read"),
+        card_header("Read this in ten seconds"),
         card_body(
           tags$ol(
             class = "story-list",
-            tags$li(tags$strong("White"), " — cars that actually left."),
-            tags$li(tags$strong("Orange"), " — our forecast before the month settled."),
-            tags$li(tags$strong("Grey"), " — trailing twelve-month average (rule of thumb)."),
-            tags$li("Orange tracking white is the product. Grey lagging is the gap we close.")
+            tags$li(
+              tags$strong("White line"),
+              " — how many cars actually left that month."
+            ),
+            tags$li(
+              tags$strong("Orange line"),
+              " — our Core supply forecast."
+            ),
+            tags$li(
+              tags$strong("Green line"),
+              " — our Momentum supply forecast (same idea, adds recent acceleration)."
+            ),
+            tags$li(
+              tags$strong("Grey dashed line"),
+              " — simple average of the last twelve months (what many people use today)."
+            ),
+            tags$li(
+              "When orange or green stays close to white, planning is possible. ",
+              "Grey falling behind is the gap we close."
+            )
           ),
           tags$p(
             class = "footnote",
-            tags$strong("Forecast"), " — track record and quota. ",
-            tags$strong("Exposure"), " — dollar risk on a locked book. ",
-            tags$strong("Engine"), " — how it is built."
+            "Next: open ", tags$strong("Results"), " for month examples and quota. ",
+            "Open ", tags$strong("Your risk"), " if you have cars already sold. ",
+            "Open ", tags$strong("How it works"), " only if you want the technical detail."
           )
-        )
-      )
-    ),
-    div(
-      class = "desk-strip",
-      div(
-        class = "desk-strip__item",
-        tags$span(class = "nx-kicker", "Snapshot"),
-        tags$p(class = "strip-title", shiny::textOutput(ns("ex_month"), inline = TRUE)),
-        tags$p(class = "strip-body", shiny::textOutput(ns("ex_line"), inline = TRUE))
-      ),
-      div(
-        class = "desk-strip__item",
-        tags$span(class = "nx-kicker", "Known limit"),
-        tags$p(class = "strip-title", "2026 surge months"),
-        tags$p(
-          class = "strip-body",
-          "The sharpest spikes still run hotter than we call — closer than the rule of thumb, not perfect."
-        )
-      ),
-      div(
-        class = "desk-strip__item",
-        tags$span(class = "nx-kicker", "Quota"),
-        tags$p(class = "strip-title", "Exits → tender scale"),
-        tags$p(
-          class = "strip-body",
-          "We map trailing exits to monthly release size so outlook sits next to what LTA published."
         )
       )
     )
@@ -151,74 +159,76 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    roll <- store$dereg_rollup
-    get_roll <- function(cat, period_key) {
+    roll <- store$two_rollup
+    hits <- store$two_hits
+
+    pick_roll <- function(cat, period_pat, model) {
       if (is.null(roll)) return(NULL)
-      hit <- roll$category == cat & grepl(period_key, roll$period) & roll$model == "elastic_net"
-      if (!any(hit)) return(NULL)
-      roll[hit, ][1, ]
-    }
-    get_base <- function(cat, period_key) {
-      if (is.null(roll)) return(NULL)
-      hit <- roll$category == cat & grepl(period_key, roll$period) & roll$model == "historic_avg"
+      hit <- roll$category == cat & grepl(period_pat, roll$period) & roll$model == model
       if (!any(hit)) return(NULL)
       roll[hit, ][1, ]
     }
 
-    output$kpi_a_act <- renderText({
-      r <- get_roll("A", "2025")
+    output$kpi_a <- renderText({
+      r <- pick_roll("A", "2025", "core_forecast")
       if (is.null(r)) "—" else fmt_int(r$actual)
     })
-    output$kpi_a_gap <- renderText({
-      r <- get_roll("A", "2025")
-      b <- get_base("A", "2025")
+    output$kpi_a_note <- renderText({
+      r <- pick_roll("A", "2025", "core_forecast")
+      s <- pick_roll("A", "2025", "simple_average")
       if (is.null(r)) return("—")
-      sprintf("Us %s · rule of thumb %s", fmt_pct(r$pct_off / 100), fmt_pct(b$pct_off / 100))
+      sprintf(
+        "Core forecast %+.0f%% · simple average %+.0f%%",
+        r$pct_off, s$pct_off
+      )
     })
-    output$kpi_b_act <- renderText({
-      r <- get_roll("B", "2025")
+    output$kpi_b <- renderText({
+      r <- pick_roll("B", "2025", "core_forecast")
       if (is.null(r)) "—" else fmt_int(r$actual)
     })
-    output$kpi_b_gap <- renderText({
-      r <- get_roll("B", "2025")
-      b <- get_base("B", "2025")
+    output$kpi_b_note <- renderText({
+      r <- pick_roll("B", "2025", "core_forecast")
+      s <- pick_roll("B", "2025", "simple_average")
       if (is.null(r)) return("—")
-      sprintf("Us %s · rule of thumb %s", fmt_pct(r$pct_off / 100), fmt_pct(b$pct_off / 100))
+      sprintf(
+        "Core forecast %+.0f%% · simple average %+.0f%%",
+        r$pct_off, s$pct_off
+      )
     })
-    output$kpi_hit <- renderText("62% A · 62% B")
+    output$kpi_hit <- renderText({
+      if (is.null(hits)) return("—")
+      a <- hits[hits$model == "core_forecast" & hits$category == "A", ]
+      b <- hits[hits$model == "core_forecast" & hits$category == "B", ]
+      sa <- hits[hits$model == "simple_average" & hits$category == "A", ]
+      sb <- hits[hits$model == "simple_average" & hits$category == "B", ]
+      sprintf(
+        "%s / %s  (avg %s / %s)",
+        paste0(round(100 * a$within_10pct[[1]]), "%"),
+        paste0(round(100 * b$within_10pct[[1]]), "%"),
+        paste0(round(100 * sa$within_10pct[[1]]), "%"),
+        paste0(round(100 * sb$within_10pct[[1]]), "%")
+      )
+    })
 
     chart_df <- reactive({
-      dm <- store$dereg_monthly
-      req_cat <- input$cat
+      dm <- store$two_monthly
+      cat <- input$cat
       if (is.null(dm)) return(NULL)
-      m <- dm[dm$category == req_cat & dm$model == "elastic_net", ]
-      b <- dm[dm$category == req_cat & dm$model == "historic_avg", ]
+      core <- dm[dm$category == cat & dm$model == "core_forecast", ]
+      mom <- dm[dm$category == cat & dm$model == "momentum_forecast", ]
+      sim <- dm[dm$category == cat & dm$model == "simple_average", ]
       data.frame(
-        month = m$month,
-        actual = m$actual,
-        model = m$predicted,
-        baseline = b$predicted[match(m$month, b$month)],
+        month = core$month,
+        actual = core$actual,
+        core = core$predicted,
+        momentum = mom$predicted[match(core$month, mom$month)],
+        simple = sim$predicted[match(core$month, sim$month)],
         stringsAsFactors = FALSE
       )
     })
 
     output$track <- renderEcharts4r({
-      actual_vs_pred_chart(chart_df())
-    })
-
-    output$ex_month <- renderText("May 2025 · Cat A")
-    output$ex_line <- renderText({
-      dm <- store$dereg_monthly
-      if (is.null(dm)) return("")
-      m <- dm[dm$category == "A" & dm$model == "elastic_net" &
-                format(as.Date(dm$month), "%Y-%m") == "2025-05", ]
-      b <- dm[dm$category == "A" & dm$model == "historic_avg" &
-                format(as.Date(dm$month), "%Y-%m") == "2025-05", ]
-      if (!nrow(m)) return("")
-      sprintf(
-        "Actual %s · we said %s · rule of thumb %s",
-        fmt_int(m$actual[[1]]), fmt_int(m$predicted[[1]]), fmt_int(b$predicted[[1]])
-      )
+      two_model_chart(chart_df())
     })
   })
 }

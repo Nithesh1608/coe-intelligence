@@ -27,7 +27,7 @@ ui <- function(id) {
       title = "Your book",
       selectInput(
         ns("category"),
-        "COE category you bid in",
+        "Which category do you bid in?",
         choices = c(
           "Category A" = "A",
           "Category B" = "B",
@@ -75,12 +75,12 @@ ui <- function(id) {
     div(
       class = "page-stack desk",
       tags$p(class = "eyebrow", "Exposure"),
-      tags$h2("What is your locked book worth in COE dollars?"),
+      tags$h2("If you already sold the cars, what is your Certificate of Entitlement risk?"),
       tags$p(
         class = "lede lede--wide",
-        "When you quote a COE-inclusive package, you are short the certificate until you bid. ",
-        "This page turns that short into a clear dollar figure — at today’s last print, ",
-        "and if the premium moves against you."
+        "When you quote a price that includes the certificate, you are exposed until you win a bid. ",
+        "This page turns that exposure into dollars — at the last settled price, ",
+        "and if the price rises against you."
       ),
       div(
         class = "value-steps",

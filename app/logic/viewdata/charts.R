@@ -27,9 +27,9 @@ axis <- list(
 style_chart <- function(p) {
   p |>
     e_theme("dark") |>
-    e_grid(left = 12, right = 16, top = 44, bottom = 16, containLabel = TRUE) |>
+    e_grid(left = 12, right = 16, top = 52, bottom = 16, containLabel = TRUE) |>
     e_tooltip(trigger = "axis") |>
-    e_legend(right = 8, top = 4, textStyle = list(color = "#a3a3a3")) |>
+    e_legend(right = 8, top = 4, textStyle = list(color = "#a3a3a3", fontSize = 11)) |>
     e_x_axis(
       axisLine = axis$axisLine,
       axisTick = axis$axisTick,
@@ -42,6 +42,27 @@ style_chart <- function(p) {
       axisLabel = axis$axisLabel,
       splitLine = axis$splitLine
     )
+}
+
+#' Actual vs two forecasts vs simple average
+#' expects: month, actual, core, momentum, simple
+#' @export
+two_model_chart <- function(df) {
+  plot_df <- df
+  plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
+  plot_df |>
+    e_charts(month) |>
+    e_line(actual, name = "What actually happened", symbol = "circle", symbolSize = 6,
+           lineStyle = list(width = 2.8)) |>
+    e_line(core, name = "Core supply forecast", symbol = "none",
+           lineStyle = list(width = 2)) |>
+    e_line(momentum, name = "Momentum supply forecast", symbol = "none",
+           lineStyle = list(width = 2)) |>
+    e_line(simple, name = "Simple 12-month average", symbol = "none",
+           lineStyle = list(width = 1.5, type = "dashed", opacity = 0.75)) |>
+    e_color(c("#fafafa", "#ff5c1a", "#c8f542", "#737373")) |>
+    style_chart() |>
+    e_datazoom(type = "inside")
 }
 
 #' @export
@@ -63,37 +84,35 @@ fan_chart <- function(hist, fwd) {
     e_datazoom(type = "inside")
 }
 
-#' Actual vs model vs baseline for dereg
 #' @export
 actual_vs_pred_chart <- function(df) {
+  # legacy single-model helper
   plot_df <- df
   plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
   plot_df |>
     e_charts(month) |>
-    e_line(actual, name = "What happened", symbol = "circle", symbolSize = 6,
+    e_line(actual, name = "What actually happened", symbol = "circle", symbolSize = 6,
            lineStyle = list(width = 2.5)) |>
     e_line(model, name = "Our forecast", symbol = "none",
-           lineStyle = list(width = 2, type = "solid")) |>
-    e_line(baseline, name = "Rule of thumb", symbol = "none",
+           lineStyle = list(width = 2)) |>
+    e_line(baseline, name = "Simple 12-month average", symbol = "none",
            lineStyle = list(width = 1.5, type = "dashed", opacity = 0.75)) |>
     e_color(c("#fafafa", "#ff5c1a", "#737373")) |>
     style_chart() |>
     e_datazoom(type = "inside")
 }
 
-#' Quota: published tender + formula outlook (monthly scale)
-#' expects: month, published, from_pred, from_actual
 #' @export
 quota_compare_chart <- function(df) {
   plot_df <- df
   plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
   plot_df |>
     e_charts(month) |>
-    e_line(published, name = "Published tender quota", symbol = "circle",
+    e_line(published, name = "Certificates LTA released", symbol = "circle",
            symbolSize = 5, lineStyle = list(width = 2.5)) |>
-    e_line(from_pred, name = "Our supply outlook", symbol = "none",
+    e_line(from_pred, name = "Our quota outlook", symbol = "none",
            lineStyle = list(width = 2)) |>
-    e_line(from_actual, name = "Outlook if exits known", symbol = "none",
+    e_line(from_actual, name = "Outlook if exits were known", symbol = "none",
            lineStyle = list(width = 1.5, type = "dashed", opacity = 0.8)) |>
     e_color(c("#fafafa", "#c8f542", "#737373")) |>
     style_chart() |>
@@ -124,10 +143,8 @@ bar_chart <- function(df, x, y, name = NULL) {
     style_chart()
 }
 
-#' Grouped cost bars: base vs stressed
 #' @export
 exposure_bars_chart <- function(df) {
-  # columns: quarter, at_last_print, with_stress
   df |>
     e_charts(quarter) |>
     e_bar(at_last_print, name = "At last print") |>

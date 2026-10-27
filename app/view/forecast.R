@@ -4,7 +4,7 @@ box::use(
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
 box::use(
-  app/logic/viewdata/charts[actual_vs_pred_chart, quota_compare_chart],
+  app/logic/viewdata/charts[two_model_chart, quota_compare_chart],
 )
 
 fmt_int <- function(x) {
@@ -15,26 +15,26 @@ fmt_pct <- function(x) {
   sprintf("%.0f%%", 100 * as.numeric(x))
 }
 
-#' Results: dereg track record + calibrated quota outlook
+#' Results page — plain language, two forecasts
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk",
-    tags$p(class = "eyebrow", "Forecast"),
-    tags$h2("Exits first — then quota"),
+    tags$p(class = "eyebrow", "Results"),
+    tags$h2("Did we get close to the real numbers?"),
     tags$p(
       class = "lede lede--wide",
-      "Held-out months from September 2024. Official deregistrations versus our forecast ",
-      "and a trailing-average baseline. Quota below compares what LTA actually released ",
-      "to an exit-driven outlook scaled to tender size."
+      "These months were hidden while we built the forecasts. ",
+      "Below: real cars leaving Category A or Category B, next to both of our forecasts ",
+      "and the simple twelve-month average."
     ),
     selectInput(
       ns("cat"),
-      "Category",
+      "Show results for",
       choices = c("Category A" = "A", "Category B" = "B"),
       selected = "A",
-      width = "200px"
+      width = "220px"
     ),
     uiOutput(ns("example_grid")),
     layout_columns(
@@ -42,41 +42,41 @@ ui <- function(id) {
       card(
         class = "desk-card",
         full_screen = TRUE,
-        card_header("Deregistrations — held-out window"),
+        card_header("Full picture — cars leaving each month"),
         card_body(
           class = "chart-frame chart-frame--tall",
-          echarts4rOutput(ns("dereg_chart"), height = "400px")
+          echarts4rOutput(ns("dereg_chart"), height = "420px")
         )
       )
     ),
     tags$hr(class = "desk-rule"),
     tags$p(class = "eyebrow", "Quota"),
-    tags$h2("Published tender quota vs our outlook"),
+    tags$h2("From cars leaving to certificates released"),
     tags$p(
       class = "lede lede--wide",
-      "White = certificates LTA put up for bidding that month. ",
-      "Green = our outlook: predicted exits, mapped to monthly tender scale. ",
-      "Grey dashed = the same map using actual exits (isolates exit-forecast error from the quota link)."
+      "White line = how many Category A or Category B certificates LTA actually put up for bidding that month. ",
+      "Green line = our outlook based on forecasted exits. ",
+      "Grey dashed = the same outlook if we had known the real exits (to separate exit error from the quota map)."
     ),
     div(
       class = "nx-metrics",
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "Typical miss vs published"),
+        tags$span(class = "nx-kicker", "Typical miss versus published"),
         div(class = "nx-num", shiny::textOutput(ns("kpi_mape"), inline = TRUE)),
-        tags$span(class = "nx-hint", "Calibrated outlook · held-out months")
+        tags$span(class = "nx-hint", "On months we held out for testing")
       ),
       div(
         class = "nx-metric",
         tags$span(class = "nx-kicker", "Built from"),
-        div(class = "nx-num nx-num--sm", "Our exit forecast"),
-        tags$span(class = "nx-hint", "Then mapped to monthly tender size")
+        div(class = "nx-num nx-num--sm", "Exit forecasts"),
+        tags$span(class = "nx-hint", "Then mapped to monthly certificate size")
       ),
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "We do not claim"),
-        div(class = "nx-num nx-num--sm", "LTA’s internal rule"),
-        tags$span(class = "nx-hint", "Policy can still move releases")
+        tags$span(class = "nx-kicker", "We are not claiming"),
+        div(class = "nx-num nx-num--sm", "LTA’s private formula"),
+        tags$span(class = "nx-hint", "Policy can still change releases")
       ),
       div(
         class = "nx-metric",
@@ -88,14 +88,14 @@ ui <- function(id) {
     div(
       class = "formula-card",
       tags$p(class = "formula-label", "In plain words"),
-      tags$code("quota outlook = (how many cars left recently) × (usual monthly release size from history)")
+      tags$code("quota outlook = (cars that left recently) × (usual monthly certificate size from history)")
     ),
     layout_columns(
       col_widths = c(12),
       card(
         class = "desk-card",
         full_screen = TRUE,
-        card_header("Monthly quota — published vs calibrated outlook"),
+        card_header("Monthly certificates — published versus our outlook"),
         card_body(
           class = "chart-frame chart-frame--tall",
           echarts4rOutput(ns("quota_chart"), height = "400px")
@@ -104,7 +104,7 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "The exit forecast is the product. Quota is the same exits expressed at tender scale ",
+      "The exit forecasts are the main product. Quota is those exits expressed in certificate units ",
       "so you can read them next to what LTA published."
     )
   )
@@ -114,7 +114,7 @@ ui <- function(id) {
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
     output$example_grid <- renderUI({
-      dm <- store$dereg_monthly
+      dm <- store$two_monthly
       cat <- input$cat
       if (is.null(dm)) return(NULL)
       months <- as.Date(c(
@@ -122,28 +122,34 @@ server <- function(id, store) {
         "2026-01-01", "2026-05-01"
       ))
       cards <- lapply(months, function(m) {
-        a <- dm[dm$category == cat & dm$model == "elastic_net" & dm$month == m, ]
-        b <- dm[dm$category == cat & dm$model == "historic_avg" & dm$month == m, ]
-        if (!nrow(a)) return(NULL)
-        better <- abs(a$predicted[[1]] - a$actual[[1]]) <
-          abs(b$predicted[[1]] - b$actual[[1]])
+        core <- dm[dm$category == cat & dm$model == "core_forecast" & dm$month == m, ]
+        mom <- dm[dm$category == cat & dm$model == "momentum_forecast" & dm$month == m, ]
+        sim <- dm[dm$category == cat & dm$model == "simple_average" & dm$month == m, ]
+        if (!nrow(core)) return(NULL)
+        better <- abs(core$predicted[[1]] - core$actual[[1]]) <
+          abs(sim$predicted[[1]] - sim$actual[[1]])
         div(
           class = paste("ex-tile", if (better) "ex-tile--win" else "ex-tile--miss"),
           tags$span(class = "ex-month", strftime(as.Date(m), "%b %Y")),
           tags$div(
             class = "ex-row",
-            tags$span("Actual"),
-            tags$strong(fmt_int(a$actual[[1]]))
+            tags$span("Actually left"),
+            tags$strong(fmt_int(core$actual[[1]]))
           ),
           tags$div(
             class = "ex-row ex-row--accent",
-            tags$span("Forecast"),
-            tags$strong(fmt_int(a$predicted[[1]]))
+            tags$span("Core forecast"),
+            tags$strong(fmt_int(core$predicted[[1]]))
+          ),
+          tags$div(
+            class = "ex-row ex-row--green",
+            tags$span("Momentum"),
+            tags$strong(fmt_int(mom$predicted[[1]]))
           ),
           tags$div(
             class = "ex-row muted",
-            tags$span("Rule of thumb"),
-            tags$strong(fmt_int(b$predicted[[1]]))
+            tags$span("Simple average"),
+            tags$strong(fmt_int(sim$predicted[[1]]))
           )
         )
       })
@@ -159,18 +165,20 @@ server <- function(id, store) {
     })
 
     output$dereg_chart <- renderEcharts4r({
-      dm <- store$dereg_monthly
+      dm <- store$two_monthly
       cat <- input$cat
-      m <- dm[dm$category == cat & dm$model == "elastic_net", ]
-      b <- dm[dm$category == cat & dm$model == "historic_avg", ]
+      core <- dm[dm$category == cat & dm$model == "core_forecast", ]
+      mom <- dm[dm$category == cat & dm$model == "momentum_forecast", ]
+      sim <- dm[dm$category == cat & dm$model == "simple_average", ]
       df <- data.frame(
-        month = m$month,
-        actual = m$actual,
-        model = m$predicted,
-        baseline = b$predicted[match(m$month, b$month)],
+        month = core$month,
+        actual = core$actual,
+        core = core$predicted,
+        momentum = mom$predicted[match(core$month, mom$month)],
+        simple = sim$predicted[match(core$month, sim$month)],
         stringsAsFactors = FALSE
       )
-      actual_vs_pred_chart(df)
+      two_model_chart(df)
     })
 
     output$quota_chart <- renderEcharts4r({

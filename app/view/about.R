@@ -15,8 +15,9 @@ ui <- function(id) {
       tags$h1("COE Intelligence"),
       tags$p(
         class = "lede lede--wide",
-        "The supply desk for dealers, parallel importers, and fleets who buy COEs ",
-        "continuously — and carry real money risk when the market tightens."
+        "A supply desk for dealers, parallel importers, and fleets who buy ",
+        "Certificates of Entitlement every month — and carry real money risk ",
+        "when the market tightens."
       )
     ),
     layout_columns(
