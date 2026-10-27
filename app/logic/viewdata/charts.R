@@ -74,7 +74,7 @@ actual_vs_pred_chart <- function(df) {
            lineStyle = list(width = 2.5)) |>
     e_line(model, name = "Our forecast", symbol = "none",
            lineStyle = list(width = 2, type = "solid")) |>
-    e_line(baseline, name = "Trailing-average baseline", symbol = "none",
+    e_line(baseline, name = "Rule of thumb", symbol = "none",
            lineStyle = list(width = 1.5, type = "dashed", opacity = 0.75)) |>
     e_color(c("#fafafa", "#ff5c1a", "#737373")) |>
     style_chart() |>

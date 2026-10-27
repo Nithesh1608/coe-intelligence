@@ -50,12 +50,12 @@ ui <- function(id) {
     header = inline_assets(),
     nav_panel("Desk", dashboard$ui(ns("dashboard"))),
     nav_panel("Forecast", forecast$ui(ns("forecast"))),
-    nav_panel("Method", method$ui(ns("method"))),
-    nav_panel("EDA", eda$ui(ns("eda"))),
     nav_panel("Exposure", exposure$ui(ns("exposure"))),
+    nav_panel("Engine", method$ui(ns("method"))),
     nav_panel("About", about$ui(ns("about"))),
+    nav_panel("EDA", eda$ui(ns("eda"))),
     nav_spacer(),
-    nav_item(tags$span(class = "badge-live", "Supply desk · not premiums"))
+    nav_item(tags$span(class = "badge-live", "Supply · not premiums"))
   )
 }
 

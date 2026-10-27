@@ -68,27 +68,27 @@ ui <- function(id) {
       ),
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "How the link is built"),
-        div(class = "nx-num nx-num--sm", "Exits → tender scale"),
-        tags$span(class = "nx-hint", shiny::textOutput(ns("kpi_alpha"), inline = TRUE))
+        tags$span(class = "nx-kicker", "Built from"),
+        div(class = "nx-num nx-num--sm", "Our exit forecast"),
+        tags$span(class = "nx-hint", "Then mapped to monthly tender size")
       ),
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "What we do not claim"),
-        div(class = "nx-num nx-num--sm", "Not LTA’s internal rule"),
-        tags$span(class = "nx-hint", "Policy injections can still move the print")
+        tags$span(class = "nx-kicker", "We do not claim"),
+        div(class = "nx-num nx-num--sm", "LTA’s internal rule"),
+        tags$span(class = "nx-hint", "Policy can still move releases")
       ),
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "Why not raw 25%?"),
-        div(class = "nx-num nx-num--sm", "Wrong scale for monthly"),
-        tags$span(class = "nx-hint", "Textbook identity ≠ fortnightly release")
+        tags$span(class = "nx-kicker", "Compared to"),
+        div(class = "nx-num nx-num--sm", "Published tenders"),
+        tags$span(class = "nx-hint", "What was actually put up for sale")
       )
     ),
     div(
       class = "formula-card",
-      tags$p(class = "formula-label", "Exit-driven monthly outlook"),
-      tags$code("monthly quota outlook ≈ α × trailing 12-month exits   (α fit on history through Aug 2024)")
+      tags$p(class = "formula-label", "In plain words"),
+      tags$code("quota outlook = (how many cars left recently) × (usual monthly release size from history)")
     ),
     layout_columns(
       col_widths = c(12),
@@ -104,9 +104,8 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "The raw “25% of annual exits” rule is an annual replacement identity. ",
-      "Monthly tender quotas sit on a different scale, so we calibrate α on pre-test history ",
-      "and keep exits as the driver. That is the product-honest way to show both series together."
+      "The exit forecast is the product. Quota is the same exits expressed at tender scale ",
+      "so you can read them next to what LTA published."
     )
   )
 }
@@ -143,7 +142,7 @@ server <- function(id, store) {
           ),
           tags$div(
             class = "ex-row muted",
-            tags$span("Baseline"),
+            tags$span("Rule of thumb"),
             tags$strong(fmt_int(b$predicted[[1]]))
           )
         )
@@ -157,14 +156,6 @@ server <- function(id, store) {
       row <- sc[sc$category == input$cat, ]
       if (!nrow(row)) return("—")
       fmt_pct(row$MAPE[[1]])
-    })
-
-    output$kpi_alpha <- renderText({
-      a <- store$quota_alpha
-      if (is.null(a)) return("—")
-      row <- a[a$category == input$cat, ]
-      if (!nrow(row)) return("—")
-      sprintf("α = %.3f for Cat %s", row$alpha[[1]], input$cat)
     })
 
     output$dereg_chart <- renderEcharts4r({

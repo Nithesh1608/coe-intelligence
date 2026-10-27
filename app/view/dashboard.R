@@ -15,7 +15,7 @@ fmt_pct <- function(x) {
   sprintf("%+.0f%%", 100 * x)
 }
 
-#' Landing desk — one glance: did we track real exits?
+#' Landing desk — startup product home
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -25,21 +25,21 @@ ui <- function(id) {
       class = "desk-hero",
       div(
         class = "desk-hero__copy",
-        tags$p(class = "eyebrow", "COE Intelligence · dealer supply desk"),
-        tags$h1("How many cars leave — before the quota is set."),
+        tags$p(class = "eyebrow", "COE Intelligence"),
+        tags$h1("Supply visibility for people who buy COEs every week."),
         tags$p(
           class = "lede lede--wide",
-          "We forecast Category A and B deregistrations from official LTA data, ",
-          "then apply the published replacement formula for quota. ",
-          "Premiums stay a stress you apply — we never claim to forecast them."
+          "We forecast Category A and B exits, turn them into a monthly quota outlook, ",
+          "and size the COE short on your locked order book. ",
+          "We do not pretend to call the next premium."
         )
       ),
       div(
         class = "desk-hero__status",
-        tags$span(class = "status-pill status-pill--live", "Production"),
-        tags$p(class = "status-label", "Supply engine"),
-        tags$p(class = "status-value", shiny::textOutput(ns("primary_name"), inline = TRUE)),
-        tags$p(class = "status-note", "Fit through Aug 2024 · held out Sep 2024 → Aug 2026")
+        tags$span(class = "status-pill status-pill--live", "Live"),
+        tags$p(class = "status-label", "Product"),
+        tags$p(class = "status-value", "Supply desk"),
+        tags$p(class = "status-note", "Official LTA series · Cat A & B · Singapore")
       )
     ),
     div(
@@ -60,19 +60,19 @@ ui <- function(id) {
         class = "nx-metric nx-metric--accent",
         tags$span(class = "nx-kicker", "Months within 10%"),
         div(class = "nx-num", shiny::textOutput(ns("kpi_hit"), inline = TRUE)),
-        tags$span(class = "nx-hint", "vs 42% / 12% for old baseline")
+        tags$span(class = "nx-hint", "vs rule-of-thumb 42% / 12%")
       ),
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "Beats baseline"),
-        div(class = "nx-num", "Both A & B"),
-        tags$span(class = "nx-hint", "Locked test window only")
+        tags$span(class = "nx-kicker", "Beats rule of thumb"),
+        div(class = "nx-num", "A and B"),
+        tags$span(class = "nx-hint", "Held-out Sep 2024 → Aug 2026")
       ),
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "What we do not do"),
-        div(class = "nx-num nx-num--sm", "No premium calls"),
-        tags$span(class = "nx-hint", "Supply first · exposure second")
+        tags$span(class = "nx-kicker", "Not in scope"),
+        div(class = "nx-num nx-num--sm", "Premium tips"),
+        tags$span(class = "nx-hint", "Stress them on Exposure instead")
       )
     ),
     layout_columns(
@@ -100,28 +100,20 @@ ui <- function(id) {
       ),
       card(
         class = "desk-card desk-card--story",
-        card_header("Read this first"),
+        card_header("30-second read"),
         card_body(
           tags$ol(
             class = "story-list",
-            tags$li(
-              tags$strong("White line"), " = cars that actually left that month."
-            ),
-            tags$li(
-              tags$strong("Orange line"), " = what our model said before seeing the answer."
-            ),
-            tags$li(
-              tags$strong("Grey dashed"), " = old baseline (last-12-month average)."
-            ),
-            tags$li(
-              "When orange hugs white, the desk can plan. Grey lagging behind is why we built this."
-            )
+            tags$li(tags$strong("White"), " — cars that actually left."),
+            tags$li(tags$strong("Orange"), " — our forecast before the month settled."),
+            tags$li(tags$strong("Grey"), " — trailing twelve-month average (rule of thumb)."),
+            tags$li("Orange tracking white is the product. Grey lagging is the gap we close.")
           ),
           tags$p(
             class = "footnote",
-            tags$strong("Forecast"), " — month-by-month track record and published quota. ",
-            tags$strong("Exposure"), " — size the COE short on a locked order book. ",
-            tags$strong("Method"), " — how the engine is built."
+            tags$strong("Forecast"), " — track record and quota. ",
+            tags$strong("Exposure"), " — dollar risk on a locked book. ",
+            tags$strong("Engine"), " — how it is built."
           )
         )
       )
@@ -130,26 +122,26 @@ ui <- function(id) {
       class = "desk-strip",
       div(
         class = "desk-strip__item",
-        tags$span(class = "nx-kicker", "Snapshot month"),
+        tags$span(class = "nx-kicker", "Snapshot"),
         tags$p(class = "strip-title", shiny::textOutput(ns("ex_month"), inline = TRUE)),
         tags$p(class = "strip-body", shiny::textOutput(ns("ex_line"), inline = TRUE))
       ),
       div(
         class = "desk-strip__item",
-        tags$span(class = "nx-kicker", "Honest miss"),
+        tags$span(class = "nx-kicker", "Known limit"),
         tags$p(class = "strip-title", "2026 surge months"),
         tags$p(
           class = "strip-body",
-          "We still under-shoot the biggest exit spikes — less than the baseline, not perfect yet."
+          "The sharpest spikes still run hotter than we call — closer than the rule of thumb, not perfect."
         )
       ),
       div(
         class = "desk-strip__item",
-        tags$span(class = "nx-kicker", "Next layer"),
-        tags$p(class = "strip-title", "Quota from exits"),
+        tags$span(class = "nx-kicker", "Quota"),
+        tags$p(class = "strip-title", "Exits → tender scale"),
         tags$p(
           class = "strip-body",
-          "LTA-style: ~25% of trailing 12-month exits, A/B keep 90%, 10% feeds Cat E."
+          "We map trailing exits to monthly release size so outlook sits next to what LTA published."
         )
       )
     )
@@ -159,16 +151,6 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    output$primary_name <- renderText({
-      nm <- store$meta$primary_model
-      switch(nm,
-        elastic_net = "Elastic net",
-        lasso = "Lasso",
-        ols_due = "Due-stock OLS",
-        nm
-      )
-    })
-
     roll <- store$dereg_rollup
     get_roll <- function(cat, period_key) {
       if (is.null(roll)) return(NULL)
@@ -191,7 +173,7 @@ server <- function(id, store) {
       r <- get_roll("A", "2025")
       b <- get_base("A", "2025")
       if (is.null(r)) return("—")
-      sprintf("Model %s · baseline %s", fmt_pct(r$pct_off / 100), fmt_pct(b$pct_off / 100))
+      sprintf("Us %s · rule of thumb %s", fmt_pct(r$pct_off / 100), fmt_pct(b$pct_off / 100))
     })
     output$kpi_b_act <- renderText({
       r <- get_roll("B", "2025")
@@ -201,7 +183,7 @@ server <- function(id, store) {
       r <- get_roll("B", "2025")
       b <- get_base("B", "2025")
       if (is.null(r)) return("—")
-      sprintf("Model %s · baseline %s", fmt_pct(r$pct_off / 100), fmt_pct(b$pct_off / 100))
+      sprintf("Us %s · rule of thumb %s", fmt_pct(r$pct_off / 100), fmt_pct(b$pct_off / 100))
     })
     output$kpi_hit <- renderText("62% A · 62% B")
 
@@ -221,13 +203,10 @@ server <- function(id, store) {
     })
 
     output$track <- renderEcharts4r({
-      df <- chart_df()
-      actual_vs_pred_chart(df)
+      actual_vs_pred_chart(chart_df())
     })
 
-    output$ex_month <- renderText({
-      "May 2025 · Cat A"
-    })
+    output$ex_month <- renderText("May 2025 · Cat A")
     output$ex_line <- renderText({
       dm <- store$dereg_monthly
       if (is.null(dm)) return("")
@@ -237,7 +216,7 @@ server <- function(id, store) {
                 format(as.Date(dm$month), "%Y-%m") == "2025-05", ]
       if (!nrow(m)) return("")
       sprintf(
-        "Actual %s · we said %s · baseline %s",
+        "Actual %s · we said %s · rule of thumb %s",
         fmt_int(m$actual[[1]]), fmt_int(m$predicted[[1]]), fmt_int(b$predicted[[1]])
       )
     })

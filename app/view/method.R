@@ -1,53 +1,57 @@
 box::use(
-  shiny[NS, moduleServer, div, tags, renderUI, uiOutput],
+  shiny[NS, moduleServer, div, tags],
   bslib[layout_columns, card, card_header, card_body],
 )
 
-#' How the supply engine works — product tone
+#' Single production engine — startup product tone
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk",
-    tags$p(class = "eyebrow", "Method"),
-    tags$h2("How the supply engine works"),
+    tags$p(class = "eyebrow", "Engine"),
+    tags$h2("One supply engine. Two outputs."),
     tags$p(
       class = "lede lede--wide",
-      "We estimate how many Category A and B cars leave the fleet each month, ",
-      "then translate those exits into replacement quota using LTA’s published identity. ",
-      "Everything below is designed to be auditable by a dealer ops or finance lead."
+      "COE Intelligence forecasts how many Category A and B cars leave the fleet, ",
+      "then turns that into a monthly quota outlook dealers can put next to real LTA releases. ",
+      "Premiums are not forecast — they stay a stress you apply on the Exposure desk."
     ),
     layout_columns(
-      col_widths = c(4, 4, 4),
+      col_widths = c(6, 6),
       card(
         class = "desk-card gloss",
-        card_header("What we forecast"),
+        card_header("1 · Exit forecast"),
         card_body(
-          tags$p(tags$strong("Monthly deregistrations"), " for Cat A and Cat B."),
-          tags$p("The flow that largely determines how many new COEs come back.")
+          tags$p(
+            tags$strong("Monthly deregistrations"),
+            " for Cat A and Cat B — the flow that largely sets future supply."
+          ),
+          tags$p(
+            "Built from due stock, recent exits, renewals, and the post-2022 category regime. ",
+            "Validated on held-out months from September 2024 onward."
+          )
         )
       ),
       card(
         class = "desk-card gloss",
-        card_header("What we compare against"),
+        card_header("2 · Quota outlook"),
         card_body(
-          tags$p(tags$strong("Trailing twelve-month average"), " of exits."),
-          tags$p("A practical rule of thumb. The production model must beat it on held-out months.")
-        )
-      ),
-      card(
-        class = "desk-card gloss",
-        card_header("Validation window"),
-        card_body(
-          tags$p(tags$strong("Fit"), " on history through August 2024."),
-          tags$p(tags$strong("Score"), " only on September 2024 onward — unused when choosing the model.")
+          tags$p(
+            tags$strong("Monthly tender-scale outlook"),
+            " from trailing exits — matched to the size of certificates LTA actually puts up."
+          ),
+          tags$p(
+            "Not a claim to own LTA’s internal rule. An exit-driven map so supply and releases ",
+            "can be read on the same chart."
+          )
         )
       )
     ),
-    tags$h3(class = "section-title", "Signals used (known before the month)"),
+    tags$h3(class = "section-title", "What goes into the exit forecast"),
     tags$p(
       class = "lede lede--wide",
-      "No look-ahead. Each input is observable from the official series before the month opens."
+      "Only information known before the month starts."
     ),
     div(
       class = "feat-grid",
@@ -58,54 +62,39 @@ ui <- function(id) {
       div(class = "feat-chip", tags$strong("Prevailing Quota Premium"), " Price level linked to renewal behaviour."),
       div(class = "feat-chip", tags$strong("Post-May 2022 regime"), " A/B redefinition around EV power.")
     ),
-    tags$h3(class = "section-title", "Model family"),
-    div(
-      class = "model-grid",
-      div(
-        class = "model-card",
-        tags$h4("Regularised regression"),
-        tags$p(
-          "Ridge, lasso, and elastic net. Shrinkage keeps the fit stable when predictors move together. ",
-          "Elastic net is the production choice."
+    tags$h3(class = "section-title", "How we know it works"),
+    layout_columns(
+      col_widths = c(4, 4, 4),
+      card(
+        class = "desk-card gloss",
+        card_header("Fit vs prove"),
+        card_body(
+          tags$p(tags$strong("Fit"), " on history through August 2024."),
+          tags$p(tags$strong("Prove"), " only on September 2024 onward — never used to tune.")
         )
       ),
-      div(
-        class = "model-card",
-        tags$h4("Linear benchmarks"),
-        tags$p(
-          "Ordinary least squares with lean and due-stock feature sets. ",
-          "A compact due-stock specification remains on the shortlist."
+      card(
+        class = "desk-card gloss",
+        card_header("Beat the rule of thumb"),
+        card_body(
+          tags$p("Compared against a trailing twelve-month average of exits."),
+          tags$p("That is what many desks already use. We have to beat it.")
         )
       ),
-      div(
-        class = "model-card",
-        tags$h4("Reference checks"),
-        tags$p(
-          "Seasonal carry-forward and a smooth due-stock curve. ",
-          "Useful diagnostics; not selected for production."
+      card(
+        class = "desk-card gloss",
+        card_header("Where we still miss"),
+        card_body(
+          tags$p("The sharpest 2026 exit spikes still run hotter than the forecast."),
+          tags$p("We under-shoot less than the rule of thumb — and we show the miss on the Desk.")
         )
       )
     ),
-    tags$h3(class = "section-title", "How we validate"),
+    tags$h3(class = "section-title", "What we refuse to sell"),
     tags$p(
       class = "lede lede--wide",
-      "Inside the fit window we roll forward in time: train on the past, score the next six months, repeat. ",
-      "Only after that do we evaluate September 2024–August 2026 once."
-    ),
-    tags$h3(class = "section-title", "Production shortlist"),
-    tags$p(
-      class = "lede lede--wide",
-      "Models that beat the trailing-average baseline on both Category A and B in the held-out window."
-    ),
-    uiOutput(ns("shortlist")),
-    tags$h3(class = "section-title", "Quota layer"),
-    tags$p(
-      class = "lede lede--wide",
-      "Exits drive quota. The textbook “25% of annual exits” rule is an annual replacement identity — ",
-      "it does not sit on the same scale as monthly tender releases. ",
-      "We therefore map trailing twelve-month exits to monthly published quota with a category factor α ",
-      "fit only on history through August 2024, then apply that map to predicted exits. ",
-      "The Forecast tab shows published certificates beside that calibrated outlook."
+      "We do not forecast the next COE premium. Demand, credit, and policy still move the print. ",
+      "Our job is supply timing and the dollar exposure on a locked book — not a price tip."
     )
   )
 }
@@ -113,40 +102,6 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    output$shortlist <- renderUI({
-      sl <- store$shortlist
-      if (is.null(sl) || !nrow(sl)) {
-        return(tags$p(class = "footnote", "Shortlist unavailable."))
-      }
-      # Keep primary + top two others for a product feel
-      show <- utils::head(sl, 3)
-      tiles <- lapply(seq_len(nrow(show)), function(i) {
-        row <- show[i, ]
-        label <- switch(
-          as.character(row$model),
-          elastic_net = "Elastic net",
-          ols_due = "Due-stock linear",
-          lasso = "Lasso",
-          gam_due = "Smooth due-stock",
-          ridge = "Ridge",
-          ols_lean = "Lean linear",
-          as.character(row$model)
-        )
-        div(
-          class = paste("short-tile", if (i == 1) "short-tile--primary"),
-          tags$span(class = "nx-kicker", if (i == 1) "Production" else "Reserve"),
-          tags$p(class = "short-name", label),
-          tags$p(
-            class = "short-meta",
-            sprintf(
-              "Typical monthly miss · A %s · B %s",
-              format(round(row$A), big.mark = ","),
-              format(round(row$B), big.mark = ",")
-            )
-          )
-        )
-      })
-      div(class = "short-grid", tiles)
-    })
+    invisible(store)
   })
 }
