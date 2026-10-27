@@ -1,17 +1,13 @@
 box::use(
   shiny[NS, moduleServer, div, tags, selectInput, reactive, renderText],
-  bslib[layout_columns, card, card_header, card_body],
+  bslib[card, card_header, card_body],
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
 box::use(
   app/logic/viewdata/charts[quota_track_chart],
 )
 
-fmt_int <- function(x) {
-  format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE)
-}
-
-#' Home — proposal narrative: forecast supply to manage exposure
+#' Home — supply forecast vs released quota (+ baseline)
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -74,7 +70,7 @@ ui <- function(id) {
     card(
       class = "desk-card",
       full_screen = TRUE,
-      card_header("Certificates released versus our supply forecast"),
+      card_header("Certificates released versus forecast"),
       card_body(
         class = "chart-frame chart-frame--tall",
         echarts4rOutput(ns("quota"), height = "420px")
@@ -82,8 +78,7 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "White = certificates LTA put up for bidding. Orange = selected forecast. ",
-      "Open Results for the exit layer · Your risk for order-book dollars."
+      "White = certificates released. Orange = selected forecast. Grey dashed = simple twelve-month average."
     )
   )
 }
@@ -109,14 +104,15 @@ server <- function(id, store) {
 
     output$quota <- renderEcharts4r({
       q <- store$two_quota
-      req_ok <- !is.null(q)
-      if (!req_ok) return(NULL)
+      if (is.null(q)) return(NULL)
       one <- q[q$model == input$model & q$category == input$cat, ]
+      base <- q[q$model == "simple_average" & q$category == input$cat, ]
       one <- one[order(one$month), ]
       df <- data.frame(
         month = one$month,
         published = one$published,
         outlook = one$outlook,
+        baseline = base$outlook[match(one$month, base$month)],
         stringsAsFactors = FALSE
       )
       quota_track_chart(df, model_label())

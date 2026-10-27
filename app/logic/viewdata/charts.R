@@ -44,8 +44,8 @@ style_chart <- function(p) {
     )
 }
 
-#' Published quota vs one selected outlook
-#' expects: month, published, outlook
+#' Published quota vs selected forecast vs simple-average baseline
+#' expects: month, published, outlook, baseline
 #' @export
 quota_track_chart <- function(df, forecast_name = "Our supply forecast") {
   plot_df <- df
@@ -57,7 +57,9 @@ quota_track_chart <- function(df, forecast_name = "Our supply forecast") {
            symbolSize = 6, lineStyle = list(width = 2.6)) |>
     e_line(forecast, name = forecast_name, symbol = "none",
            lineStyle = list(width = 2.2)) |>
-    e_color(c("#fafafa", "#ff5c1a")) |>
+    e_line(baseline, name = "Simple 12-month average", symbol = "none",
+           lineStyle = list(width = 1.5, type = "dashed", opacity = 0.75)) |>
+    e_color(c("#fafafa", "#ff5c1a", "#737373")) |>
     style_chart() |>
     e_datazoom(type = "inside")
 }
@@ -114,15 +116,15 @@ actual_vs_pred_chart <- function(df) {
 
 #' @export
 quota_compare_chart <- function(df) {
-  quota_track_chart(
-    data.frame(
-      month = df$month,
-      published = df$published,
-      outlook = df$from_pred,
-      stringsAsFactors = FALSE
-    ),
-    "Our supply forecast"
+  # expects published, from_pred; optional from_actual unused on Home
+  plot_df <- data.frame(
+    month = df$month,
+    published = df$published,
+    outlook = df$from_pred,
+    baseline = if (!is.null(df$from_actual)) df$from_actual else df$from_pred,
+    stringsAsFactors = FALSE
   )
+  quota_track_chart(plot_df, "Our supply forecast")
 }
 
 #' @export

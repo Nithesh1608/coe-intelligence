@@ -56,8 +56,13 @@ trailing_12 <- function(cat, end_m, model) {
 }
 
 test_months <- sort(unique(two$month[two$model == "core_forecast"]))
+label_of <- c(
+  core_forecast = "Core supply forecast",
+  momentum_forecast = "Momentum supply forecast",
+  simple_average = "Simple 12-month average"
+)
 out <- list()
-for (model in c("core_forecast", "momentum_forecast")) {
+for (model in c("core_forecast", "momentum_forecast", "simple_average")) {
   for (tm in test_months) {
     for (cat in c("A", "B")) {
       a <- alphas$alpha[alphas$category == cat][[1]]
@@ -67,7 +72,7 @@ for (model in c("core_forecast", "momentum_forecast")) {
         month = as.character(tm),
         category = cat,
         model = model,
-        label = if (model == "core_forecast") "Core supply forecast" else "Momentum supply forecast",
+        label = unname(label_of[[model]]),
         published = if (length(p)) p[[1]] else NA_real_,
         outlook = a * d12,
         stringsAsFactors = FALSE
