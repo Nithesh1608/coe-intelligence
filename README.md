@@ -1,6 +1,17 @@
 # COE Intelligence
 
-DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B exits and formula quota — not premiums.
+DBA3702 dealer / fleet **COE supply** desk. Forecasts supply and sizes exposure — not premiums.
+
+Aligned with `Project Proposal.md`:
+
+| Proposal view | App tab |
+| --- | --- |
+| Supply pipeline | **Supply** |
+| Feedback and scenarios | **Feedback** |
+| Category dynamics | **Categories** |
+| Exposure calculator | **Exposure** |
+
+Plus **Backtest**, **How it works**, **About**, **EDA**.
 
 ## Data
 
@@ -9,13 +20,13 @@ DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B exits and formu
 | `data/data_cleaning.Rmd` | Cleaning notebook |
 | `data/raw/` | Official extracts |
 | `data/processed/` | Cleaned RDS tables |
-| `data/processed/model_experiment/` | CV / test scores, forecasts, quota checks |
-| `data/audit/` | Quality / reconcile checks |
+| `data/processed/model_experiment/` | Forecast artefacts |
 
 ```r
 Rscript scripts/run_data_cleaning.R
 Rscript scripts/run_model_experiment.R
-Rscript scripts/summarise_dereg_examples.R
+Rscript scripts/export_two_models_for_app.R
+Rscript scripts/export_quota_two_models.R
 ```
 
 ## App
@@ -25,13 +36,4 @@ renv::restore()
 rhino::app()
 ```
 
-| Tab | Purpose |
-| --- | --- |
-| **Desk** | Landing dashboard — actual vs forecast at a glance |
-| **Forecast** | Month examples + LTA-style quota from exits |
-| **Method** | Technical ideas in plain language |
-| **EDA** | Placeholder for exploratory charts |
-| **Exposure** | Order-book cost under premium stress (not a premium forecast) |
-| **About** | Product / problem brief |
-
-Proposal: `Project Proposal.md`.
+**Honesty (from the proposal):** we forecast supply and quantify exposure under uncertainty. We do not claim to forecast premiums.
