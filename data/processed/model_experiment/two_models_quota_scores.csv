@@ -1,0 +1,5 @@
+"model","label","category","MAE","MAPE"
+"core_forecast","Core supply forecast","A",284.124707408635,0.119143918178571
+"core_forecast","Core supply forecast","B",173.391612110163,0.116475433664118
+"momentum_forecast","Momentum supply forecast","A",262.70295903721,0.110493138257641
+"momentum_forecast","Momentum supply forecast","B",192.757555039916,0.128644980025425

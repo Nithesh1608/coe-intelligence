@@ -27,7 +27,7 @@ axis <- list(
 style_chart <- function(p) {
   p |>
     e_theme("dark") |>
-    e_grid(left = 12, right = 16, top = 52, bottom = 16, containLabel = TRUE) |>
+    e_grid(left = 12, right = 16, top = 48, bottom = 16, containLabel = TRUE) |>
     e_tooltip(trigger = "axis") |>
     e_legend(right = 8, top = 4, textStyle = list(color = "#a3a3a3", fontSize = 11)) |>
     e_x_axis(
@@ -44,23 +44,39 @@ style_chart <- function(p) {
     )
 }
 
-#' Actual vs two forecasts vs simple average
-#' expects: month, actual, core, momentum, simple
+#' Published quota vs one selected outlook
+#' expects: month, published, outlook
 #' @export
-two_model_chart <- function(df) {
+quota_track_chart <- function(df, forecast_name = "Our supply forecast") {
+  plot_df <- df
+  plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
+  names(plot_df)[names(plot_df) == "outlook"] <- "forecast"
+  plot_df |>
+    e_charts(month) |>
+    e_line(published, name = "Certificates released", symbol = "circle",
+           symbolSize = 6, lineStyle = list(width = 2.6)) |>
+    e_line(forecast, name = forecast_name, symbol = "none",
+           lineStyle = list(width = 2.2)) |>
+    e_color(c("#fafafa", "#ff5c1a")) |>
+    style_chart() |>
+    e_datazoom(type = "inside")
+}
+
+#' Exits: actual vs one forecast vs simple average
+#' expects: month, actual, forecast, simple
+#' @export
+exit_track_chart <- function(df, forecast_name = "Our forecast") {
   plot_df <- df
   plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
   plot_df |>
     e_charts(month) |>
-    e_line(actual, name = "What actually happened", symbol = "circle", symbolSize = 6,
-           lineStyle = list(width = 2.8)) |>
-    e_line(core, name = "Core supply forecast", symbol = "none",
-           lineStyle = list(width = 2)) |>
-    e_line(momentum, name = "Momentum supply forecast", symbol = "none",
+    e_line(actual, name = "Cars that left", symbol = "circle", symbolSize = 5,
+           lineStyle = list(width = 2.4)) |>
+    e_line(forecast, name = forecast_name, symbol = "none",
            lineStyle = list(width = 2)) |>
     e_line(simple, name = "Simple 12-month average", symbol = "none",
-           lineStyle = list(width = 1.5, type = "dashed", opacity = 0.75)) |>
-    e_color(c("#fafafa", "#ff5c1a", "#c8f542", "#737373")) |>
+           lineStyle = list(width = 1.4, type = "dashed", opacity = 0.7)) |>
+    e_color(c("#fafafa", "#ff5c1a", "#737373")) |>
     style_chart() |>
     e_datazoom(type = "inside")
 }
@@ -86,37 +102,27 @@ fan_chart <- function(hist, fwd) {
 
 #' @export
 actual_vs_pred_chart <- function(df) {
-  # legacy single-model helper
-  plot_df <- df
-  plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
-  plot_df |>
-    e_charts(month) |>
-    e_line(actual, name = "What actually happened", symbol = "circle", symbolSize = 6,
-           lineStyle = list(width = 2.5)) |>
-    e_line(model, name = "Our forecast", symbol = "none",
-           lineStyle = list(width = 2)) |>
-    e_line(baseline, name = "Simple 12-month average", symbol = "none",
-           lineStyle = list(width = 1.5, type = "dashed", opacity = 0.75)) |>
-    e_color(c("#fafafa", "#ff5c1a", "#737373")) |>
-    style_chart() |>
-    e_datazoom(type = "inside")
+  exit_track_chart(
+    data.frame(
+      month = df$month, actual = df$actual,
+      forecast = df$model, simple = df$baseline,
+      stringsAsFactors = FALSE
+    ),
+    "Our forecast"
+  )
 }
 
 #' @export
 quota_compare_chart <- function(df) {
-  plot_df <- df
-  plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
-  plot_df |>
-    e_charts(month) |>
-    e_line(published, name = "Certificates LTA released", symbol = "circle",
-           symbolSize = 5, lineStyle = list(width = 2.5)) |>
-    e_line(from_pred, name = "Our quota outlook", symbol = "none",
-           lineStyle = list(width = 2)) |>
-    e_line(from_actual, name = "Outlook if exits were known", symbol = "none",
-           lineStyle = list(width = 1.5, type = "dashed", opacity = 0.8)) |>
-    e_color(c("#fafafa", "#c8f542", "#737373")) |>
-    style_chart() |>
-    e_datazoom(type = "inside")
+  quota_track_chart(
+    data.frame(
+      month = df$month,
+      published = df$published,
+      outlook = df$from_pred,
+      stringsAsFactors = FALSE
+    ),
+    "Our supply forecast"
+  )
 }
 
 #' @export

@@ -89,9 +89,8 @@ load_store <- function(root = project_root()) {
   two_monthly <- read_csv_safe(file.path(exp, "two_models_monthly.csv"))
   two_rollup <- read_csv_safe(file.path(exp, "two_models_rollup.csv"))
   two_hits <- read_csv_safe(file.path(exp, "two_models_hit_rates.csv"))
-  # Fallbacks to older exports if needed
-  dereg_monthly <- read_csv_safe(file.path(exp, "dereg_actual_vs_predicted_monthly.csv"))
-  dereg_rollup <- read_csv_safe(file.path(exp, "dereg_actual_vs_predicted_rollup.csv"))
+  two_quota <- read_csv_safe(file.path(exp, "two_models_quota_outlook.csv"))
+  two_quota_scores <- read_csv_safe(file.path(exp, "two_models_quota_scores.csv"))
   quota_outlook <- read_csv_safe(file.path(exp, "quota_outlook_calibrated.csv"))
   quota_scores <- read_csv_safe(file.path(exp, "quota_outlook_scores.csv"))
 
@@ -113,8 +112,8 @@ load_store <- function(root = project_root()) {
     two_monthly = two_monthly,
     two_rollup = two_rollup,
     two_hits = two_hits,
-    dereg_monthly = dereg_monthly,
-    dereg_rollup = dereg_rollup,
+    two_quota = two_quota,
+    two_quota_scores = two_quota_scores,
     quota_outlook = quota_outlook,
     quota_scores = quota_scores,
     meta = meta,

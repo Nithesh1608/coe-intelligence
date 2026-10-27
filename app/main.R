@@ -55,7 +55,7 @@ ui <- function(id) {
     nav_panel("About", about$ui(ns("about"))),
     nav_panel("EDA", eda$ui(ns("eda"))),
     nav_spacer(),
-    nav_item(tags$span(class = "badge-live", "Supply desk · not prices"))
+    nav_item(tags$span(class = "badge-live", "Supply · exposure"))
   )
 }
 
