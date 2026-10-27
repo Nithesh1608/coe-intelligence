@@ -19,103 +19,113 @@ fmt_int <- function(x) {
   format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE)
 }
 
-#' Your risk — supply forecast drives tightness; dollars follow
+#' Proposal view 4 — Exposure calculator
+#' Order book → expected COE cost + adverse case; shift timing by quarters
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk",
-    tags$p(class = "eyebrow", "Your risk"),
-    tags$h2("Supply tells you when. This page tells you the dollars."),
+    tags$p(class = "eyebrow", "Exposure calculator"),
+    tags$h2("Convert a forward order book into Certificate of Entitlement cost"),
     tags$p(
       class = "lede",
-      "Anyone can multiply cars × a premium rise. The forecast adds the missing piece: ",
-      "is the month you clear bids looking tight or loose — and therefore how hard to stress the book."
+      "Proposal case: a dealer holding fifty guaranteed Category A orders is short the certificate. ",
+      "Enter the book. See expected cost, an adverse case, and what happens if you shift purchases by one or two quarters."
     ),
     div(
       class = "scenario-banner",
       div(
         class = "scenario-banner__copy",
-        tags$span(class = "nx-kicker", "Demo scenario"),
-        tags$h3("50 Category A cars sold. Certificates not bought yet."),
+        tags$span(class = "nx-kicker", "Worked example from the proposal"),
+        tags$h3("50 guaranteed Category A orders"),
         tags$p(
-          "Pick a clearing month. We read our supply forecast for that month. ",
-          "If supply looks tighter than the simple average, we raise the stress you should plan for."
+          "Package price is locked. Bidding is still ahead. ",
+          "If the premium moves between order and bid, the dealer absorbs it."
         ),
-        actionButton(ns("load_demo"), "Load demo", class = "btn-demo")
+        actionButton(ns("load_demo"), "Load proposal example", class = "btn-demo")
       ),
       div(
         class = "scenario-banner__math",
-        tags$span(class = "nx-kicker", "Extra dollars if stress hits"),
-        div(class = "risk-hero-num", shiny::textOutput(ns("kpi_extra"), inline = TRUE)),
-        tags$p(class = "risk-hero-eq", shiny::textOutput(ns("kpi_extra_eq"), inline = TRUE))
-      )
-    ),
-    div(
-      class = "desk-controls desk-controls--row",
-      selectInput(
-        ns("model"),
-        "Supply forecast",
-        choices = c(
-          "Core supply forecast" = "core_forecast",
-          "Momentum supply forecast" = "momentum_forecast"
-        ),
-        selected = "core_forecast",
-        width = "240px"
-      ),
-      selectInput(
-        ns("category"),
-        "Category",
-        choices = c("Category A" = "A", "Category B" = "B"),
-        selected = "A",
-        width = "160px"
-      ),
-      uiOutput(ns("month_ui")),
-      numericInput(ns("n_cars"), "Cars still to bid", 50, min = 1, max = 5000, width = "140px")
-    ),
-    uiOutput(ns("tightness_card")),
-    div(
-      class = "risk-board",
-      div(
-        class = "risk-board__col",
-        tags$span(class = "nx-kicker", "Certificate outlay at last print"),
-        div(class = "risk-board__val", shiny::textOutput(ns("kpi_base"), inline = TRUE)),
-        tags$p(class = "risk-board__note", shiny::textOutput(ns("kpi_base_note"), inline = TRUE))
-      ),
-      div(class = "risk-board__arrow", "→"),
-      div(
-        class = "risk-board__col risk-board__col--hot",
-        tags$span(class = "nx-kicker", "Outlay if premium rises"),
-        div(class = "risk-board__val", shiny::textOutput(ns("kpi_stress"), inline = TRUE)),
-        tags$p(class = "risk-board__note", shiny::textOutput(ns("kpi_stress_note"), inline = TRUE))
-      ),
-      div(class = "risk-board__arrow", "="),
-      div(
-        class = "risk-board__col risk-board__col--accent",
-        tags$span(class = "nx-kicker", "Dealer absorbs"),
-        div(class = "risk-board__val", shiny::textOutput(ns("kpi_extra2"), inline = TRUE)),
-        tags$p(class = "risk-board__note", "Unhedged short on the locked book")
+        tags$span(class = "nx-kicker", "Adverse extra versus last print"),
+        div(class = "risk-hero-num", shiny::textOutput(ns("kpi_adverse_extra"), inline = TRUE)),
+        tags$p(class = "risk-hero-eq", shiny::textOutput(ns("kpi_adverse_eq"), inline = TRUE))
       )
     ),
     layout_columns(
-      col_widths = c(5, 7),
+      col_widths = c(4, 8),
       card(
         class = "desk-card",
-        card_header("Stress (can override)"),
+        card_header("Forward book"),
         card_body(
-          sliderInput(
-            ns("stress"),
-            "Premium rise before bids clear ($)",
-            min = 0, max = 40000, value = 5000, step = 500
+          selectInput(
+            ns("category"),
+            "Category",
+            choices = c(
+              "Category A" = "A",
+              "Category B" = "B",
+              "Category C" = "C",
+              "Category E" = "E"
+            ),
+            selected = "A"
           ),
-          tags$p(class = "footnote", shiny::textOutput(ns("suggest_note"), inline = TRUE)),
-          tags$p(class = "footnote", shiny::textOutput(ns("print_note"), inline = TRUE))
+          numericInput(ns("n_cars"), "Vehicles per quarter", 50, min = 1, max = 5000),
+          numericInput(ns("n_q"), "Quarters of buying", 4, min = 1, max = 8),
+          sliderInput(
+            ns("shift"),
+            "Shift purchases later (quarters)",
+            min = 0, max = 2, value = 0, step = 1
+          ),
+          tags$p(class = "footnote", shiny::textOutput(ns("print_note"), inline = TRUE)),
+          tags$p(
+            class = "footnote",
+            "Adverse case adds the largest within-quarter premium swing seen historically for this category — ",
+            "the proposal’s measure of dealer exposure, not a premium forecast."
+          )
         )
       ),
-      card(
-        class = "desk-card desk-card--story",
-        card_header("What the forecast changed"),
-        card_body(uiOutput(ns("value_story")))
+      div(
+        div(
+          class = "risk-board risk-board--3",
+          div(
+            class = "risk-board__col",
+            tags$span(class = "nx-kicker", "Expected outlay (last print)"),
+            div(class = "risk-board__val", shiny::textOutput(ns("kpi_central"), inline = TRUE)),
+            tags$p(class = "risk-board__note", shiny::textOutput(ns("kpi_central_note"), inline = TRUE))
+          ),
+          div(
+            class = "risk-board__col risk-board__col--hot",
+            tags$span(class = "nx-kicker", "Adverse outlay"),
+            div(class = "risk-board__val", shiny::textOutput(ns("kpi_adverse"), inline = TRUE)),
+            tags$p(class = "risk-board__note", shiny::textOutput(ns("kpi_adverse_note"), inline = TRUE))
+          ),
+          div(
+            class = "risk-board__col risk-board__col--accent",
+            tags$span(class = "nx-kicker", "Timing"),
+            div(class = "risk-board__val risk-board__val--sm", shiny::textOutput(ns("kpi_timing"), inline = TRUE)),
+            tags$p(class = "risk-board__note", "Shift only moves when cash hits — same unit cost unless you change category")
+          )
+        ),
+        card(
+          class = "desk-card",
+          full_screen = TRUE,
+          card_header("Quarterly Certificate of Entitlement outlay"),
+          card_body(
+            class = "chart-frame",
+            echarts4rOutput(ns("bars"), height = "300px")
+          )
+        )
+      )
+    ),
+    uiOutput(ns("supply_timing")),
+    div(
+      class = "scenario-why",
+      tags$h3("How this meets the proposal"),
+      tags$p(
+        "Supply answers how many certificates come to market. ",
+        "Exposure answers what a locked book costs at the last print, under an adverse within-quarter swing, ",
+        "and whether shifting the schedule by one or two quarters changes when that cost lands. ",
+        "Together they answer: what is my cost exposure, and how do I time against it?"
       )
     )
   )
@@ -124,81 +134,12 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    months_available <- reactive({
-      q <- store$two_quota
-      if (is.null(q)) return(as.Date(character()))
-      sort(unique(as.Date(q$month[q$category == input$category & q$model == input$model])))
-    })
-
-    output$month_ui <- renderUI({
-      ms <- months_available()
-      if (!length(ms)) {
-        return(tags$p(class = "footnote", "No supply months loaded."))
-      }
-      # Prefer a mid demo month if present
-      default <- as.Date("2025-05-01")
-      if (!default %in% ms) default <- ms[max(1, length(ms) %/% 2)]
-      selectInput(
-        session$ns("clear_month"),
-        "Clear bids in",
-        choices = setNames(as.character(ms), format(ms, "%b %Y")),
-        selected = as.character(default),
-        width = "160px"
-      )
-    })
-
     observeEvent(input$load_demo, {
-      updateSelectInput(session, "model", selected = "core_forecast")
       updateSelectInput(session, "category", selected = "A")
       updateNumericInput(session, "n_cars", value = 50)
-      ms <- months_available()
-      pick <- as.Date("2025-05-01")
-      if (!length(ms)) return()
-      if (!pick %in% ms) pick <- ms[max(1, length(ms) %/% 2)]
-      updateSelectInput(session, "clear_month", selected = as.character(pick))
+      updateNumericInput(session, "n_q", value = 4)
+      updateSliderInput(session, "shift", value = 0)
     })
-
-    supply_row <- reactive({
-      q <- store$two_quota
-      if (is.null(q) || is.null(input$clear_month)) return(NULL)
-      m <- as.Date(input$clear_month)
-      f <- q[q$model == input$model & q$category == input$category & as.Date(q$month) == m, ]
-      b <- q[q$model == "simple_average" & q$category == input$category & as.Date(q$month) == m, ]
-      if (!nrow(f) || !nrow(b)) return(NULL)
-      ratio <- f$outlook[[1]] / pmax(b$outlook[[1]], 1)
-      # Lower outlook than simple average => tighter supply signal
-      signal <- if (ratio < 0.95) {
-        "tighter"
-      } else if (ratio > 1.05) {
-        "looser"
-      } else {
-        "similar"
-      }
-      suggested <- switch(
-        signal,
-        tighter = 10000,
-        similar = 5000,
-        looser = 3000,
-        5000
-      )
-      list(
-        month = m,
-        forecast = f$outlook[[1]],
-        baseline = b$outlook[[1]],
-        published = f$published[[1]],
-        ratio = ratio,
-        signal = signal,
-        suggested = suggested,
-        label = f$label[[1]]
-      )
-    })
-
-    # When supply signal changes, move stress to suggestion (user can still override)
-    observeEvent(supply_row(), {
-      s <- supply_row()
-      if (is.null(s)) return()
-      updateSliderInput(session, "stress", value = s$suggested)
-    }, ignoreInit = FALSE)
 
     last_row <- reactive({
       b <- store$bidding
@@ -207,110 +148,109 @@ server <- function(id, store) {
       utils::tail(b[order(b$month), ], 1)
     })
 
+    max_swing <- reactive({
+      b <- store$bidding
+      b <- b[b$category == input$category & !is.na(b$premium), ]
+      if (nrow(b) < 4) return(8000)
+      b$q <- paste(
+        format(b$month, "%Y"),
+        (as.integer(format(b$month, "%m")) - 1L) %/% 3L
+      )
+      sw <- stats::aggregate(premium ~ q, b, function(z) diff(range(z)))
+      max(sw$premium, na.rm = TRUE)
+    })
+
     prem <- reactive({
       row <- last_row()
       if (is.null(row)) 100000 else as.numeric(row$premium[[1]])
     })
 
-    extra <- reactive(input$n_cars * input$stress)
-    loose_stress <- 3000
-    extra_if_loose <- reactive(input$n_cars * loose_stress)
-
-    output$tightness_card <- renderUI({
-      s <- supply_row()
-      if (is.null(s)) return(NULL)
-      tone <- switch(s$signal, tighter = "tight", looser = "loose", "mid")
-      title <- switch(
-        s$signal,
-        tighter = "Supply looks tighter than the simple average",
-        looser = "Supply looks looser than the simple average",
-        "Supply looks similar to the simple average"
-      )
-      div(
-        class = paste("tight-card", paste0("tight-card--", tone)),
-        tags$span(class = "nx-kicker", format(s$month, "%B %Y"), " · ", s$label),
-        tags$h3(title),
-        tags$p(
-          sprintf(
-            "Forecast %s certificates · simple average %s · released %s",
-            fmt_int(s$forecast), fmt_int(s$baseline),
-            if (is.na(s$published)) "—" else fmt_int(s$published)
-          )
-        ),
-        tags$p(
-          class = "tight-suggest",
-          sprintf("Suggested premium stress for this clearing month: %s per car", fmt_sgd(s$suggested))
-        )
+    schedule <- reactive({
+      data.frame(
+        quarter = paste0("Q", seq_len(input$n_q) + input$shift),
+        vehicles = input$n_cars,
+        at_last_print = input$n_cars * prem(),
+        with_stress = input$n_cars * (prem() + max_swing()),
+        stringsAsFactors = FALSE
       )
     })
 
-    output$kpi_extra <- renderText(fmt_sgd(extra()))
-    output$kpi_extra2 <- renderText(fmt_sgd(extra()))
-    output$kpi_extra_eq <- renderText({
-      sprintf("%s cars × %s rise", fmt_int(input$n_cars), fmt_sgd(input$stress))
+    n_total <- reactive(input$n_cars * input$n_q)
+
+    output$kpi_central <- renderText(fmt_sgd(sum(schedule()$at_last_print)))
+    output$kpi_central_note <- renderText({
+      sprintf("%s vehicles × last print %s", fmt_int(n_total()), fmt_sgd(prem()))
     })
-    output$kpi_base <- renderText(fmt_sgd(input$n_cars * prem()))
-    output$kpi_base_note <- renderText({
-      sprintf("%s cars × last print %s", fmt_int(input$n_cars), fmt_sgd(prem()))
+    output$kpi_adverse <- renderText(fmt_sgd(sum(schedule()$with_stress)))
+    output$kpi_adverse_note <- renderText({
+      sprintf("Last print + historical within-quarter swing %s", fmt_sgd(max_swing()))
     })
-    output$kpi_stress <- renderText(fmt_sgd(input$n_cars * (prem() + input$stress)))
-    output$kpi_stress_note <- renderText({
-      sprintf("Uses stress %s (from supply signal unless you override)", fmt_sgd(input$stress))
-    })
-    output$suggest_note <- renderText({
-      s <- supply_row()
-      if (is.null(s)) return("")
+    output$kpi_adverse_extra <- renderText(fmt_sgd(n_total() * max_swing()))
+    output$kpi_adverse_eq <- renderText({
       sprintf(
-        "Suggested from supply signal (%s): %s. Move the slider to override.",
-        s$signal, fmt_sgd(s$suggested)
+        "%s vehicles × %s max intra-quarter swing",
+        fmt_int(n_total()), fmt_sgd(max_swing())
       )
+    })
+    output$kpi_timing <- renderText({
+      if (input$shift == 0) "No shift" else paste0("+", input$shift, " quarter", if (input$shift > 1) "s" else "")
     })
     output$print_note <- renderText({
       row <- last_row()
-      if (is.null(row)) return("")
+      if (is.null(row)) return("No settled premium for this category.")
       sprintf(
         "Last settled Category %s premium: %s (%s).",
         input$category, fmt_sgd(row$premium[[1]]), format(as.Date(row$month[[1]]), "%b %Y")
       )
     })
 
-    output$value_story <- renderUI({
-      s <- supply_row()
-      if (is.null(s)) {
-        return(tags$p("Select a clearing month to link supply to stress."))
+    output$supply_timing <- renderUI({
+      q <- store$two_quota
+      if (is.null(q) || !input$category %in% c("A", "B")) {
+        return(tags$p(
+          class = "footnote",
+          "Supply timing context is available for Category A and Category B on the Supply tab."
+        ))
       }
-      delta <- extra() - extra_if_loose()
-      tags$div(
-        class = "story-list-wrap",
+      # Latest few months: forecast vs simple average as timing cue
+      core <- q[q$model == "core_forecast" & q$category == input$category, ]
+      base <- q[q$model == "simple_average" & q$category == input$category, ]
+      core <- core[order(as.Date(core$month)), ]
+      tail_n <- utils::tail(core, 3)
+      if (!nrow(tail_n)) return(NULL)
+      rows <- lapply(seq_len(nrow(tail_n)), function(i) {
+        m <- as.Date(tail_n$month[[i]])
+        b <- base$outlook[as.Date(base$month) == m]
+        b <- if (length(b)) b[[1]] else NA_real_
+        ratio <- tail_n$outlook[[i]] / pmax(b, 1)
+        label <- if (is.na(ratio)) {
+          "—"
+        } else if (ratio < 0.95) {
+          "Tighter than average"
+        } else if (ratio > 1.05) {
+          "Looser than average"
+        } else {
+          "Near average"
+        }
+        tags$div(
+          class = "timing-chip",
+          tags$strong(format(m, "%b %Y")),
+          tags$span(label)
+        )
+      })
+      div(
+        class = "timing-row",
+        tags$span(class = "nx-kicker", "Supply cue (Core forecast · recent months)"),
+        div(class = "timing-chips", rows),
         tags$p(
-          tags$strong("Without the forecast:"),
-          sprintf(
-            " you only know %s cars × some rise. That is a calculator.",
-            fmt_int(input$n_cars)
-          )
-        ),
-        tags$p(
-          tags$strong("With the forecast:"),
-          sprintf(
-            " %s looks %s than the simple average (outlook %s vs %s). We therefore plan a %s stress.",
-            format(s$month, "%B %Y"),
-            s$signal,
-            fmt_int(s$forecast),
-            fmt_int(s$baseline),
-            fmt_sgd(s$suggested)
-          )
-        ),
-        tags$p(
-          sprintf(
-            "Versus clearing in a loose month (stress %s), that is %s more capital at risk on the same book.",
-            fmt_sgd(loose_stress),
-            fmt_sgd(max(delta, 0))
-          )
-        ),
-        tags$p(
-          "Home answers timing. Your risk turns that timing into a P&L number on a locked package book."
+          class = "footnote",
+          "Use Supply to inspect the full path. Shift the book above to move cash into a different quarter window."
         )
       )
+    })
+
+    output$bars <- renderEcharts4r({
+      exposure_bars_chart(schedule())
     })
   })
 }

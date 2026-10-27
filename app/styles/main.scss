@@ -860,6 +860,43 @@ body {
   margin: 0.5rem 0 1rem;
 }
 
+.risk-board--3 {
+  grid-template-columns: repeat(3, 1fr);
+  margin-bottom: 0.75rem;
+}
+
+.risk-board__val--sm {
+  font-size: 1.25rem;
+}
+
+.timing-row {
+  margin: 0.75rem 0 0.25rem;
+}
+
+.timing-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.45rem 0 0.35rem;
+}
+
+.timing-chip {
+  border: 1px solid var(--line);
+  background: #0c0c0c;
+  border-radius: 4px;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 7rem;
+}
+
+.timing-chip strong {
+  font-family: "Syne", sans-serif;
+  letter-spacing: -0.03em;
+}
+
 @media (max-width: 900px) {
   .risk-board {
     grid-template-columns: 1fr;
