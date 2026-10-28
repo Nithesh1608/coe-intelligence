@@ -7,7 +7,7 @@ box::use(
   app/logic/viewdata/charts[quota_track_chart],
 )
 
-#' Home — supply forecast (unchanged model display)
+#' Home — supply forecast vs released quota (+ baseline)
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -64,7 +64,7 @@ ui <- function(id) {
         class = "nx-metric",
         tags$span(class = "nx-kicker", "What we do not forecast"),
         div(class = "nx-num nx-num--sm", "Premiums"),
-        tags$span(class = "nx-hint", "Use Your risk to size the book")
+        tags$span(class = "nx-hint", "Use Your risk to stress the book")
       )
     ),
     card(

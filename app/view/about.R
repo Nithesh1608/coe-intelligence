@@ -12,8 +12,8 @@ ui <- function(id) {
     tags$h1("COE Intelligence"),
     tags$p(
       class = "lede lede--wide",
-      "Supply visibility for dealers and fleets who buy Certificates of Entitlement continuously — ",
-      "Category A and Category B — and carry exposure when they lock package prices."
+      "Supply visibility for dealers, importers, and fleets who buy Certificates of Entitlement ",
+      "continuously — and carry unhedged exposure when they lock package prices."
     ),
     layout_columns(
       col_widths = c(6, 6),
@@ -21,29 +21,15 @@ ui <- function(id) {
         class = "desk-card",
         card_header("Problem"),
         card_body(
-          tags$p(
-            "Can COE supply be forecast far enough ahead, with honest uncertainty, ",
-            "to price and time real financial exposure?"
-          )
+          tags$p("Can COE supply be forecast far enough ahead, with honest uncertainty, to price and time real financial exposure?")
         )
       ),
       card(
         class = "desk-card",
-        card_header("What we ship"),
+        card_header("Answer we ship"),
         card_body(
-          tags$p(
-            "Category A and Category B supply forecasts, then Your risk — where predicted quota ",
-            "sets how hard to stress a locked order book. Not a premium tip. Not Category E."
-          )
+          tags$p("Category A and Category B supply forecasts, then an exposure desk for a locked order book. Not a premium tip.")
         )
-      )
-    ),
-    div(
-      class = "about-promise",
-      tags$h3("Honesty"),
-      tags$p(
-        "We forecast ", tags$strong("supply"), " and quantify ", tags$strong("exposure"),
-        " under stress. We do not claim to forecast premiums."
       )
     )
   )

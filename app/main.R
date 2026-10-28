@@ -6,10 +6,10 @@ box::use(
   app/logic/viewdata/store[load_store, project_root],
   app/view/dashboard,
   app/view/forecast,
-  app/view/exposure,
   app/view/method,
-  app/view/about,
   app/view/eda,
+  app/view/exposure,
+  app/view/about,
 )
 
 read_asset <- function(rel) {
@@ -55,7 +55,7 @@ ui <- function(id) {
     nav_panel("About", about$ui(ns("about"))),
     nav_panel("EDA", eda$ui(ns("eda"))),
     nav_spacer(),
-    nav_item(tags$span(class = "badge-live", "Supply · not premiums"))
+    nav_item(tags$span(class = "badge-live", "Supply · exposure"))
   )
 }
 
@@ -65,9 +65,9 @@ server <- function(id) {
     store <- load_store()
     dashboard$server("dashboard", store)
     forecast$server("forecast", store)
-    exposure$server("exposure", store)
     method$server("method", store)
-    about$server("about", store)
     eda$server("eda", store)
+    exposure$server("exposure", store)
+    about$server("about", store)
   })
 }
