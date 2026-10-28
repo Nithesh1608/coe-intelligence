@@ -2,7 +2,8 @@ box::use(
   shiny[
     NS, moduleServer, div, tags, numericInput, selectInput, sliderInput,
     renderText, renderUI, uiOutput, reactive, actionButton, observeEvent,
-    updateNumericInput, updateSelectInput, updateSliderInput
+    updateNumericInput, updateSelectInput, updateSliderInput, observe, isolate,
+    req
   ],
   bslib[card, card_header, card_body, layout_columns],
 )
@@ -59,6 +60,15 @@ score_month <- function(q, model, category, month) {
   )
 }
 
+signal_line <- function(signal) {
+  switch(
+    as.character(signal),
+    tighter = "Supply tighter than the simple average",
+    looser = "Supply looser than the simple average",
+    "Supply similar to the simple average"
+  )
+}
+
 #' Your risk — give your book, get timing in dollars
 #' @export
 ui <- function(id) {
@@ -69,8 +79,8 @@ ui <- function(id) {
     tags$h2("Give your locked book. Get the dollar cost of timing."),
     tags$p(
       class = "lede",
-      "We do not predict the next premium. We use the supply forecast to compare a tight clearing month ",
-      "with a loose one on the same cars — so you see how much capital timing can save."
+      "Enter the cars you still need to clear, and the month you plan to bid. ",
+      "We compare that plan with the loosest month in the supply forecast — in dollars."
     ),
 
     div(
@@ -80,9 +90,10 @@ ui <- function(id) {
         tags$span(class = "nx-kicker", "You give"),
         tags$ul(
           class = "io-list",
-          tags$li("How many cars are still waiting for a certificate"),
-          tags$li("Category A or Category B"),
-          tags$li("Which supply forecast to trust (Core or Momentum)")
+          tags$li("Cars still waiting for a certificate"),
+          tags$li("Category A or B"),
+          tags$li("Which supply forecast to use"),
+          tags$li(tags$strong("The month you plan to clear bids"))
         )
       ),
       div(
@@ -90,9 +101,9 @@ ui <- function(id) {
         tags$span(class = "nx-kicker", "You get"),
         tags$ul(
           class = "io-list",
-          tags$li("The tightest and loosest months in that forecast"),
-          tags$li("Suggested stress ($ per car) for each"),
-          tags$li(tags$strong("Dollars at risk"), " — and how much you avoid by clearing later")
+          tags$li("Stress ($/car) for your plan vs a looser month"),
+          tags$li(tags$strong("Extra dollars at risk"), " on your book"),
+          tags$li("How much you avoid by shifting timing")
         )
       )
     ),
@@ -103,13 +114,13 @@ ui <- function(id) {
       tags$h3("What to enter"),
       div(
         class = "desk-controls desk-controls--row",
-        numericInput(ns("n_cars"), "Cars still to bid", 50, min = 1, max = 5000, width = "150px"),
+        numericInput(ns("n_cars"), "Cars still to bid", 50, min = 1, max = 5000, width = "140px"),
         selectInput(
           ns("category"),
           "Category",
           choices = c("Category A" = "A", "Category B" = "B"),
           selected = "A",
-          width = "160px"
+          width = "150px"
         ),
         selectInput(
           ns("model"),
@@ -119,13 +130,20 @@ ui <- function(id) {
             "Momentum supply forecast" = "momentum_forecast"
           ),
           selected = "core_forecast",
-          width = "240px"
+          width = "220px"
+        ),
+        selectInput(
+          ns("clear_month"),
+          "I plan to clear bids in",
+          choices = c("Loading…" = ""),
+          width = "180px"
         ),
         actionButton(ns("load_demo"), "Load 50-car example", class = "btn-demo")
       ),
+      uiOutput(ns("planned_chip")),
       tags$p(
         class = "footnote",
-        "Example: 50 Category A packages sold, certificates not bought yet. Change the numbers to your book."
+        "Change the clearing month above — the comparison below updates to your plan vs the loosest month."
       )
     ),
 
@@ -151,26 +169,23 @@ ui <- function(id) {
       col_widths = c(5, 7),
       card(
         class = "desk-card",
-        card_header("Optional · stress your planned month"),
+        card_header("Stress on your planned month"),
         card_body(
-          uiOutput(ns("month_ui")),
-          uiOutput(ns("planned_signal")),
           sliderInput(
             ns("stress"),
-            "Premium rise if you clear in that month ($ per car)",
+            "Premium rise if you clear then ($ per car)",
             min = 0, max = 40000, value = 5000, step = 500
           ),
           tags$p(class = "footnote", shiny::textOutput(ns("suggest_note"), inline = TRUE)),
           tags$p(
             class = "footnote",
-            "Override only if you already have a view on how far premiums can move. ",
-            "Default comes from the supply signal above."
+            "Default comes from the supply signal for your chosen month. Drag only to override."
           )
         )
       ),
       card(
         class = "desk-card desk-card--story",
-        card_header("If you clear in your planned month"),
+        card_header("Dollars if you stick with your plan"),
         card_body(
           div(
             class = "risk-board risk-board--3",
@@ -226,63 +241,65 @@ server <- function(id, store) {
       }))
     })
 
-    timing_pair <- reactive({
-      sc <- scored_months()
-      if (is.null(sc) || !nrow(sc)) return(NULL)
-      # Tight = lowest outlook vs simple average; loose = highest
-      tight <- row_to_score(sc[which.min(sc$ratio), , drop = FALSE])
-      loose <- row_to_score(sc[which.max(sc$ratio), , drop = FALSE])
-      list(
-        tight = tight,
-        loose = loose,
-        same = identical(tight$month, loose$month) || identical(tight$suggested, loose$suggested)
-      )
-    })
-
     months_available <- reactive({
       sc <- scored_months()
       if (is.null(sc)) return(as.Date(character()))
       sort(as.Date(sc$month))
     })
 
-    output$month_ui <- renderUI({
+    # Keep a stable selectInput at the top — update choices without remounting
+    observe({
       ms <- months_available()
-      pair <- timing_pair()
-      if (!length(ms)) return(tags$p(class = "footnote", "No supply months loaded."))
-      default <- if (!is.null(pair)) as.Date(pair$tight$month) else as.Date("2025-05-01")
-      if (!default %in% ms) default <- ms[max(1L, length(ms) %/% 2L)]
-      labels <- format(ms, "%b %Y")
+      if (!length(ms)) return()
       choices <- as.character(ms)
-      names(choices) <- labels
-      selectInput(
-        session$ns("clear_month"),
-        "I plan to clear bids in",
-        choices = choices,
-        selected = as.character(default),
-        width = "100%"
-      )
+      names(choices) <- format(ms, "%b %Y")
+      current <- isolate(input$clear_month)
+      if (!is.null(current) && nzchar(current) && current %in% choices) {
+        selected <- current
+      } else {
+        # Prefer a mid horizon month for first load
+        pick <- as.Date("2025-05-01")
+        if (!pick %in% ms) pick <- ms[max(1L, length(ms) %/% 2L)]
+        selected <- as.character(pick)
+      }
+      updateSelectInput(session, "clear_month", choices = choices, selected = selected)
     })
 
     observeEvent(input$load_demo, {
       updateSelectInput(session, "model", selected = "core_forecast")
       updateSelectInput(session, "category", selected = "A")
       updateNumericInput(session, "n_cars", value = 50)
-      pair <- timing_pair()
-      if (is.null(pair)) return()
-      updateSelectInput(session, "clear_month", selected = as.character(as.Date(pair$tight$month)))
+      ms <- months_available()
+      if (!length(ms)) return()
+      pick <- as.Date("2025-05-01")
+      if (!pick %in% ms) pick <- ms[max(1L, length(ms) %/% 2L)]
+      updateSelectInput(session, "clear_month", selected = as.character(pick))
     })
 
     planned <- reactive({
+      req(input$clear_month)
+      req(nzchar(input$clear_month))
       q <- store$two_quota
-      if (is.null(q) || is.null(input$clear_month)) return(NULL)
+      if (is.null(q)) return(NULL)
       score_month(q, input$model, input$category, input$clear_month)
     })
 
-    observeEvent(planned(), {
-      s <- planned()
-      if (is.null(s)) return()
-      updateSliderInput(session, "stress", value = s$suggested)
-    }, ignoreInit = FALSE)
+    alt_loose <- reactive({
+      sc <- scored_months()
+      if (is.null(sc) || !nrow(sc)) return(NULL)
+      row_to_score(sc[which.max(sc$ratio), , drop = FALSE])
+    })
+
+    # Only push suggested stress when the chosen month / signal changes — not on every slider tick
+    observeEvent(
+      list(input$clear_month, input$model, input$category),
+      {
+        s <- planned()
+        if (is.null(s)) return()
+        updateSliderInput(session, "stress", value = s$suggested)
+      },
+      ignoreInit = FALSE
+    )
 
     last_row <- reactive({
       b <- store$bidding
@@ -302,85 +319,87 @@ server <- function(id, store) {
     })
 
     saved <- reactive({
-      pair <- timing_pair()
-      if (is.null(pair)) return(0)
-      n_cars() * (pair$tight$suggested - pair$loose$suggested)
+      s <- planned()
+      a <- alt_loose()
+      if (is.null(s) || is.null(a)) return(0)
+      n_cars() * (s$suggested - a$suggested)
+    })
+
+    output$planned_chip <- renderUI({
+      s <- planned()
+      if (is.null(s)) return(NULL)
+      tone <- switch(s$signal, tighter = "tight", looser = "loose", "mid")
+      div(
+        class = paste("planned-chip", paste0("planned-chip--", tone)),
+        sprintf(
+          "Your plan · %s · %s · suggested %s/car",
+          format(s$month, "%b %Y"), signal_line(s$signal), fmt_sgd(s$suggested)
+        )
+      )
     })
 
     output$hero_title <- renderText({
-      pair <- timing_pair()
-      if (is.null(pair)) return("Load supply forecasts to compare timing.")
-      if (isTRUE(pair$same)) {
-        return("Forecast looks flat across months — little timing edge on this book.")
+      s <- planned()
+      a <- alt_loose()
+      if (is.null(s) || is.null(a)) return("Pick a clearing month above.")
+      if (identical(s$month, a$month) || identical(s$suggested, a$suggested)) {
+        return(sprintf("%s is already among the loosest months we see.", format(s$month, "%b %Y")))
       }
       sprintf(
-        "Clear in %s instead of %s",
-        format(as.Date(pair$loose$month), "%b %Y"),
-        format(as.Date(pair$tight$month), "%b %Y")
+        "Your plan %s vs looser %s",
+        format(s$month, "%b %Y"),
+        format(a$month, "%b %Y")
       )
     })
 
     output$hero_sub <- renderText({
-      pair <- timing_pair()
-      if (is.null(pair) || isTRUE(pair$same)) {
-        return("Same stress either way on the months we can see.")
+      s <- planned()
+      a <- alt_loose()
+      if (is.null(s) || is.null(a)) return("")
+      if (identical(s$month, a$month) || identical(s$suggested, a$suggested)) {
+        return("Shifting timing does not reduce planned stress on this book.")
       }
       sprintf(
-        "%s looks %s (plan %s/car). %s looks %s (plan %s/car). Same %s cars.",
-        format(as.Date(pair$tight$month), "%B %Y"),
-        pair$tight$signal,
-        fmt_sgd(pair$tight$suggested),
-        format(as.Date(pair$loose$month), "%B %Y"),
-        pair$loose$signal,
-        fmt_sgd(pair$loose$suggested),
+        "Your month: %s (%s/car). Looser month: %s (%s/car). Same %s cars.",
+        signal_line(s$signal), fmt_sgd(s$suggested),
+        signal_line(a$signal), fmt_sgd(a$suggested),
         fmt_int(n_cars())
       )
     })
 
     output$kpi_saved <- renderText(fmt_sgd(max(saved(), 0)))
     output$kpi_saved_eq <- renderText({
-      pair <- timing_pair()
-      if (is.null(pair)) return("")
+      s <- planned()
+      a <- alt_loose()
+      if (is.null(s) || is.null(a)) return("")
       sprintf(
         "%s cars × (%s − %s) stress",
         fmt_int(n_cars()),
-        fmt_sgd(pair$tight$suggested),
-        fmt_sgd(pair$loose$suggested)
+        fmt_sgd(s$suggested),
+        fmt_sgd(a$suggested)
       )
     })
 
     output$timing_table <- renderUI({
-      pair <- timing_pair()
-      if (is.null(pair)) {
-        return(tags$p(class = "footnote", "No quota outlook loaded for this category / forecast."))
+      s <- planned()
+      a <- alt_loose()
+      if (is.null(s) || is.null(a)) {
+        return(tags$p(class = "footnote", "Choose a clearing month in the inputs above."))
       }
-      tight <- pair$tight
-      loose <- pair$loose
       n <- n_cars()
-      tight_extra <- n * as.numeric(tight$suggested)
-      loose_extra <- n * as.numeric(loose$suggested)
-      delta <- tight_extra - loose_extra
+      plan_extra <- n * s$suggested
+      alt_extra <- n * a$suggested
+      delta <- plan_extra - alt_extra
 
-      row_block <- function(kind, r, extra, tone) {
+      col_block <- function(kind, r, extra, tone) {
         div(
           class = paste("timing-col", paste0("timing-col--", tone)),
           tags$span(class = "nx-kicker", kind),
           tags$h3(format(as.Date(r$month), "%b %Y")),
-          tags$p(
-            class = "timing-signal",
-            switch(
-              as.character(r$signal),
-              tighter = "Supply tighter than the simple average",
-              looser = "Supply looser than the simple average",
-              "Supply similar to the simple average"
-            )
-          ),
+          tags$p(class = "timing-signal", signal_line(r$signal)),
           tags$p(
             class = "timing-meta",
-            sprintf(
-              "Forecast %s · average %s",
-              fmt_int(r$forecast), fmt_int(r$baseline)
-            )
+            sprintf("Forecast %s · average %s", fmt_int(r$forecast), fmt_int(r$baseline))
           ),
           div(
             class = "timing-metric",
@@ -395,35 +414,23 @@ server <- function(id, store) {
         )
       }
 
+      plan_tone <- switch(s$signal, tighter = "tight", looser = "loose", "mid")
       div(
         class = "timing-compare",
-        row_block("Clear in tight month", tight, tight_extra, "tight"),
+        col_block("Your planned month", s, plan_extra, plan_tone),
         div(
           class = "timing-vs",
           tags$span("vs"),
           tags$p(
             class = "timing-delta",
             if (delta > 0) {
-              sprintf("%s less at risk if you wait for the loose month", fmt_sgd(delta))
+              sprintf("%s less at risk if you wait for the looser month", fmt_sgd(delta))
             } else {
-              "Little difference between these months"
+              "Little or no timing saving vs the looser month"
             }
           )
         ),
-        row_block("Clear in loose month", loose, loose_extra, "loose")
-      )
-    })
-
-    output$planned_signal <- renderUI({
-      s <- planned()
-      if (is.null(s)) return(NULL)
-      tone <- switch(s$signal, tighter = "tight", looser = "loose", "mid")
-      div(
-        class = paste("planned-chip", paste0("planned-chip--", tone)),
-        sprintf(
-          "%s · supply %s · suggested %s/car",
-          format(s$month, "%b %Y"), s$signal, fmt_sgd(s$suggested)
-        )
+        col_block("Looser month in forecast", a, alt_extra, "loose")
       )
     })
 
@@ -431,11 +438,18 @@ server <- function(id, store) {
     output$kpi_base_note <- renderText({
       sprintf("%s cars × last print %s", fmt_int(n_cars()), fmt_sgd(prem()))
     })
-    output$kpi_stress <- renderText(fmt_sgd(n_cars() * (prem() + input$stress)))
+    output$kpi_stress <- renderText({
+      req(!is.null(input$stress))
+      fmt_sgd(n_cars() * (prem() + input$stress))
+    })
     output$kpi_stress_note <- renderText({
+      req(!is.null(input$stress))
       sprintf("Last print + %s stress", fmt_sgd(input$stress))
     })
-    output$kpi_extra <- renderText(fmt_sgd(n_cars() * input$stress))
+    output$kpi_extra <- renderText({
+      req(!is.null(input$stress))
+      fmt_sgd(n_cars() * input$stress)
+    })
     output$suggest_note <- renderText({
       s <- planned()
       if (is.null(s)) return("")
@@ -445,7 +459,7 @@ server <- function(id, store) {
       row <- last_row()
       if (is.null(row)) return("")
       sprintf(
-        "Last settled Category %s premium: %s (%s). Used only as the starting outlay — not a forecast.",
+        "Last settled Category %s premium: %s (%s). Starting outlay only — not a forecast.",
         input$category, fmt_sgd(row$premium[[1]]), format(as.Date(row$month[[1]]), "%b %Y")
       )
     })
