@@ -1080,8 +1080,16 @@ body {
   margin: 0 0 1.1rem;
 }
 
+.timing-compare--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 @media (max-width: 900px) {
   .timing-compare {
+    grid-template-columns: 1fr;
+  }
+
+  .timing-compare--3 {
     grid-template-columns: 1fr;
   }
 }
@@ -1112,6 +1120,10 @@ body {
 
 .timing-col--mid {
   border-color: rgba(255, 255, 255, 0.18);
+}
+
+.timing-col--best {
+  box-shadow: inset 0 0 0 1px rgba(200, 245, 66, 0.55);
 }
 
 .timing-signal {
