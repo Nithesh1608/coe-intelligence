@@ -86,6 +86,20 @@ load_store <- function(root = project_root()) {
 
   panel <- flows[, c("month", "category", "registrations", "deregistrations", "population")]
 
+  read_rds_safe <- function(name) {
+    p <- file.path(dir, name)
+    if (!file.exists(p)) return(NULL)
+    x <- readRDS(p)
+    if ("month" %in% names(x)) x$month <- as_date_col(x$month)
+    if ("category" %in% names(x)) x$category <- as.character(x$category)
+    x
+  }
+
+  pop_by_age <- read_rds_safe("pop_by_age.rds")
+  dereg_lta <- read_rds_safe("dereg_lta.rds")
+  renewal_rate <- read_rds_safe("renewal_rate.rds")
+  pqp <- read_rds_safe("pqp.rds")
+
   two_monthly <- read_csv_safe(file.path(exp, "two_models_monthly.csv"))
   two_rollup <- read_csv_safe(file.path(exp, "two_models_rollup.csv"))
   two_hits <- read_csv_safe(file.path(exp, "two_models_hit_rates.csv"))
@@ -109,6 +123,10 @@ load_store <- function(root = project_root()) {
     panel = panel,
     bidding = bidding,
     bids_raw = bids,
+    pop_by_age = pop_by_age,
+    dereg_lta = dereg_lta,
+    renewal_rate = renewal_rate,
+    pqp = pqp,
     two_monthly = two_monthly,
     two_rollup = two_rollup,
     two_hits = two_hits,
