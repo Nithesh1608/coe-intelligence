@@ -1135,11 +1135,89 @@ body {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.stress-explain p {
-  margin: 0.4rem 0 0;
+.stress-explain p,
+.stress-blurb {
+  margin: 0.4rem 0 0.85rem;
   color: #d4d4d4;
   line-height: 1.5;
   max-width: 72ch;
+}
+
+.calc-section {
+  margin: 0.25rem 0 1rem;
+}
+
+.calc-section h3 {
+  font-family: "Syne", sans-serif;
+  letter-spacing: -0.04em;
+  margin: 0.3rem 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+.supply-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .supply-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+.supply-chip {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.9rem 1rem;
+  background: #0c0c0c;
+}
+
+.supply-chip strong {
+  display: block;
+  font-family: "Syne", sans-serif;
+  font-size: 1.25rem;
+  letter-spacing: -0.04em;
+  margin: 0.25rem 0 0.35rem;
+}
+
+.supply-chip p {
+  margin: 0;
+  color: #d4d4d4;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.supply-chip__buf {
+  margin-top: 0.45rem !important;
+  color: var(--fg) !important;
+  font-weight: 600;
+}
+
+.supply-chip--best {
+  border-color: rgba(200, 245, 66, 0.45);
+  background: linear-gradient(160deg, rgba(200, 245, 66, 0.1), #0c0c0c 70%);
+}
+
+.save-banner {
+  border: 1px solid rgba(200, 245, 66, 0.4);
+  border-radius: 6px;
+  padding: 1.1rem 1.25rem;
+  margin: 0 0 1rem;
+  background: linear-gradient(135deg, rgba(200, 245, 66, 0.1), transparent 60%);
+}
+
+.save-banner h3 {
+  font-family: "Syne", sans-serif;
+  letter-spacing: -0.04em;
+  margin: 0.35rem 0 0.4rem;
+  font-size: 1.35rem;
+}
+
+.save-banner p {
+  margin: 0;
+  color: #d4d4d4;
+  line-height: 1.45;
 }
 
 .timing-signal {
