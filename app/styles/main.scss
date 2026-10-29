@@ -1610,6 +1610,39 @@ body {
   max-width: 70ch;
 }
 
+.eda-beat--full {
+  grid-template-columns: 1fr;
+}
+
+.eda-beat__copy--wide {
+  max-width: 72ch;
+}
+
+.eda-beat__copy--wide > p {
+  max-width: 72ch;
+}
+
+.eda-fig-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.eda-fig {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  overflow: auto;
+}
+
+.eda-fig__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 2px;
+}
+
 .gloss .card-body p {
   margin: 0 0 0.55rem;
   color: #d4d4d4;

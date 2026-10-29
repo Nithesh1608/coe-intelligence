@@ -1,125 +1,151 @@
 box::use(
-  shiny[
-    NS, moduleServer, div, tags, selectInput, reactive, renderUI, uiOutput, req
-  ],
-  bslib[card, card_body],
-  echarts4r[renderEcharts4r, echarts4rOutput],
-)
-box::use(
-  app/logic/viewdata/eda_story[
-    prep_age_wave, chart_age_wave,
-    prep_locked_exits, chart_locked_exits,
-    prep_quota_discretion, chart_quota_discretion,
-    prep_renewal_scatter, chart_renewal_scatter2,
-    prep_supply_price_scatter, chart_supply_price_scatter,
-    fmt_int
-  ],
+  shiny[NS, moduleServer, div, tags, addResourcePath],
+  app/logic/viewdata/store[project_root],
 )
 
-beat <- function(n, kicker, title, body, chart_ui, aside = NULL, extra = NULL) {
-  div(
-    class = "eda-beat",
-    div(
-      class = "eda-beat__copy",
-      tags$span(class = "eda-beat__num", sprintf("%02d", n)),
-      tags$span(class = "nx-kicker", kicker),
-      if (inherits(title, "shiny.tag") || inherits(title, "shiny.tag.list")) title else tags$h3(title),
-      tags$p(body),
-      if (!is.null(extra)) extra,
-      if (!is.null(aside)) tags$p(class = "eda-beat__aside", aside)
-    ),
-    card(
-      class = "desk-card",
-      full_screen = TRUE,
-      card_body(class = "chart-frame", chart_ui)
-    )
+eda_fig <- function(file, alt = "") {
+  tags$figure(
+    class = "eda-fig",
+    tags$img(src = file.path("eda-assets", file), alt = alt, class = "eda-fig__img")
   )
 }
 
-#' Exploratory story before the models
+eda_section <- function(n, kicker, title, body, files, aside = NULL) {
+  figs <- lapply(files, function(f) eda_fig(f, alt = title))
+  div(
+    class = "eda-beat eda-beat--full",
+    div(
+      class = "eda-beat__copy eda-beat__copy--wide",
+      tags$span(class = "eda-beat__num", sprintf("%02d", n)),
+      tags$span(class = "nx-kicker", kicker),
+      tags$h3(title),
+      tags$p(body),
+      if (!is.null(aside)) tags$p(class = "eda-beat__aside", aside)
+    ),
+    div(class = "eda-fig-stack", figs)
+  )
+}
+
+#' Full EDA story — original-theme charts from EDA 1 + EDA 2
 #' @export
 ui <- function(id) {
   ns <- NS(id)
+  addResourcePath("eda-assets", file.path(project_root(), "app", "static", "eda"))
   div(
     class = "page-stack desk eda-page",
     tags$p(class = "eyebrow", "EDA"),
-    tags$h2("What the data already says about supply"),
+    tags$h2("Exploratory story of COE supply"),
     tags$p(
       class = "lede lede--wide",
-      "Five views — bars, stacks, and scatters — that motivate forecasting exits and quota ",
-      "before we show any model. Category A and B only."
+      "All charts from our EDA notebooks, in reading order. Light figures keep the original ggplot look; ",
+      "the narrative walks from raw supply patterns to cohorts, renewals, formula, and price."
     ),
     div(
       class = "eda-spine",
-      tags$span("Age cliff"),
+      tags$span("Supply shape"),
       tags$span(class = "eda-spine__dot", "→"),
-      tags$span("Locked exits"),
+      tags$span("Season & cycles"),
       tags$span(class = "eda-spine__dot", "→"),
-      tags$span("Formula vs LTA"),
+      tags$span("Exits → quota"),
       tags$span(class = "eda-spine__dot", "→"),
-      tags$span("Renewal vs PQP"),
+      tags$span("Age & lock-in"),
       tags$span(class = "eda-spine__dot", "→"),
-      tags$span("Supply vs price")
+      tags$span("Renewals"),
+      tags$span(class = "eda-spine__dot", "→"),
+      tags$span("Formula & price")
     ),
 
-    beat(
-      1, "Cohorts already on the road",
-      uiOutput(ns("age_title")),
+    eda_section(
+      1, "How much supply is there?",
+      "Certificate quotas swing for years — they are not a smooth line",
       paste(
-        "Age structure is the slow clock. A large block near year 10 means elevated deregistrations",
-        "and quota for a few years; the thin 2–4 year band points to a later trough."
+        "Monthly auction quotas for Categories A, B and E show long waves and deep troughs.",
+        "A dealer pricing packages against “average supply” is pricing against a fiction."
       ),
-      echarts4rOutput(ns("c_age"), height = "380px"),
-      aside = "Stacked bars by vehicle age. Orange = ages 7–9. Lime = ages 2–4."
+      c("01_COE_supply_over_time.png", "02_COE_supply_volatility.png"),
+      "EDA 2 · RQ1 — level and rolling volatility."
     ),
 
-    beat(
-      2, "Some exits are already booked",
-      uiOutput(ns("locked_title")),
+    eda_section(
+      2, "Within the year and across years",
+      "Seasonality is mild; the multi-year cycle is the real story",
       paste(
-        "A 5-year renewal cannot be renewed again — those cars must leave five years later.",
-        "That cushion is knowable today and shrinks in the late 2020s."
+        "Month-of-year patterns exist but are secondary. Calendar-year averages show the longer boom–bust",
+        "that matters for fleet replacement windows."
       ),
-      echarts4rOutput(ns("c_locked"), height = "360px"),
-      aside = "Grouped bars: cars that must exit because they took a 5-year COE renewal."
+      c("04_Monthly_patterns.png", "05_Long_term_movements.png"),
+      "EDA 2 · RQ3 — monthly patterns and annual averages."
     ),
 
-    beat(
-      3, "Quota is formula plus LTA choice",
-      uiOutput(ns("disc_title")),
+    eda_section(
+      3, "The mechanical link",
+      "Cars leaving the road set up the next certificates",
       paste(
-        "The 25% replacement rule sets a baseline from recent deregistrations.",
-        "Since 2023 LTA has also added or held back certificates — so released quota is not pure mechanics."
+        "LTA’s replacement rule looks back at recent deregistrations. When exits rise, the next quota quarter",
+        "usually follows — that is the lever our elastic-net models learn."
       ),
-      echarts4rOutput(ns("c_disc"), height = "360px"),
-      aside = "Stacked bars per quota quarter. Grey = 25% rule. Blue = LTA added. Orange = held back.",
-      extra = selectInput(
-        ns("disc_cat"), "Show category",
-        choices = c("Category A" = "A", "Category B" = "B"),
-        selected = "A", width = "200px"
-      )
+      "03_Deregistrations_and_supply.png",
+      "EDA 2 · RQ2 — prior 12-month exits vs subsequent quarterly quota."
     ),
 
-    beat(
-      4, "Renewal is a price decision",
-      uiOutput(ns("ren_title")),
+    eda_section(
+      4, "What is already on the road",
+      "A large age cliff is due by ~2029; a thin cohort follows",
       paste(
-        "Each point is a year. Further right = higher PQP; higher = more owners renewed at year 10.",
-        "Expensive renewal lines up with lower renewal shares — more cars scrap and free certificates."
+        "Age structure is the slow clock. Cars aged 7–9 hit the year-10 decision soon; ages 2–4 were bought",
+        "in the tight-quota years and leave a thinner pipeline behind."
       ),
-      echarts4rOutput(ns("c_ren"), height = "380px"),
-      aside = "Scatter: average PQP vs renewal share of cars turning 10 (Cat A+B)."
+      c("e1_02_age_profile.png", "08_Vehicle_age_distribution.png"),
+      "EDA 1 chart 2 and EDA 2 · RQ5 — two views of the same age snapshot."
     ),
 
-    beat(
-      5, "Why a locked book cares about supply",
-      "When quarterly supply rises, clearing premiums usually ease",
+    eda_section(
+      5, "Some exits are already booked",
+      "Five-year renewals lock scrap dates five years ahead",
       paste(
-        "Dots are year-on-year changes in quarterly certificates vs average premium (May 2022 regime).",
-        "We do not forecast premiums — but supply timing still shows up in the price a dealer pays."
+        "Those cars cannot renew again. The locked-in exit cushion was thicker in 2021–24 than in 2026–28 —",
+        "knowable today, before any model."
       ),
-      echarts4rOutput(ns("c_scatter"), height = "380px"),
-      aside = "Scatter since May 2022. Tooltip shows category. Next: Results for the elastic-net forecasts."
+      "e1_04_locked_exits.png",
+      "EDA 1 chart 4 — exits implied by completed 5-year revalidations."
+    ),
+
+    eda_section(
+      6, "Renewal is a price decision",
+      "When renewing gets expensive, more owners scrap instead",
+      paste(
+        "Renewal activity over time, and the yearly renewal–PQP scatter, both show behaviour on top of the cohort.",
+        "Expensive PQP lines up with lower renewal shares — freeing certificates rather than holding them back."
+      ),
+      c("06_Renewal_activity.png", "e1_05_renewal_pqp.png"),
+      "EDA 2 · RQ4 and EDA 1 chart 5."
+    ),
+
+    eda_section(
+      7, "Quota is formula plus LTA choice",
+      "Since 2023 a large share of A/B certificates sat off the pure 25% rule",
+      paste(
+        "Grey is what the replacement rule gives; blue is extra LTA added; red is held back.",
+        "Supply is partly mechanical — and partly discretionary."
+      ),
+      "e1_03_quota_rule.png",
+      "EDA 1 chart 3 — quarterly stacked bars from Feb 2023."
+    ),
+
+    eda_section(
+      8, "Premiums in context — not our forecast target",
+      "Supply timing still shows up in clearing prices",
+      paste(
+        "Long premium history with regime shading, monthly supply vs premium, and YoY quota–premium scatters",
+        "explain why a locked order book cares about supply. We still do not forecast the next premium."
+      ),
+      c("e1_01_premiums.png", "07_Supply_and_premiums.png", "e1_06_supply_price.png"),
+      "EDA 1 charts 1 & 6 and EDA 2 · RQ5."
+    ),
+
+    tags$p(
+      class = "footnote eda-close",
+      "Next: Results shows held-out elastic-net forecasts. Your risk prices a locked book under supply paths."
     )
   )
 }
@@ -127,58 +153,7 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    age <- reactive({
-      req(!is.null(store$pop_by_age))
-      prep_age_wave(store$pop_by_age)
-    })
-    locked <- reactive({
-      req(!is.null(store$revalidation))
-      prep_locked_exits(store$revalidation)
-    })
-    disc <- reactive({
-      req(!is.null(store$bids_raw), !is.null(store$dereg_lta))
-      prep_quota_discretion(store$bids_raw, store$dereg_lta)
-    })
-    ren <- reactive({
-      req(!is.null(store$revalidation), !is.null(store$pop_by_age), !is.null(store$pqp))
-      prep_renewal_scatter(store$revalidation, store$pop_by_age, store$pqp)
-    })
-    scat <- reactive({
-      req(!is.null(store$bids_raw))
-      prep_supply_price_scatter(store$bids_raw)
-    })
-
-    output$age_title <- renderUI({
-      a <- age()
-      tags$h3(paste0(
-        fmt_int(a$due), " cars hit year-10 by ~2029 — only ",
-        fmt_int(a$thin), " sit in the thin 2–4 band (", format(a$latest, "%b %Y"), ")"
-      ))
-    })
-    output$locked_title <- renderUI({
-      L <- locked()
-      tags$h3(paste0(
-        "Locked-in exits ~", fmt_int(L$avg_past), "/yr in 2021–24 vs ~",
-        fmt_int(L$avg_fut), "/yr in 2026–28"
-      ))
-    })
-    output$disc_title <- renderUI({
-      d <- disc()
-      tags$h3(paste0(
-        "About ", sprintf("%.0f%%", 100 * abs(d$share)),
-        " of Cat A+B certificates since 2023 sat off the pure 25% rule"
-      ))
-    })
-    output$ren_title <- renderUI({
-      r <- ren()
-      cor_txt <- if (is.finite(r$cor)) sprintf("r = %.2f", r$cor) else "n small"
-      tags$h3(paste0("Renewal shares fall when PQP rises (", cor_txt, ")"))
-    })
-
-    output$c_age <- renderEcharts4r(chart_age_wave(age()))
-    output$c_locked <- renderEcharts4r(chart_locked_exits(locked()))
-    output$c_disc <- renderEcharts4r(chart_quota_discretion(disc(), input$disc_cat))
-    output$c_ren <- renderEcharts4r(chart_renewal_scatter2(ren()))
-    output$c_scatter <- renderEcharts4r(chart_supply_price_scatter(scat()))
+    addResourcePath("eda-assets", file.path(project_root(), "app", "static", "eda"))
+    invisible(store)
   })
 }
