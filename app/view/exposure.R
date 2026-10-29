@@ -2,8 +2,8 @@ box::use(
   shiny[
     NS, moduleServer, div, tags, numericInput, selectInput, sliderInput,
     checkboxInput, actionButton, renderText, renderUI, uiOutput, reactive,
-    observeEvent, updateNumericInput, updateSelectInput, req, withProgress,
-    incProgress
+    reactiveVal, observeEvent, updateNumericInput, updateSelectInput, req,
+    withProgress, incProgress
   ],
   bslib[card, card_header, card_body, navset_card_underline, nav_panel],
   echarts4r[

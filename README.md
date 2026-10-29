@@ -36,4 +36,4 @@ Rscript scripts/export_two_models_for_app.R
 Rscript scripts/build_quota_outlook.R
 ```
 
-Proposal: `Project Proposal.md`. EDA: `EDA 1.Rmd`, `EDA 2.R`.
+Proposal: `Project Proposal.md`. EDA story lives in the app (`app/view/eda.R`, `app/logic/viewdata/eda_story.R`).

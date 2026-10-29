@@ -1,4 +1,4 @@
-# Story panels for the EDA page — curated from EDA 1 / EDA 2 (Cat A/B only).
+# Story panels for the EDA page — curated Cat A/B supply narrative.
 
 box::use(
   echarts4r[e_charts, e_line, e_bar, e_color, e_datazoom, e_y_axis],
