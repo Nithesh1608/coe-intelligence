@@ -12,7 +12,7 @@ box::use(
   ],
 )
 box::use(
-  app/logic/doris/api[load_doris_funs, load_doris_data, make_pooled_book],
+  app/logic/exposure/api[load_exposure_funs, load_exposure_data, make_pooled_book],
   app/logic/viewdata/store[project_root],
 )
 
@@ -44,7 +44,7 @@ last_pqp <- function(root, category, fallback) {
   as.numeric(utils::tail(d[order(d$month), ], 1)$pqp[[1]])
 }
 
-#' Full dealer / fleet exposure (Doris engine + supply tilt)
+#' Full dealer / fleet exposure calculator (supply tilt optional)
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -83,7 +83,7 @@ ui <- function(id) {
           ),
           tags$p(
             class = "footnote",
-            "Pooled guaranteed orders by default. “A + B example book” loads Doris’s 50-order template. ",
+            "Pooled guaranteed orders by default. “A + B example book” loads the 50-order template. ",
             "Supply tilt uses the calibrated quota path."
           )
         ),
@@ -133,8 +133,8 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    funs <- load_doris_funs()
-    doris <- load_doris_data()
+    funs <- load_exposure_funs()
+    exp_data <- load_exposure_data()
     root <- project_root()
 
     observeEvent(TRUE, {
@@ -157,8 +157,8 @@ server <- function(id, store) {
     }, ignoreInit = TRUE)
 
     book <- reactive({
-      if (identical(input$category, "AB") && !is.null(doris$example_book)) {
-        b <- doris$example_book
+      if (identical(input$category, "AB") && !is.null(exp_data$example_book)) {
+        b <- exp_data$example_book
         b$quoted_premium[b$category == "A"] <- as.numeric(input$quoted)
         b$quoted_premium[b$category == "B"] <- last_premium(store$bidding, "B")
         return(b)
@@ -168,7 +168,7 @@ server <- function(id, store) {
     })
 
     quota_path_for <- function(cat) {
-      scen <- doris$scenario_examples
+      scen <- exp_data$scenario_examples
       if (is.null(scen) || !("total_median" %in% names(scen))) return(NULL)
       s <- scen[grepl("^Baseline", as.character(scen$scenario)) & scen$category == cat, ]
       if (!nrow(s)) return(NULL)
@@ -177,7 +177,7 @@ server <- function(id, store) {
     }
 
     dlog_for <- function(cat) {
-      m <- doris$premium_moves
+      m <- exp_data$premium_moves
       if (is.null(m) || is.null(m$round_to_round_detail)) return(numeric())
       d <- m$round_to_round_detail
       d <- d[d$category == cat & is.finite(d$chg_pct), ]
@@ -185,7 +185,7 @@ server <- function(id, store) {
     }
 
     elasticity_for <- function(cat) {
-      s <- doris$price_sensitivity
+      s <- exp_data$price_sensitivity
       if (is.null(s)) return(0)
       hit <- s$elasticity_quota[s$category == cat]
       if (!length(hit) || is.na(hit[[1]])) 0 else as.numeric(hit[[1]])
@@ -194,7 +194,7 @@ server <- function(id, store) {
     dl_res <- reactiveVal(NULL)
 
     observeEvent(input$run, {
-      req(!is.null(doris$premium_moves), !is.null(doris$price_sensitivity))
+      req(!is.null(exp_data$premium_moves), !is.null(exp_data$price_sensitivity))
       b <- book()
       cats <- unique(as.character(b$category))
       nsim <- max(200L, min(3000L, as.integer(input$nsim)))
@@ -306,11 +306,11 @@ server <- function(id, store) {
 
     fl_res <- reactiveVal(NULL)
     observeEvent(input$fl_run, {
-      req(!is.null(doris$example_fleet), !is.null(doris$premium_sims_baseline))
+      req(!is.null(exp_data$example_fleet), !is.null(exp_data$premium_sims_baseline))
       withProgress(message = "Fleet options", {
         out <- funs$fleet_decision(
-          doris$example_fleet,
-          doris$premium_sims_baseline,
+          exp_data$example_fleet,
+          exp_data$premium_sims_baseline,
           shift_quarters = as.integer(input$fl_shift),
           include_capex = isTRUE(input$fl_capex)
         )

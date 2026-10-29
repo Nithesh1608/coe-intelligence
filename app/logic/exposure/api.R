@@ -1,17 +1,17 @@
-# Load Doris exposure functions + supporting tables for the calculator.
+# Load exposure calculator functions + supporting tables.
 
 box::use(
   app/logic/viewdata/store[project_root],
 )
 
-doris_dir <- function(root = project_root()) {
-  file.path(root, "data", "processed", "doris")
+exposure_dir <- function(root = project_root()) {
+  file.path(root, "data", "processed", "exposure")
 }
 
 #' Source exposure_functions.R into an environment
 #' @export
-load_doris_funs <- function(root = project_root()) {
-  path <- file.path(root, "app", "logic", "doris", "exposure_functions.R")
+load_exposure_funs <- function(root = project_root()) {
+  path <- file.path(root, "app", "logic", "exposure", "exposure_functions.R")
   if (!file.exists(path)) stop("Missing ", path)
   e <- new.env(parent = globalenv())
   sys.source(path, envir = e)
@@ -19,8 +19,8 @@ load_doris_funs <- function(root = project_root()) {
 }
 
 #' @export
-load_doris_data <- function(root = project_root()) {
-  d <- doris_dir(root)
+load_exposure_data <- function(root = project_root()) {
+  d <- exposure_dir(root)
   read_rds <- function(f) {
     p <- file.path(d, f)
     if (!file.exists(p)) return(NULL)
@@ -38,8 +38,7 @@ load_doris_data <- function(root = project_root()) {
     premium_moves = read_rds("premium_moves.rds"),
     price_sensitivity = read_rds("price_sensitivity.rds"),
     scenario_examples = read_rds("scenario_examples.rds"),
-    premium_sims_baseline = read_rds("premium_sims_baseline.rds"),
-    car_cost = read_rds("car_cost_2026_08.rds")
+    premium_sims_baseline = read_rds("premium_sims_baseline.rds")
   )
 }
 

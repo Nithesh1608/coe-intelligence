@@ -1,9 +1,6 @@
 # =============================================================================
-# R/exposure_functions.R  --  premium simulator, dealer and fleet calculators
-#
-# Shared by 05_exposure_calculator.R and app.R. Everything is passed in as
-# arguments; nothing here reads files. To use in 05_exposure_calculator.R,
-# replace its Sections 1-4 with source("R/exposure_functions.R").
+# exposure_functions.R — premium simulator, dealer and fleet calculators
+# Everything is passed in as arguments; nothing here reads files.
 # =============================================================================
 
 EX_PER_QTR <- 6

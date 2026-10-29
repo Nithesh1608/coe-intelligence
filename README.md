@@ -1,6 +1,6 @@
 # COE Intelligence
 
-DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B exits and formula quota — not premiums. **Your risk** prices a locked order book / fleet schedule with simulated premium paths (optional supply tilt).
+DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B exits and formula quota — not premiums. **Your risk** is an exposure calculator for a locked order book / fleet schedule (simulated premium paths, optional supply tilt).
 
 ## Run
 
@@ -15,7 +15,7 @@ rhino::app()
 | --- | --- |
 | Home | Desk landing — supply at a glance |
 | Results | Core / Momentum forecasts + quota outlook |
-| Your risk | Dealer book + fleet exposure (Doris engine) |
+| Your risk | Exposure calculator (dealer book + fleet) |
 | How it works | Method in plain language |
 | About | Product brief |
 | EDA | Exploratory charts |
@@ -27,8 +27,8 @@ rhino::app()
 | `data/data_cleaning.Rmd` | Cleaning notebook |
 | `data/raw/` | Official extracts |
 | `data/processed/` | Cleaned RDS + app forecast CSVs |
-| `data/processed/doris/` | Exposure engine inputs (moves, elasticity, examples) |
-| `app/logic/doris/` | Exposure functions + API |
+| `data/processed/exposure/` | Exposure calculator inputs |
+| `app/logic/exposure/` | Exposure engine + API |
 
 ```r
 Rscript scripts/run_data_cleaning.R
