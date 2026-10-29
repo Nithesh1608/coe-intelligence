@@ -2,8 +2,7 @@ box::use(
   shiny[
     NS, moduleServer, div, tags, numericInput, selectInput, sliderInput,
     renderText, renderUI, uiOutput, reactive, actionButton, observeEvent,
-    updateNumericInput, updateSelectInput, updateSliderInput, observe, isolate,
-    req
+    updateNumericInput, updateSelectInput, updateSliderInput, req
   ],
   bslib[card, card_header, card_body, layout_columns],
 )
@@ -31,18 +30,16 @@ add_months <- function(d, n) {
   as.Date(sprintf("%04d-%02d-01", y, m))
 }
 
-# Stress from relative supply inside the timing set (not vs a lagging global average).
-# Highest forecast certificates = loosest = lowest stress.
+# Relative supply inside the timing set → suggested premium-rise buffer.
+# Highest forecast certificates = loosest = lowest buffer.
 stress_from_outlooks <- function(outlook, outlooks) {
   outlooks <- as.numeric(outlooks)
   outlook <- as.numeric(outlook)
   lo <- min(outlooks, na.rm = TRUE)
   hi <- max(outlooks, na.rm = TRUE)
-  if (!is.finite(lo) || !is.finite(hi) || hi <= lo) return(5000)
-  # 0 at loosest (hi), 1 at tightest (lo)
+  if (!is.finite(lo) || !is.finite(hi) || hi <= lo) return(5000L)
   t <- (hi - outlook) / (hi - lo)
-  stress <- 3000 + t * 7000
-  as.integer(round(stress / 500) * 500)
+  as.integer(round((3000 + t * 7000) / 500) * 500)
 }
 
 tone_from_rank <- function(outlook, outlooks) {
@@ -55,8 +52,8 @@ tone_from_rank <- function(outlook, outlooks) {
 label_from_tone <- function(tone) {
   switch(
     tone,
-    tight = "Tightest supply in this timing set",
-    loose = "Loosest supply in this timing set",
+    tight = "Least certificates in this timing set",
+    loose = "Most certificates in this timing set",
     "Middle of this timing set"
   )
 }
@@ -73,6 +70,24 @@ lookup_outlook <- function(q, model, category, month) {
   )
 }
 
+quota_months <- function(q) {
+  if (is.null(q) || !nrow(q)) return(as.Date(character()))
+  sort(unique(as.Date(q$month[q$model %in% c("core_forecast", "momentum_forecast")])))
+}
+
+month_choices <- function(ms) {
+  choices <- as.character(ms)
+  names(choices) <- format(ms, "%b %Y")
+  choices
+}
+
+demo_month <- function(ms) {
+  pick <- as.Date("2025-05-01")
+  if (!length(ms)) return(NA)
+  if (!pick %in% ms) pick <- ms[max(1L, length(ms) %/% 2L)]
+  pick
+}
+
 #' Your risk — give your book, get timing in dollars
 #' @export
 ui <- function(id) {
@@ -85,7 +100,7 @@ ui <- function(id) {
       class = "lede",
       "Pick when you plan to clear. We compare that month with shifting ",
       tags$strong("+1 quarter"), " and ", tags$strong("+2 quarters"),
-      " — using forecast certificate supply, not a single “best month” across the whole chart."
+      " on forecast certificate supply."
     ),
 
     div(
@@ -107,8 +122,8 @@ ui <- function(id) {
         tags$ul(
           class = "io-list",
           tags$li("Your plan vs +1Q vs +2Q on the same book"),
-          tags$li("Stress ($/car) from relative supply in that set"),
-          tags$li(tags$strong("Dollars you avoid"), " by picking the loosest of the three")
+          tags$li("A suggested premium-rise buffer ($/car) for each"),
+          tags$li(tags$strong("Extra dollars at risk"), " — and what you avoid by waiting")
         )
       )
     ),
@@ -137,17 +152,18 @@ ui <- function(id) {
           selected = "core_forecast",
           width = "220px"
         ),
+        # Choices filled once on server start — never rewritten on category/model change
         selectInput(
           ns("clear_month"),
           "I plan to clear bids in",
-          choices = c("Loading…" = ""),
+          choices = character(0),
           width = "180px"
         ),
         actionButton(ns("load_demo"), "Load 50-car example", class = "btn-demo")
       ),
       tags$p(
         class = "footnote",
-        "Timing set = your month, +3 months, +6 months (when data exists). Stress is relative inside that set."
+        "Example loads: 50 Category A cars, Core forecast, clear in May 2025."
       )
     ),
 
@@ -161,7 +177,7 @@ ui <- function(id) {
       ),
       div(
         class = "get-hero__math",
-        tags$span(class = "nx-kicker", "Capital you can avoid vs your plan"),
+        tags$span(class = "nx-kicker", "Extra $ you avoid by taking the better timing"),
         div(class = "risk-hero-num", shiny::textOutput(ns("kpi_saved"), inline = TRUE)),
         tags$p(class = "risk-hero-eq", shiny::textOutput(ns("kpi_saved_eq"), inline = TRUE))
       )
@@ -169,21 +185,34 @@ ui <- function(id) {
 
     uiOutput(ns("timing_table")),
 
+    div(
+      class = "stress-explain",
+      tags$span(class = "nx-kicker", "What “stress” means"),
+      tags$p(
+        tags$strong("Stress"),
+        " is not a premium forecast. It is the ",
+        tags$strong("premium rise per car you plan for"),
+        " between locking the package price and clearing the bid. ",
+        "Tighter supply in your timing set → higher suggested stress. ",
+        "Extra dollars at risk = cars × stress."
+      )
+    ),
+
     layout_columns(
       col_widths = c(5, 7),
       card(
         class = "desk-card",
-        card_header("Stress on your planned month"),
+        card_header("Premium-rise buffer for your plan"),
         card_body(
           sliderInput(
             ns("stress"),
-            "Premium rise if you clear then ($ per car)",
+            "If premium rises by this much before you clear ($ per car)",
             min = 0, max = 40000, value = 5000, step = 500
           ),
           tags$p(class = "footnote", shiny::textOutput(ns("suggest_note"), inline = TRUE)),
           tags$p(
             class = "footnote",
-            "Default = relative supply vs +1Q/+2Q. Drag only to override."
+            "Suggested from relative certificate supply vs +1Q/+2Q. Drag only if you want a different buffer."
           )
         )
       ),
@@ -209,7 +238,7 @@ ui <- function(id) {
               class = "risk-board__col risk-board__col--accent",
               tags$span(class = "nx-kicker", "You absorb"),
               div(class = "risk-board__val risk-board__val--sm", shiny::textOutput(ns("kpi_extra"), inline = TRUE)),
-              tags$p(class = "risk-board__note", "Extra dollars on the locked book")
+              tags$p(class = "risk-board__note", "cars × premium-rise buffer")
             )
           ),
           tags$p(class = "footnote", shiny::textOutput(ns("print_note"), inline = TRUE))
@@ -222,47 +251,42 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    months_available <- reactive({
-      q <- store$two_quota
-      if (is.null(q)) return(as.Date(character()))
-      sort(unique(as.Date(q$month[q$category == input$category & q$model == input$model])))
-    })
+    ms_all <- quota_months(store$two_quota)
+    choices_all <- month_choices(ms_all)
+    demo_m <- demo_month(ms_all)
 
-    observe({
-      ms <- months_available()
-      if (!length(ms)) return()
-      # Need room for +2Q when possible — still allow late months
-      choices <- as.character(ms)
-      names(choices) <- format(ms, "%b %Y")
-      current <- isolate(input$clear_month)
-      if (!is.null(current) && nzchar(current) && current %in% choices) {
-        selected <- current
-      } else {
-        pick <- as.Date("2025-05-01")
-        if (!pick %in% ms) pick <- ms[max(1L, length(ms) %/% 2L)]
-        selected <- as.character(pick)
-      }
-      updateSelectInput(session, "clear_month", choices = choices, selected = selected)
-    })
+    # Fill month choices once. Never rewrite on category/model — that was resetting the control.
+    observeEvent(
+      TRUE,
+      {
+        if (!length(ms_all)) return()
+        updateSelectInput(
+          session,
+          "clear_month",
+          choices = choices_all,
+          selected = as.character(demo_m)
+        )
+      },
+      once = TRUE
+    )
 
     observeEvent(input$load_demo, {
-      updateSelectInput(session, "model", selected = "core_forecast")
-      updateSelectInput(session, "category", selected = "A")
+      # Only change selected values — do not resend choices
       updateNumericInput(session, "n_cars", value = 50)
-      ms <- months_available()
-      if (!length(ms)) return()
-      pick <- as.Date("2025-05-01")
-      if (!pick %in% ms) pick <- ms[max(1L, length(ms) %/% 2L)]
-      updateSelectInput(session, "clear_month", selected = as.character(pick))
-    })
+      updateSelectInput(session, "category", selected = "A")
+      updateSelectInput(session, "model", selected = "core_forecast")
+      if (length(ms_all) && !is.na(demo_m)) {
+        updateSelectInput(session, "clear_month", selected = as.character(demo_m))
+      }
+    }, ignoreInit = TRUE)
 
-    # Timing set: plan, +1Q, +2Q (drop missing)
     timing_set <- reactive({
       req(input$clear_month)
       req(nzchar(input$clear_month))
       q <- store$two_quota
       if (is.null(q)) return(NULL)
       plan_m <- as.Date(input$clear_month)
+      if (is.na(plan_m)) return(NULL)
       targets <- list(
         list(key = "plan", title = "Your plan", offset = 0L, month = plan_m),
         list(key = "q1", title = "Shift +1 quarter", offset = 3L, month = add_months(plan_m, 3L)),
@@ -295,7 +319,9 @@ server <- function(id, store) {
     planned_row <- reactive({
       sc <- timing_set()
       if (is.null(sc)) return(NULL)
-      sc[sc$key == "plan", , drop = FALSE]
+      hit <- sc[sc$key == "plan", , drop = FALSE]
+      if (!nrow(hit)) return(NULL)
+      hit
     })
 
     best_row <- reactive({
@@ -304,6 +330,7 @@ server <- function(id, store) {
       sc[which.max(sc$forecast), , drop = FALSE]
     })
 
+    # Keep slider in sync with suggested buffer when plan inputs change
     observeEvent(
       list(input$clear_month, input$model, input$category),
       {
@@ -346,12 +373,12 @@ server <- function(id, store) {
       }
       if (identical(as.Date(pr$month[[1]]), as.Date(br$month[[1]]))) {
         return(sprintf(
-          "%s is already the loosest option in your +0/+1Q/+2Q set.",
+          "%s already has the most certificates in your +0 / +1Q / +2Q set.",
           format(as.Date(pr$month[[1]]), "%b %Y")
         ))
       }
       sprintf(
-        "Shift to %s instead of your plan %s",
+        "Clear in %s instead of your plan %s",
         format(as.Date(br$month[[1]]), "%b %Y"),
         format(as.Date(pr$month[[1]]), "%b %Y")
       )
@@ -359,11 +386,9 @@ server <- function(id, store) {
 
     output$hero_sub <- renderText({
       sc <- timing_set()
-      pr <- planned_row()
-      br <- best_row()
-      if (is.null(sc) || is.null(pr) || is.null(br)) return("")
+      if (is.null(sc)) return("")
       sprintf(
-        "Compared inside {%s}. Higher forecast certificates → lower stress. Same %s cars.",
+        "Timing set: %s. More forecast certificates → smaller premium-rise buffer. Same %s cars.",
         paste(format(as.Date(sc$month), "%b %Y"), collapse = ", "),
         fmt_int(n_cars())
       )
@@ -375,7 +400,7 @@ server <- function(id, store) {
       br <- best_row()
       if (is.null(pr) || is.null(br) || !nrow(pr) || !nrow(br)) return("")
       sprintf(
-        "%s cars × (%s − %s) stress",
+        "%s cars × (%s − %s) buffer",
         fmt_int(n_cars()),
         fmt_sgd(pr$suggested[[1]]),
         fmt_sgd(br$suggested[[1]])
@@ -387,7 +412,7 @@ server <- function(id, store) {
       if (is.null(sc) || !nrow(sc)) {
         return(tags$p(
           class = "footnote",
-          "Not enough forward months for a +1Q/+2Q set. Pick an earlier clearing month."
+          "Not enough forward months for +1Q/+2Q. Pick an earlier clearing month."
         ))
       }
       n <- n_cars()
@@ -412,12 +437,12 @@ server <- function(id, store) {
           ),
           div(
             class = "timing-metric",
-            tags$span("Stress to plan"),
+            tags$span("Premium-rise buffer"),
             tags$strong(fmt_sgd(r$suggested), " / car")
           ),
           div(
             class = "timing-metric timing-metric--money",
-            tags$span("Extra $ if that stress hits"),
+            tags$span("Extra $ if that rise hits"),
             tags$strong(fmt_sgd(extra))
           )
         )
@@ -436,7 +461,7 @@ server <- function(id, store) {
     })
     output$kpi_stress_note <- renderText({
       req(!is.null(input$stress))
-      sprintf("Last print + %s stress", fmt_sgd(input$stress))
+      sprintf("Last print + %s buffer", fmt_sgd(input$stress))
     })
     output$kpi_extra <- renderText({
       req(!is.null(input$stress))
@@ -446,8 +471,8 @@ server <- function(id, store) {
       pr <- planned_row()
       if (is.null(pr) || !nrow(pr)) return("")
       sprintf(
-        "From relative supply in your timing set (%s): %s. Slider overrides.",
-        pr$rank_label[[1]], fmt_sgd(pr$suggested[[1]])
+        "Suggested buffer for your plan: %s/car (%s).",
+        fmt_sgd(pr$suggested[[1]]), pr$rank_label[[1]]
       )
     })
     output$print_note <- renderText({
