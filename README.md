@@ -1,6 +1,24 @@
 # COE Intelligence
 
-DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B exits and formula quota — not premiums.
+DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B exits and formula quota — not premiums. **Your risk** prices a locked order book / fleet schedule with simulated premium paths (optional supply tilt).
+
+## Run
+
+```r
+renv::restore()
+rhino::app()
+```
+
+## Tabs
+
+| Tab | Purpose |
+| --- | --- |
+| Home | Desk landing — supply at a glance |
+| Results | Core / Momentum forecasts + quota outlook |
+| Your risk | Dealer book + fleet exposure (Doris engine) |
+| How it works | Method in plain language |
+| About | Product brief |
+| EDA | Exploratory charts |
 
 ## Data
 
@@ -8,30 +26,14 @@ DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B exits and formu
 | --- | --- |
 | `data/data_cleaning.Rmd` | Cleaning notebook |
 | `data/raw/` | Official extracts |
-| `data/processed/` | Cleaned RDS tables |
-| `data/processed/model_experiment/` | CV / test scores, forecasts, quota checks |
-| `data/audit/` | Quality / reconcile checks |
+| `data/processed/` | Cleaned RDS + app forecast CSVs |
+| `data/processed/doris/` | Exposure engine inputs (moves, elasticity, examples) |
+| `app/logic/doris/` | Exposure functions + API |
 
 ```r
 Rscript scripts/run_data_cleaning.R
-Rscript scripts/run_model_experiment.R
-Rscript scripts/summarise_dereg_examples.R
+Rscript scripts/export_two_models_for_app.R
+Rscript scripts/build_quota_outlook.R
 ```
 
-## App
-
-```r
-renv::restore()
-rhino::app()
-```
-
-| Tab | Purpose |
-| --- | --- |
-| **Desk** | Landing dashboard — actual vs forecast at a glance |
-| **Forecast** | Month examples + LTA-style quota from exits |
-| **Method** | Technical ideas in plain language |
-| **EDA** | Placeholder for exploratory charts |
-| **Exposure** | Order-book cost under premium stress (not a premium forecast) |
-| **About** | Product / problem brief |
-
-Proposal: `Project Proposal.md`.
+Proposal: `Project Proposal.md`. EDA: `EDA 1.Rmd`, `EDA 2.R`.

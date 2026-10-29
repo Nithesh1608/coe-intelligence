@@ -233,11 +233,12 @@ pop_by_age <- read_lta_long("datamall/M01-03M-Age.csv") |>
     age_lower = parse_number(age),                      # "9 - < 10" -> 9
     age_upper = if_else(str_detect(age, "above"), NA_real_, age_lower + 1),
     # DataMall types are not COE categories; map as closely as possible
+    # Cars share A+B; goods map to C; buses are NOT Cat C (no bidding category).
     coe_group = case_when(
       vehicle_type == "Cars"                      ~ "A+B",
       vehicle_type == "Motorcycles"               ~ "D",
-      vehicle_type %in% c("Buses",
-                          "Goods and Other Vehicles") ~ "C",
+      vehicle_type == "Goods and Other Vehicles"  ~ "C",
+      vehicle_type == "Buses"                     ~ "Bus",
       TRUE                                        ~ vehicle_type
     )
   ) |>
