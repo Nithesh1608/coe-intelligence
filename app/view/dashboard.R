@@ -1,5 +1,5 @@
 box::use(
-  shiny[NS, moduleServer, div, tags, selectInput, reactive, renderText],
+  shiny[NS, moduleServer, div, tags, selectInput, reactive, renderText, renderUI, uiOutput],
   bslib[card, card_header, card_body],
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
@@ -29,14 +29,15 @@ ui <- function(id) {
         class = "desk-controls",
         selectInput(
           ns("model"),
-          "Forecast",
+          "Model",
           choices = c(
-            "Core supply forecast" = "core_forecast",
-            "Momentum supply forecast" = "momentum_forecast"
+            "Elastic net" = "core_forecast",
+            "Elastic net + momentum" = "momentum_forecast"
           ),
           selected = "core_forecast",
           width = "100%"
         ),
+        uiOutput(ns("model_blurb")),
         selectInput(
           ns("cat"),
           "Category",
@@ -78,7 +79,7 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "White = certificates released. Orange = selected forecast. Grey dashed = simple twelve-month average."
+      "White = certificates released. Orange = selected model. Grey dashed = 12-month average."
     )
   )
 }
@@ -87,11 +88,15 @@ ui <- function(id) {
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
     model_label <- reactive({
-      if (identical(input$model, "momentum_forecast")) {
-        "Momentum supply forecast"
-      } else {
-        "Core supply forecast"
-      }
+      labs <- store$meta$model_labels
+      lab <- unname(labs[input$model])
+      if (!length(lab) || is.na(lab)) input$model else lab
+    })
+
+    output$model_blurb <- renderUI({
+      b <- store$meta$model_blurb[[input$model]]
+      if (is.null(b) || !nzchar(b)) return(NULL)
+      tags$p(class = "footnote", style = "margin:0.25rem 0 0.6rem;", b)
     })
 
     output$kpi_mape <- renderText({

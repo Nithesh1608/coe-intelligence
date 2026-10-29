@@ -7,11 +7,11 @@ box::use(
 )
 box::use(
   app/logic/viewdata/eda_story[
-    prep_supply_swings, chart_supply_swings,
-    prep_exits_to_quota, chart_exits_to_quota,
     prep_age_wave, chart_age_wave,
-    prep_renewal_price, chart_renewal_price,
-    prep_supply_premium, chart_supply_premium,
+    prep_locked_exits, chart_locked_exits,
+    prep_quota_discretion, chart_quota_discretion,
+    prep_renewal_scatter, chart_renewal_scatter2,
+    prep_supply_price_scatter, chart_supply_price_scatter,
     fmt_int
   ],
 )
@@ -36,95 +36,90 @@ beat <- function(n, kicker, title, body, chart_ui, aside = NULL, extra = NULL) {
   )
 }
 
-#' Exploratory story — supply → cohorts → renewals → why exposure
+#' Exploratory story before the models
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk eda-page",
     tags$p(class = "eyebrow", "EDA"),
-    tags$h2("How COE supply actually behaves"),
+    tags$h2("What the data already says about supply"),
     tags$p(
       class = "lede lede--wide",
-      "Before the forecast: five charts that explain why Category A and B certificates ",
-      "move in waves, what locks those waves in, and why timing a locked book is a money problem."
+      "Five views — bars, stacks, and scatters — that motivate forecasting exits and quota ",
+      "before we show any model. Category A and B only."
     ),
     div(
       class = "eda-spine",
-      tags$span("Supply swings"),
-      tags$span(class = "eda-spine__dot", "→"),
-      tags$span("Exits feed quota"),
-      tags$span(class = "eda-spine__dot", "→"),
       tags$span("Age cliff"),
       tags$span(class = "eda-spine__dot", "→"),
-      tags$span("Renewals bend timing"),
+      tags$span("Locked exits"),
       tags$span(class = "eda-spine__dot", "→"),
-      tags$span("Tight supply, dear COEs")
+      tags$span("Formula vs LTA"),
+      tags$span(class = "eda-spine__dot", "→"),
+      tags$span("Renewal vs PQP"),
+      tags$span(class = "eda-spine__dot", "→"),
+      tags$span("Supply vs price")
     ),
 
     beat(
-      1, "The market dealers buy into",
-      "Certificate supply is not a smooth line",
+      1, "Cohorts already on the road",
+      uiOutput(ns("age_title")),
       paste(
-        "Monthly auction quotas for Categories A and B swing for years at a time.",
-        "A dealer who prices packages against “average supply” is pricing against a fiction."
+        "Age structure is the slow clock. A large block near year 10 means elevated deregistrations",
+        "and quota for a few years; the thin 2–4 year band points to a later trough."
       ),
-      echarts4rOutput(ns("c_supply"), height = "360px"),
-      aside = "Monthly sum of both bidding rounds when both are complete."
+      echarts4rOutput(ns("c_age"), height = "380px"),
+      aside = "Stacked bars by vehicle age. Orange = ages 7–9. Lime = ages 2–4."
     ),
 
     beat(
-      2, "The formula link",
-      "Cars leaving the road set up the next certificates",
+      2, "Some exits are already booked",
+      uiOutput(ns("locked_title")),
       paste(
-        "LTA’s replacement rule looks back at recent deregistrations.",
-        "When exits rise, the next quota quarter usually follows — that is the lever our supply models learn."
+        "A 5-year renewal cannot be renewed again — those cars must leave five years later.",
+        "That cushion is knowable today and shrinks in the late 2020s."
       ),
-      echarts4rOutput(ns("c_exits"), height = "360px"),
-      aside = "Grey: exits in the prior 12 months. Orange: certificates in the following quarter.",
+      echarts4rOutput(ns("c_locked"), height = "360px"),
+      aside = "Grouped bars: cars that must exit because they took a 5-year COE renewal."
+    ),
+
+    beat(
+      3, "Quota is formula plus LTA choice",
+      uiOutput(ns("disc_title")),
+      paste(
+        "The 25% replacement rule sets a baseline from recent deregistrations.",
+        "Since 2023 LTA has also added or held back certificates — so released quota is not pure mechanics."
+      ),
+      echarts4rOutput(ns("c_disc"), height = "360px"),
+      aside = "Stacked bars per quota quarter. Grey = 25% rule. Blue = LTA added. Orange = held back.",
       extra = selectInput(
-        ns("exit_cat"), "Show category",
+        ns("disc_cat"), "Show category",
         choices = c("Category A" = "A", "Category B" = "B"),
         selected = "A", width = "200px"
       )
     ),
 
     beat(
-      3, "What is already on the road",
-      uiOutput(ns("age_title")),
+      4, "Renewal is a price decision",
+      uiOutput(ns("ren_title")),
       paste(
-        "Age structure is the slow clock behind exits. A large block near year 10 means elevated deregistrations",
-        "and quota for a few years; the thin cohorts behind them point to a later trough."
+        "Each point is a year. Further right = higher PQP; higher = more owners renewed at year 10.",
+        "Expensive renewal lines up with lower renewal shares — more cars scrap and free certificates."
       ),
-      echarts4rOutput(ns("c_age"), height = "360px"),
-      aside = "Orange: ages 7–9. Lime: ages 2–4 (bought in the tight-quota years)."
+      echarts4rOutput(ns("c_ren"), height = "380px"),
+      aside = "Scatter: average PQP vs renewal share of cars turning 10 (Cat A+B)."
     ),
 
     beat(
-      4, "Behaviour on top of the cohort",
-      "When renewing gets expensive, more cars leave",
+      5, "Why a locked book cares about supply",
+      "When quarterly supply rises, clearing premiums usually ease",
       paste(
-        "Owners facing year-10 can pay PQP to renew or scrap and free a certificate.",
-        "Higher prevailing PQP lines up with lower renewal rates — exits are partly a price decision, not only age."
+        "Dots are year-on-year changes in quarterly certificates vs average premium (May 2022 regime).",
+        "We do not forecast premiums — but supply timing still shows up in the price a dealer pays."
       ),
-      echarts4rOutput(ns("c_renew"), height = "360px"),
-      aside = "Yearly Cat A+B. Solid: renewal rate. Dashed: average PQP."
-    ),
-
-    beat(
-      5, "Why Your risk exists",
-      "Loose supply and cheap premiums rarely travel together",
-      paste(
-        "We do not forecast the next premium. We do show that certificate scarcity and clearing prices move together.",
-        "If your book is locked to a quote, a tight quarter is a P&L event — that is the exposure calculator."
-      ),
-      echarts4rOutput(ns("c_prem"), height = "360px"),
-      aside = "Category A monthly certificates vs average clearing premium."
-    ),
-
-    tags$p(
-      class = "footnote eda-close",
-      "Next: Results shows the held-out supply forecasts. Your risk prices a locked book under those supply paths."
+      echarts4rOutput(ns("c_scatter"), height = "380px"),
+      aside = "Scatter since May 2022. Tooltip shows category. Next: Results for the elastic-net forecasts."
     )
   )
 }
@@ -132,40 +127,58 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    swings <- reactive({
-      req(!is.null(store$bids_raw))
-      prep_supply_swings(store$bids_raw)
-    })
-    exits <- reactive({
-      req(!is.null(store$dereg_lta), !is.null(store$bids_raw))
-      prep_exits_to_quota(store$dereg_lta, store$bids_raw)
-    })
     age <- reactive({
       req(!is.null(store$pop_by_age))
       prep_age_wave(store$pop_by_age)
     })
-    renew <- reactive({
-      req(!is.null(store$renewal_rate))
-      prep_renewal_price(store$renewal_rate)
+    locked <- reactive({
+      req(!is.null(store$revalidation))
+      prep_locked_exits(store$revalidation)
     })
-    prem <- reactive({
+    disc <- reactive({
+      req(!is.null(store$bids_raw), !is.null(store$dereg_lta))
+      prep_quota_discretion(store$bids_raw, store$dereg_lta)
+    })
+    ren <- reactive({
+      req(!is.null(store$revalidation), !is.null(store$pop_by_age), !is.null(store$pqp))
+      prep_renewal_scatter(store$revalidation, store$pop_by_age, store$pqp)
+    })
+    scat <- reactive({
       req(!is.null(store$bids_raw))
-      prep_supply_premium(store$bids_raw, "A")
+      prep_supply_price_scatter(store$bids_raw)
     })
 
     output$age_title <- renderUI({
       a <- age()
       tags$h3(paste0(
-        fmt_int(a$due), " cars hit the 10-year decision by ~2029 — only ",
-        fmt_int(a$thin), " follow in the thin 2–4 year band (",
-        format(a$latest, "%b %Y"), ")"
+        fmt_int(a$due), " cars hit year-10 by ~2029 — only ",
+        fmt_int(a$thin), " sit in the thin 2–4 band (", format(a$latest, "%b %Y"), ")"
       ))
     })
+    output$locked_title <- renderUI({
+      L <- locked()
+      tags$h3(paste0(
+        "Locked-in exits ~", fmt_int(L$avg_past), "/yr in 2021–24 vs ~",
+        fmt_int(L$avg_fut), "/yr in 2026–28"
+      ))
+    })
+    output$disc_title <- renderUI({
+      d <- disc()
+      tags$h3(paste0(
+        "About ", sprintf("%.0f%%", 100 * abs(d$share)),
+        " of Cat A+B certificates since 2023 sat off the pure 25% rule"
+      ))
+    })
+    output$ren_title <- renderUI({
+      r <- ren()
+      cor_txt <- if (is.finite(r$cor)) sprintf("r = %.2f", r$cor) else "n small"
+      tags$h3(paste0("Renewal shares fall when PQP rises (", cor_txt, ")"))
+    })
 
-    output$c_supply <- renderEcharts4r(chart_supply_swings(swings()))
-    output$c_exits <- renderEcharts4r(chart_exits_to_quota(exits(), input$exit_cat))
     output$c_age <- renderEcharts4r(chart_age_wave(age()))
-    output$c_renew <- renderEcharts4r(chart_renewal_price(renew()))
-    output$c_prem <- renderEcharts4r(chart_supply_premium(prem()))
+    output$c_locked <- renderEcharts4r(chart_locked_exits(locked()))
+    output$c_disc <- renderEcharts4r(chart_quota_discretion(disc(), input$disc_cat))
+    output$c_ren <- renderEcharts4r(chart_renewal_scatter2(ren()))
+    output$c_scatter <- renderEcharts4r(chart_supply_price_scatter(scat()))
   })
 }

@@ -98,6 +98,7 @@ load_store <- function(root = project_root()) {
   pop_by_age <- read_rds_safe("pop_by_age.rds")
   dereg_lta <- read_rds_safe("dereg_lta.rds")
   renewal_rate <- read_rds_safe("renewal_rate.rds")
+  revalidation <- read_rds_safe("revalidation.rds")
   pqp <- read_rds_safe("pqp.rds")
 
   two_monthly <- read_csv_safe(file.path(exp, "two_models_monthly.csv"))
@@ -111,9 +112,14 @@ load_store <- function(root = project_root()) {
   meta <- list(
     models = c("core_forecast", "momentum_forecast"),
     model_labels = c(
-      core_forecast = "Core supply forecast",
-      momentum_forecast = "Momentum supply forecast",
-      simple_average = "Simple average of the last 12 months"
+      core_forecast = "Elastic net",
+      momentum_forecast = "Elastic net + momentum",
+      simple_average = "12-month average"
+    ),
+    model_blurb = c(
+      core_forecast = "Predicts monthly exits from due-stock and recent flow features, then maps to quota.",
+      momentum_forecast = "Same elastic net, plus year-on-year due-stock change and short-run exit acceleration.",
+      simple_average = "Naive baseline: average of the last twelve months of exits or quota."
     ),
     train_end = as.Date("2024-08-01"),
     test_start = as.Date("2024-09-01")
@@ -126,6 +132,7 @@ load_store <- function(root = project_root()) {
     pop_by_age = pop_by_age,
     dereg_lta = dereg_lta,
     renewal_rate = renewal_rate,
+    revalidation = revalidation,
     pqp = pqp,
     two_monthly = two_monthly,
     two_rollup = two_rollup,

@@ -1,7 +1,10 @@
-# Story panels for the EDA page — curated Cat A/B supply narrative.
+# Curated EDA story panels — mixed chart types from the EDA notebooks (Cat A/B).
 
 box::use(
-  echarts4r[e_charts, e_line, e_bar, e_color, e_datazoom, e_y_axis],
+  echarts4r[
+    e_charts, e_bar, e_scatter, e_color, e_datazoom, e_y_axis,
+    e_x_axis, e_labels
+  ],
   app/logic/viewdata/charts[style_chart],
 )
 
@@ -13,109 +16,19 @@ shift_months <- function(dates, n) {
 }
 
 quota_quarter_start <- function(m) {
-  # LTA quota quarters: Feb–Apr, May–Jul, Aug–Oct, Nov–Jan
   m <- as.Date(m)
   shifted <- shift_months(m, -1L)
   q <- as.Date(cut(shifted, breaks = "quarter"))
   shift_months(q, 1L)
 }
 
-monthly_quota_ab <- function(bids_raw) {
-  d <- bids_raw[bids_raw$category %in% c("A", "B") & !is.na(bids_raw$quota), ]
-  d$month <- as.Date(d$month)
-  agg <- stats::aggregate(quota ~ month + category, d, sum, na.rm = TRUE)
-  nbid <- stats::aggregate(
-    bidding_no ~ month + category, d,
-    function(z) length(unique(z))
-  )
-  names(nbid)[3] <- "n_rounds"
-  m <- merge(agg, nbid, by = c("month", "category"), all.x = TRUE)
-  m$quota[m$n_rounds < 2] <- NA_real_
-  m
-}
-
-#' Beat 1 — certificates released over time
 #' @export
-prep_supply_swings <- function(bids_raw) {
-  m <- monthly_quota_ab(bids_raw)
-  wide <- stats::reshape(
-    m[, c("month", "category", "quota")],
-    idvar = "month", timevar = "category", direction = "wide"
-  )
-  names(wide) <- gsub("quota.", "", names(wide), fixed = TRUE)
-  wide <- wide[order(wide$month), ]
-  wide$label <- format(wide$month, "%b %Y")
-  wide
+fmt_int <- function(x) {
+  format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE)
 }
 
-#' @export
-chart_supply_swings <- function(df) {
-  df |>
-    e_charts(label) |>
-    e_line(A, name = "Category A", symbol = "none", lineStyle = list(width = 2.2)) |>
-    e_line(B, name = "Category B", symbol = "none", lineStyle = list(width = 2.2)) |>
-    e_color(c("#ff5c1a", "#e4e4e7")) |>
-    style_chart() |>
-    e_datazoom(type = "inside")
-}
+# ---- 1 Age cliff (bars) ----------------------------------------------------
 
-#' Beat 2 — 12-month exits vs next-quarter quota
-#' @export
-prep_exits_to_quota <- function(dereg_lta, bids_raw) {
-  mq <- monthly_quota_ab(bids_raw)
-  mq$q_start <- quota_quarter_start(mq$month)
-  qtr <- stats::aggregate(
-    quota ~ q_start + category,
-    mq[!is.na(mq$quota), ],
-    function(z) if (length(z) == 3L) sum(z) else NA_real_
-  )
-  qtr <- qtr[!is.na(qtr$quota) & qtr$q_start >= as.Date("2018-02-01"), ]
-
-  dereg <- dereg_lta[dereg_lta$category %in% c("A", "B"), ]
-  dereg$month <- as.Date(dereg$month)
-  dereg <- dereg[order(dereg$category, dereg$month), ]
-  dereg$dereg_12m <- stats::ave(
-    dereg$deregistrations_lta,
-    dereg$category,
-    FUN = function(x) as.numeric(stats::filter(x, rep(1, 12), sides = 1))
-  )
-  dereg$window_end <- dereg$month
-  qtr$window_end <- shift_months(qtr$q_start, -2L)
-  out <- merge(
-    qtr,
-    dereg[, c("category", "window_end", "dereg_12m")],
-    by = c("category", "window_end"),
-    all.x = TRUE
-  )
-  out <- out[!is.na(out$dereg_12m) & !is.na(out$quota), ]
-  out <- out[order(out$category, out$q_start), ]
-  out$label <- format(out$q_start, "%b %Y")
-  out
-}
-
-#' @export
-chart_exits_to_quota <- function(df, category = "A") {
-  d <- df[df$category == category, ]
-  d |>
-    e_charts(label) |>
-    e_line(
-      dereg_12m, name = "Exits in prior 12 months", symbol = "none",
-      lineStyle = list(width = 2.2)
-    ) |>
-    e_line(
-      quota, name = "Next-quarter certificates", symbol = "circle", symbolSize = 5,
-      lineStyle = list(width = 2), y_index = 1
-    ) |>
-    e_y_axis(
-      index = 1, splitLine = list(show = FALSE),
-      axisLabel = list(color = "#737373", fontFamily = "IBM Plex Mono")
-    ) |>
-    e_color(c("#e4e4e7", "#ff5c1a")) |>
-    style_chart() |>
-    e_datazoom(type = "inside")
-}
-
-#' Beat 3 — age profile / due-stock wave
 #' @export
 prep_age_wave <- function(pop_by_age) {
   age <- pop_by_age
@@ -151,82 +64,206 @@ chart_age_wave <- function(prep) {
     style_chart()
 }
 
-#' Beat 4 — renewals vs PQP (yearly A+B)
+# ---- 2 Locked-in 5y exits (grouped bars) -----------------------------------
+
 #' @export
-prep_renewal_price <- function(renewal_rate) {
-  r <- renewal_rate[renewal_rate$category %in% c("A", "B"), ]
+prep_locked_exits <- function(revalidation) {
+  r <- revalidation
   r$month <- as.Date(r$month)
-  r$year <- as.integer(format(r$month, "%Y"))
-  yr <- do.call(rbind, lapply(split(r, r$year), function(g) {
-    data.frame(
-      year = g$year[[1]],
-      renewals = sum(g$revalidations, na.rm = TRUE),
-      expiring = sum(g$coes_expiring, na.rm = TRUE),
-      pqp = mean(g$pqp, na.rm = TRUE),
-      stringsAsFactors = FALSE
-    )
-  }))
-  yr <- yr[yr$expiring > 0 & is.finite(yr$pqp), ]
-  yr$rate_pct <- 100 * yr$renewals / yr$expiring
-  yr$pqp_k <- yr$pqp / 1000
-  yr$label <- as.character(yr$year)
-  yr[order(yr$year), ]
+  r <- r[r$category %in% c("A", "B") & r$tenure_years == 5, ]
+  r$renew_year <- as.integer(format(r$month, "%Y"))
+  agg <- stats::aggregate(revalidations ~ renew_year + category, r, sum)
+  # keep years with 12 months of data
+  n_mo <- stats::aggregate(month ~ renew_year + category, r, function(z) length(unique(z)))
+  names(n_mo)[3] <- "n_months"
+  agg <- merge(agg, n_mo, by = c("renew_year", "category"))
+  agg <- agg[agg$n_months == 12, ]
+  agg$exit_year <- agg$renew_year + 5L
+  agg <- agg[agg$exit_year >= 2020, ]
+  wide <- stats::reshape(
+    agg[, c("exit_year", "category", "revalidations")],
+    idvar = "exit_year", timevar = "category", direction = "wide"
+  )
+  names(wide) <- gsub("revalidations.", "", names(wide), fixed = TRUE)
+  if (!("A" %in% names(wide))) wide$A <- 0
+  if (!("B" %in% names(wide))) wide$B <- 0
+  wide <- wide[order(wide$exit_year), ]
+  wide$label <- as.character(wide$exit_year)
+  wide$A[is.na(wide$A)] <- 0
+  wide$B[is.na(wide$B)] <- 0
+  tot <- wide$A + wide$B
+  list(
+    df = wide,
+    avg_past = mean(tot[wide$exit_year %in% 2021:2024], na.rm = TRUE),
+    avg_fut = mean(tot[wide$exit_year %in% 2026:2028], na.rm = TRUE)
+  )
 }
 
 #' @export
-chart_renewal_price <- function(df) {
-  df |>
+chart_locked_exits <- function(prep) {
+  prep$df |>
     e_charts(label) |>
-    e_line(
-      rate_pct, name = "Renewal rate (%)", symbol = "circle", symbolSize = 6,
-      lineStyle = list(width = 2.2)
-    ) |>
-    e_line(
-      pqp_k, name = "Avg PQP (S$'000)", symbol = "none",
-      lineStyle = list(width = 2, type = "dashed"), y_index = 1
-    ) |>
-    e_y_axis(
-      index = 1, splitLine = list(show = FALSE),
-      axisLabel = list(color = "#737373", fontFamily = "IBM Plex Mono")
-    ) |>
-    e_color(c("#ff5c1a", "#a3a3a3")) |>
+    e_bar(A, name = "Category A") |>
+    e_bar(B, name = "Category B") |>
+    e_color(c("#ff5c1a", "#e4e4e7")) |>
     style_chart()
 }
 
-#' Beat 5 — supply vs premium
+# ---- 3 Formula vs LTA discretion (stacked bars) ----------------------------
+
 #' @export
-prep_supply_premium <- function(bids_raw, category = "A") {
-  d <- bids_raw[bids_raw$category == category, ]
+prep_quota_discretion <- function(bids_raw, dereg_lta, e_share = 0.10) {
+  d <- bids_raw
   d$month <- as.Date(d$month)
-  q <- stats::aggregate(quota ~ month, d[!is.na(d$quota), ], sum, na.rm = TRUE)
-  p <- stats::aggregate(premium ~ month, d[!is.na(d$premium), ], mean, na.rm = TRUE)
-  out <- merge(q, p, by = "month", all = TRUE)
-  out <- out[order(out$month), ]
-  out <- out[out$month >= as.Date("2016-01-01"), ]
-  out$label <- format(out$month, "%b %Y")
-  out$premium_k <- out$premium / 1000
-  out
+  d <- d[d$category %in% c("A", "B") & !is.na(d$quota), ]
+  if ("suspended" %in% names(d)) {
+    sus <- d$suspended
+    d <- d[is.na(sus) | !as.logical(sus), ]
+  }
+  d$q_start <- quota_quarter_start(d$month)
+  actual <- stats::aggregate(quota ~ q_start + category, d, sum)
+  n_row <- stats::aggregate(quota ~ q_start + category, d, length)
+  names(n_row)[3] <- "n"
+  actual <- merge(actual, n_row, by = c("q_start", "category"))
+  actual <- actual[actual$n >= 6, ]
+  names(actual)[names(actual) == "quota"] <- "actual"
+
+  dereg <- dereg_lta[dereg_lta$category %in% c("A", "B"), ]
+  dereg$month <- as.Date(dereg$month)
+  dereg <- dereg[order(dereg$category, dereg$month), ]
+  dereg$last12 <- stats::ave(
+    dereg$deregistrations_lta, dereg$category,
+    FUN = function(x) as.numeric(stats::filter(x, rep(1, 12), sides = 1))
+  )
+  dereg$q_start <- shift_months(dereg$month, 2L)
+  last12 <- dereg[, c("q_start", "category", "last12")]
+
+  m <- merge(actual, last12, by = c("q_start", "category"))
+  m <- m[m$q_start >= as.Date("2023-02-01") & is.finite(m$last12), ]
+  m$rule <- (1 - e_share) * 0.25 * m$last12
+  m$extra <- m$actual - m$rule
+  m$formula <- pmin(m$actual, m$rule)
+  m$added <- ifelse(m$extra > 0, m$extra, 0)
+  m$held <- ifelse(m$extra < 0, -m$extra, 0)
+  m <- m[order(m$category, m$q_start), ]
+  m$label <- format(m$q_start, "%b %Y")
+  share <- sum(m$extra) / sum(m$actual)
+  list(df = m, share = share)
 }
 
 #' @export
-chart_supply_premium <- function(df) {
-  df |>
+chart_quota_discretion <- function(prep, category = "A") {
+  d <- prep$df[prep$df$category == category, ]
+  d |>
     e_charts(label) |>
-    e_line(quota, name = "Monthly certificates", symbol = "none", lineStyle = list(width = 2)) |>
-    e_line(
-      premium_k, name = "Avg premium (S$'000)", symbol = "none",
-      lineStyle = list(width = 2.2), y_index = 1
-    ) |>
-    e_y_axis(
-      index = 1, splitLine = list(show = FALSE),
-      axisLabel = list(color = "#737373", fontFamily = "IBM Plex Mono")
-    ) |>
-    e_color(c("#e4e4e7", "#ff5c1a")) |>
+    e_bar(formula, name = "25% rule", stack = "q") |>
+    e_bar(added, name = "LTA added", stack = "q") |>
+    e_bar(held, name = "LTA held back", stack = "q") |>
+    e_color(c("#737373", "#3b82f6", "#ff5c1a")) |>
     style_chart() |>
     e_datazoom(type = "inside")
 }
 
+# ---- 4 Renewal vs PQP (scatter) --------------------------------------------
+
 #' @export
-fmt_int <- function(x) {
-  format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE)
+prep_renewal_scatter <- function(revalidation, pop_by_age, pqp) {
+  r <- revalidation
+  r$month <- as.Date(r$month)
+  r <- r[r$category %in% c("A", "B"), ]
+  r$year <- as.integer(format(r$month, "%Y"))
+  renew <- do.call(rbind, lapply(split(r, r$year), function(g) {
+    data.frame(
+      year = g$year[[1]],
+      renew_total = sum(g$revalidations, na.rm = TRUE),
+      n_months = length(unique(g$month)),
+      stringsAsFactors = FALSE
+    )
+  }))
+  renew <- renew[renew$n_months == 12, ]
+
+  age <- pop_by_age
+  age$month <- as.Date(age$month)
+  turn10 <- age[age$vehicle_type == "Cars" & age$age_lower == 9 & as.integer(format(age$month, "%m")) == 12, ]
+  turn10 <- stats::aggregate(population ~ month, turn10, sum)
+  turn10$year <- as.integer(format(turn10$month, "%Y")) + 1L
+  names(turn10)[names(turn10) == "population"] <- "cars_turning_10"
+
+  pq <- pqp[pqp$category %in% c("A", "B") & !is.na(pqp$pqp), ]
+  pq$month <- as.Date(pq$month)
+  pq$year <- as.integer(format(pq$month, "%Y"))
+  pqy <- stats::aggregate(pqp ~ year, pq, mean)
+
+  out <- merge(renew, turn10[, c("year", "cars_turning_10")], by = "year")
+  out <- merge(out, pqy, by = "year")
+  out <- out[out$cars_turning_10 > 0, ]
+  out$rate_pct <- 100 * out$renew_total / out$cars_turning_10
+  out$pqp_k <- out$pqp / 1000
+  out <- out[order(out$year), ]
+  out$label <- as.character(out$year)
+  ct <- if (nrow(out) >= 4) stats::cor(out$rate_pct, out$pqp_k, use = "complete.obs") else NA_real_
+  list(df = out, cor = ct)
+}
+
+#' @export
+chart_renewal_scatter2 <- function(prep) {
+  d <- prep$df[, c("pqp_k", "rate_pct", "label")]
+  names(d) <- c("pqp_k", "rate_pct", "year")
+  d |>
+    e_charts(pqp_k) |>
+    e_scatter(rate_pct, bind = year, symbolSize = 16, name = "Year") |>
+    e_labels(formatter = "{b}", position = "top", color = "#a3a3a3", fontSize = 11) |>
+    e_x_axis(name = "Avg PQP (S$'000)") |>
+    e_y_axis(name = "Renewal share of cars turning 10 (%)") |>
+    e_color("#ff5c1a") |>
+    style_chart()
+}
+
+# ---- 5 Quota Δ vs premium Δ (scatter) --------------------------------------
+
+#' @export
+prep_supply_price_scatter <- function(bids_raw) {
+  d <- bids_raw
+  d$month <- as.Date(d$month)
+  d <- d[d$category %in% c("A", "B") & !is.na(d$premium) & !is.na(d$quota), ]
+  d$q_start <- quota_quarter_start(d$month)
+  q_sum <- stats::aggregate(quota ~ q_start + category, d, sum)
+  p_mean <- stats::aggregate(premium ~ q_start + category, d, mean)
+  q <- merge(q_sum, p_mean, by = c("q_start", "category"))
+  q <- q[order(q$category, q$q_start), ]
+  q$quota_yoy <- NA_real_
+  q$prem_yoy <- NA_real_
+  for (i in seq_len(nrow(q))) {
+    hit <- which(
+      q$category == q$category[i] &
+        q$q_start == shift_months(q$q_start[i], -12L)
+    )
+    if (length(hit) == 1L) {
+      q$quota_yoy[i] <- q$quota[i] - q$quota[hit]
+      q$prem_yoy[i] <- q$premium[i] - q$premium[hit]
+    }
+  }
+  q <- q[is.finite(q$quota_yoy) & is.finite(q$prem_yoy), ]
+  q$regime <- ifelse(q$q_start < as.Date("2022-05-01"), "pre-R3", "R3")
+  q$prem_yoy_k <- q$prem_yoy / 1000
+  q3 <- q[q$regime == "R3", ]
+  list(df = q3, all = q)
+}
+
+#' @export
+chart_supply_price_scatter <- function(prep) {
+  d <- prep$df
+  plot_df <- data.frame(
+    quota_yoy = d$quota_yoy,
+    prem = d$prem_yoy_k,
+    cat = d$category,
+    stringsAsFactors = FALSE
+  )
+  plot_df |>
+    e_charts(quota_yoy) |>
+    e_scatter(prem, bind = cat, symbolSize = 12, name = "Quarter YoY") |>
+    e_x_axis(name = "YoY change in quarterly certificates") |>
+    e_y_axis(name = "YoY change in avg premium (S$'000)") |>
+    e_color("#ff5c1a") |>
+    style_chart()
 }

@@ -3,12 +3,12 @@ box::use(
     NS, moduleServer, div, tags, numericInput, selectInput, sliderInput,
     checkboxInput, actionButton, renderText, renderUI, uiOutput, reactive,
     reactiveVal, observeEvent, updateNumericInput, updateSelectInput, req,
-    withProgress, incProgress
+    withProgress, incProgress, showNotification
   ],
   bslib[card, card_header, card_body, navset_card_underline, nav_panel],
   echarts4r[
     renderEcharts4r, echarts4rOutput, e_charts, e_bar, e_tooltip,
-    e_color, e_y_axis, e_x_axis, e_legend, e_mark_line
+    e_color, e_y_axis, e_x_axis, e_legend
   ],
 )
 box::use(
@@ -17,14 +17,16 @@ box::use(
 )
 
 fmt_sgd <- function(x) {
-  paste0("$", format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE))
+  paste0("$", format(round(as.numeric(x)[[1]]), big.mark = ",", scientific = FALSE, trim = TRUE))
 }
 
 fmt_int <- function(x) {
-  format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE)
+  format(round(as.numeric(x)[[1]]), big.mark = ",", scientific = FALSE, trim = TRUE)
 }
 
-fmt_pct <- function(x) paste0(format(round(100 * as.numeric(x), 1), nsmall = 1), "%")
+fmt_pct <- function(x) {
+  paste0(format(round(100 * as.numeric(x)[[1]], 1), nsmall = 1), "%")
+}
 
 last_premium <- function(bidding, category) {
   b <- bidding[bidding$category == category & !is.na(bidding$premium), ]
@@ -35,7 +37,8 @@ last_premium <- function(bidding, category) {
 last_pqp <- function(root, category, fallback) {
   p <- file.path(root, "data", "processed", "pqp.rds")
   if (!file.exists(p)) return(fallback)
-  d <- readRDS(p)
+  d <- tryCatch(readRDS(p), error = function(e) NULL)
+  if (is.null(d)) return(fallback)
   d$category <- as.character(d$category)
   if (is.numeric(d$month)) d$month <- as.Date(d$month, origin = "1970-01-01")
   else d$month <- as.Date(d$month)
@@ -44,7 +47,7 @@ last_pqp <- function(root, category, fallback) {
   as.numeric(utils::tail(d[order(d$month), ], 1)$pqp[[1]])
 }
 
-#' Full dealer / fleet exposure calculator (supply tilt optional)
+#' Full dealer / fleet exposure calculator
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -59,6 +62,7 @@ ui <- function(id) {
     ),
 
     navset_card_underline(
+      id = ns("tabs"),
       nav_panel(
         "Dealer order book",
         div(
@@ -67,7 +71,7 @@ ui <- function(id) {
           tags$h3("Locked book"),
           div(
             class = "desk-controls desk-controls--row",
-            numericInput(ns("n_cars"), "Orders", 50, min = 1, max = 500, width = "110px"),
+            numericInput(ns("n_cars"), "Orders", 30, min = 1, max = 200, width = "110px"),
             selectInput(
               ns("category"), "Category",
               choices = c("Category A" = "A", "Category B" = "B", "A + B example book" = "AB"),
@@ -77,14 +81,14 @@ ui <- function(id) {
             sliderInput(ns("psucc"), "Bid success chance", 0.3, 1, 0.7, 0.05, width = "180px"),
             sliderInput(ns("vol"), "Volatility ×", 0.5, 2, 1, 0.1, width = "160px"),
             checkboxInput(ns("tilt"), "Tilt paths by supply forecast", TRUE),
-            numericInput(ns("nsim"), "Simulations", 1000, 200, 3000, 200, width = "120px"),
+            numericInput(ns("nsim"), "Simulations", 500, 100, 1500, 100, width = "120px"),
             actionButton(ns("load_demo"), "Load example", class = "btn-demo"),
             actionButton(ns("run"), "Price the book", class = "btn-demo")
           ),
           tags$p(
             class = "footnote",
             "Pooled guaranteed orders by default. “A + B example book” loads the 50-order template. ",
-            "Supply tilt uses the calibrated quota path."
+            "Keep simulations modest on Posit; 300–800 is usually enough."
           )
         ),
         uiOutput(ns("dl_lead")),
@@ -133,16 +137,24 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    funs <- load_exposure_funs()
-    exp_data <- load_exposure_data()
     root <- project_root()
+    funs <- tryCatch(load_exposure_funs(root), error = function(e) {
+      showNotification(paste("Exposure engine failed to load:", conditionMessage(e)), type = "error", duration = 12)
+      NULL
+    })
+    exp_data <- tryCatch(load_exposure_data(root), error = function(e) {
+      showNotification(paste("Exposure data failed to load:", conditionMessage(e)), type = "error", duration = 12)
+      NULL
+    })
 
-    observeEvent(TRUE, {
+    observeEvent(session$clientData$url_hostname, {
+      if (is.null(funs) || is.null(exp_data)) return()
       lp <- last_premium(store$bidding, "A")
       updateNumericInput(session, "quoted", value = round(lp / 500) * 500)
     }, once = TRUE)
 
     observeEvent(input$category, {
+      if (is.null(store$bidding)) return()
       cat <- if (identical(input$category, "AB")) "A" else input$category
       lp <- last_premium(store$bidding, cat)
       updateNumericInput(session, "quoted", value = round(lp / 500) * 500)
@@ -153,10 +165,11 @@ server <- function(id, store) {
       updateNumericInput(session, "n_cars", value = 50)
       updateSelectInput(session, "category", selected = "A")
       updateNumericInput(session, "quoted", value = round(lp / 500) * 500)
-      updateNumericInput(session, "nsim", value = 1000)
+      updateNumericInput(session, "nsim", value = 500)
     }, ignoreInit = TRUE)
 
     book <- reactive({
+      req(!is.null(exp_data))
       if (identical(input$category, "AB") && !is.null(exp_data$example_book)) {
         b <- exp_data$example_book
         b$quoted_premium[b$category == "A"] <- as.numeric(input$quoted)
@@ -181,7 +194,8 @@ server <- function(id, store) {
       if (is.null(m) || is.null(m$round_to_round_detail)) return(numeric())
       d <- m$round_to_round_detail
       d <- d[d$category == cat & is.finite(d$chg_pct), ]
-      log1p(as.numeric(d$chg_pct))
+      out <- log1p(as.numeric(d$chg_pct))
+      out[is.finite(out)]
     }
 
     elasticity_for <- function(cat) {
@@ -194,37 +208,55 @@ server <- function(id, store) {
     dl_res <- reactiveVal(NULL)
 
     observeEvent(input$run, {
-      req(!is.null(exp_data$premium_moves), !is.null(exp_data$price_sensitivity))
+      if (is.null(funs) || is.null(exp_data)) {
+        showNotification("Exposure engine is not available.", type = "error")
+        return()
+      }
+      if (is.null(exp_data$premium_moves) || is.null(exp_data$price_sensitivity)) {
+        showNotification("Missing premium-move or sensitivity tables.", type = "error")
+        return()
+      }
       b <- book()
+      if (is.null(b) || !nrow(b)) {
+        showNotification("Order book is empty.", type = "error")
+        return()
+      }
       cats <- unique(as.character(b$category))
-      nsim <- max(200L, min(3000L, as.integer(input$nsim)))
-      withProgress(message = "Simulating premium paths", value = 0, {
-        sims <- list()
-        for (i in seq_along(cats)) {
-          cat <- cats[[i]]
-          incProgress(1 / (length(cats) + 1), detail = paste("Cat", cat))
-          p0 <- last_premium(store$bidding, cat)
-          pqp0 <- last_pqp(root, cat, p0)
-          sims[[cat]] <- funs$simulate_premiums(
-            dlog_hist = dlog_for(cat),
-            p0 = p0,
-            pqp0 = pqp0,
-            start_month = store$latest_bid_month,
-            elasticity = elasticity_for(cat),
-            n_sims = nsim,
-            vol_mult = as.numeric(input$vol),
-            supply_tilt = isTRUE(input$tilt),
-            quota_path = quota_path_for(cat)
+      nsim <- max(100L, min(1500L, as.integer(input$nsim)))
+      tryCatch({
+        withProgress(message = "Simulating premium paths", value = 0, {
+          sims <- list()
+          for (i in seq_along(cats)) {
+            cat <- cats[[i]]
+            incProgress(1 / (length(cats) + 1), detail = paste("Cat", cat))
+            dlog <- dlog_for(cat)
+            if (!length(dlog)) stop("No historical premium moves for category ", cat)
+            p0 <- last_premium(store$bidding, cat)
+            pqp0 <- last_pqp(root, cat, p0)
+            sims[[cat]] <- funs$simulate_premiums(
+              dlog_hist = dlog,
+              p0 = p0,
+              pqp0 = pqp0,
+              start_month = store$latest_bid_month,
+              elasticity = elasticity_for(cat),
+              n_sims = nsim,
+              vol_mult = as.numeric(input$vol),
+              supply_tilt = isTRUE(input$tilt),
+              quota_path = if (isTRUE(input$tilt)) quota_path_for(cat) else NULL
+            )
+          }
+          incProgress(1 / (length(cats) + 1), detail = "Pricing book")
+          base <- funs$dealer_exposure(b, sims, p_success = as.numeric(input$psucc))
+          shifts <- funs$timing_shift(
+            b, sims,
+            shifts = c(0, 6, 12),
+            p_success = as.numeric(input$psucc)
           )
-        }
-        incProgress(1 / (length(cats) + 1), detail = "Pricing book")
-        base <- funs$dealer_exposure(b, sims, p_success = as.numeric(input$psucc))
-        shifts <- funs$timing_shift(
-          b, sims,
-          shifts = c(0, 6, 12),
-          p_success = as.numeric(input$psucc)
-        )
-        dl_res(list(base = base, shifts = shifts, nsim = nsim, n_orders = nrow(b)))
+          dl_res(list(base = base, shifts = shifts, nsim = nsim, n_orders = nrow(b)))
+        })
+      }, error = function(e) {
+        dl_res(NULL)
+        showNotification(paste("Could not price book:", conditionMessage(e)), type = "error", duration = 12)
       })
     })
 
@@ -267,12 +299,11 @@ server <- function(id, store) {
       r <- dl_res()
       req(!is.null(r))
       pnl <- as.numeric(r$base$portfolio$dealer_pnl) / 1000
-      h <- graphics::hist(pnl, breaks = 40, plot = FALSE)
-      df <- data.frame(mid = h$mids, n = h$counts)
+      h <- graphics::hist(pnl, breaks = 30, plot = FALSE)
+      df <- data.frame(mid = as.numeric(h$mids), n = as.numeric(h$counts))
       df |>
         e_charts(mid) |>
         e_bar(n, name = "Simulations") |>
-        e_mark_line(data = list(xAxis = 0), title = "0") |>
         e_tooltip() |>
         e_color("#ff5c1a") |>
         e_x_axis(name = "Dealer P&L vs quote ($k)") |>
@@ -282,14 +313,14 @@ server <- function(id, store) {
     output$dl_shift <- renderEcharts4r({
       r <- dl_res()
       req(!is.null(r))
-      d <- r$shifts
-      d$label <- paste0("+", d$shift_quarters, "Q")
+      d <- as.data.frame(r$shifts)
+      d$label <- paste0("+", as.numeric(d$shift_quarters), "Q")
       d$exp_k <- as.numeric(d$expected_dealer_pnl) / 1000
       d$var_k <- -as.numeric(d$var95_loss) / 1000
-      d |>
+      d[, c("label", "exp_k", "var_k")] |>
         e_charts(label) |>
         e_bar(exp_k, name = "Expected P&L ($k)") |>
-        e_bar(var_k, name = "−VaR95 ($k)") |>
+        e_bar(var_k, name = "-VaR95 ($k)") |>
         e_tooltip() |>
         e_color(c("#c8f542", "#ff5c1a")) |>
         e_legend(bottom = 0)
@@ -306,15 +337,27 @@ server <- function(id, store) {
 
     fl_res <- reactiveVal(NULL)
     observeEvent(input$fl_run, {
-      req(!is.null(exp_data$example_fleet), !is.null(exp_data$premium_sims_baseline))
-      withProgress(message = "Fleet options", {
-        out <- funs$fleet_decision(
-          exp_data$example_fleet,
-          exp_data$premium_sims_baseline,
-          shift_quarters = as.integer(input$fl_shift),
-          include_capex = isTRUE(input$fl_capex)
-        )
-        fl_res(out)
+      if (is.null(funs) || is.null(exp_data)) {
+        showNotification("Exposure engine is not available.", type = "error")
+        return()
+      }
+      if (is.null(exp_data$example_fleet) || is.null(exp_data$premium_sims_baseline)) {
+        showNotification("Fleet schedule or baseline sims missing.", type = "error")
+        return()
+      }
+      tryCatch({
+        withProgress(message = "Fleet options", value = 0.3, {
+          out <- funs$fleet_decision(
+            exp_data$example_fleet,
+            exp_data$premium_sims_baseline,
+            shift_quarters = as.integer(input$fl_shift),
+            include_capex = isTRUE(input$fl_capex)
+          )
+          fl_res(out)
+        })
+      }, error = function(e) {
+        fl_res(NULL)
+        showNotification(paste("Fleet compare failed:", conditionMessage(e)), type = "error", duration = 12)
       })
     })
 
@@ -323,11 +366,17 @@ server <- function(id, store) {
       if (is.null(d)) {
         return(tags$p(class = "footnote", "Click “Compare options” to price the example fleet schedule."))
       }
-      # flatten mean columns if nested names from summarise
+      d <- as.data.frame(d)
       nm <- names(d)
-      bid <- if ("bid_new_py_mean" %in% nm) d$bid_new_py_mean else d[[grep("bid_new_py", nm)[1]]]
-      r10 <- if ("renew_10y_py_mean" %in% nm) d$renew_10y_py_mean else d[[grep("renew_10y_py", nm)[1]]]
-      r5 <- if ("renew_5y_py_mean" %in% nm) d$renew_5y_py_mean else d[[grep("renew_5y_py", nm)[1]]]
+      pick <- function(key) {
+        if (key %in% nm) return(d[[key]])
+        hit <- grep(key, nm, value = TRUE)
+        if (!length(hit)) return(rep(NA_real_, nrow(d)))
+        d[[hit[[1]]]]
+      }
+      bid <- pick("bid_new_py_mean")
+      r10 <- pick("renew_10y_py_mean")
+      r5 <- pick("renew_5y_py_mean")
       rows <- lapply(seq_len(min(nrow(d), 12L)), function(i) {
         tags$tr(
           tags$td(d$quarter[i]),

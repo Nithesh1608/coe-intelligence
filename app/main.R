@@ -49,11 +49,11 @@ ui <- function(id) {
     window_title = "COE Intelligence",
     header = inline_assets(),
     nav_panel("Home", dashboard$ui(ns("dashboard"))),
+    nav_panel("EDA", eda$ui(ns("eda"))),
     nav_panel("Results", forecast$ui(ns("forecast"))),
     nav_panel("Your risk", exposure$ui(ns("exposure"))),
     nav_panel("How it works", method$ui(ns("method"))),
     nav_panel("About", about$ui(ns("about"))),
-    nav_panel("EDA", eda$ui(ns("eda"))),
     nav_spacer(),
     nav_item(tags$span(class = "badge-live", "Supply · exposure"))
   )
@@ -64,9 +64,9 @@ server <- function(id) {
   moduleServer(id, function(input, output, session) {
     store <- load_store()
     dashboard$server("dashboard", store)
+    eda$server("eda", store)
     forecast$server("forecast", store)
     method$server("method", store)
-    eda$server("eda", store)
     exposure$server("exposure", store)
     about$server("about", store)
   })

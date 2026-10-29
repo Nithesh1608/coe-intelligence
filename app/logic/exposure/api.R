@@ -13,6 +13,15 @@ exposure_dir <- function(root = project_root()) {
 load_exposure_funs <- function(root = project_root()) {
   path <- file.path(root, "app", "logic", "exposure", "exposure_functions.R")
   if (!file.exists(path)) stop("Missing ", path)
+  needed <- c("dplyr", "tidyr", "purrr", "tibble", "lubridate", "stringr")
+  missing <- needed[!vapply(needed, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))]
+  if (length(missing)) stop("Missing packages for exposure engine: ", paste(missing, collapse = ", "))
+  # Ensure verbs resolve when the sourced file uses bare dplyr/purrr names.
+  for (pkg in needed) {
+    if (!paste0("package:", pkg) %in% search()) {
+      suppressPackageStartupMessages(base::library(pkg, character.only = TRUE))
+    }
+  }
   e <- new.env(parent = globalenv())
   sys.source(path, envir = e)
   e

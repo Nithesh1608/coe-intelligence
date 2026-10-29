@@ -20,16 +20,16 @@ ui <- function(id) {
       col_widths = c(6, 6),
       card(
         class = "desk-card gloss",
-        card_header("Core supply forecast"),
+        card_header("Elastic net"),
         card_body(
-          tags$p("Elastic net on Category A and Category B monthly exits, then mapped to tender-scale quota.")
+          tags$p("Predicts Category A/B monthly exits from due-stock and recent flow features, then maps to tender-scale quota.")
         )
       ),
       card(
         class = "desk-card gloss",
-        card_header("Momentum supply forecast"),
+        card_header("Elastic net + momentum"),
         card_body(
-          tags$p("Same family, plus year-on-year due-stock and short-run exit acceleration.")
+          tags$p("Same elastic net, plus year-on-year due-stock change and short-run exit acceleration.")
         )
       )
     ),
@@ -47,8 +47,8 @@ ui <- function(id) {
       ),
       card(
         class = "desk-card gloss",
-        card_header("Compare"),
-        card_body(tags$p("Simple twelve-month average of exits."))
+        card_header("Baseline"),
+        card_body(tags$p("12-month average of exits — naive comparison only."))
       )
     ),
     tags$p(
