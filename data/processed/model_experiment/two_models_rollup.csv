@@ -1,19 +1,13 @@
-"category","period","model","label","months","actual","predicted","gap","pct_off"
-"A","2026 so far (January to August)","core_forecast","Core supply forecast",8,24991,22498,-2493,-10
-"A","2026 so far (January to August)","momentum_forecast","Momentum supply forecast",8,24991,22815,-2176,-8.7
-"A","2026 so far (January to August)","simple_average","Simple average of the last 12 months",8,24991,20586,-4405,-17.6
-"A","Full year 2025","core_forecast","Core supply forecast",12,27215,28146,931,3.4
-"A","Full year 2025","momentum_forecast","Momentum supply forecast",12,27215,28700,1485,5.5
-"A","Full year 2025","simple_average","Simple average of the last 12 months",12,27215,22952,-4263,-15.7
-"A","Late 2024 (September to December)","core_forecast","Core supply forecast",4,7187,8047,860,12
-"A","Late 2024 (September to December)","momentum_forecast","Momentum supply forecast",4,7187,8214,1027,14.3
-"A","Late 2024 (September to December)","simple_average","Simple average of the last 12 months",4,7187,7127,-60,-0.8
-"B","2026 so far (January to August)","core_forecast","Core supply forecast",8,19373,16020,-3353,-17.3
-"B","2026 so far (January to August)","momentum_forecast","Momentum supply forecast",8,19373,15346,-4027,-20.8
-"B","2026 so far (January to August)","simple_average","Simple average of the last 12 months",8,19373,16395,-2978,-15.4
-"B","Full year 2025","core_forecast","Core supply forecast",12,22335,20170,-2165,-9.7
-"B","Full year 2025","momentum_forecast","Momentum supply forecast",12,22335,19536,-2799,-12.5
-"B","Full year 2025","simple_average","Simple average of the last 12 months",12,22335,18083,-4252,-19
-"B","Late 2024 (September to December)","core_forecast","Core supply forecast",4,5740,5175,-565,-9.8
-"B","Late 2024 (September to December)","momentum_forecast","Momentum supply forecast",4,5740,4998,-742,-12.9
-"B","Late 2024 (September to December)","simple_average","Simple average of the last 12 months",4,5740,4521,-1219,-21.2
+﻿"category","period","model","label","months","actual","predicted","gap","pct_off"
+"A","2026 so far (January to August)","core_forecast","Core supply forecast","8","24991","22498","-2493","-10"
+"A","2026 so far (January to August)","simple_average","Simple average of the last 12 months","8","24991","20586","-4405","-17.6"
+"A","Full year 2025","core_forecast","Core supply forecast","12","27215","28146","931","3.4"
+"A","Full year 2025","simple_average","Simple average of the last 12 months","12","27215","22952","-4263","-15.7"
+"A","Late 2024 (September to December)","core_forecast","Core supply forecast","4","7187","8047","860","12"
+"A","Late 2024 (September to December)","simple_average","Simple average of the last 12 months","4","7187","7127","-60","-0.8"
+"B","2026 so far (January to August)","core_forecast","Core supply forecast","8","19373","16020","-3353","-17.3"
+"B","2026 so far (January to August)","simple_average","Simple average of the last 12 months","8","19373","16395","-2978","-15.4"
+"B","Full year 2025","core_forecast","Core supply forecast","12","22335","20170","-2165","-9.7"
+"B","Full year 2025","simple_average","Simple average of the last 12 months","12","22335","18083","-4252","-19"
+"B","Late 2024 (September to December)","core_forecast","Core supply forecast","4","5740","5175","-565","-9.8"
+"B","Late 2024 (September to December)","simple_average","Simple average of the last 12 months","4","5740","4521","-1219","-21.2"

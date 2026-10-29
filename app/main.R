@@ -6,7 +6,6 @@ box::use(
   app/logic/viewdata/store[load_store, project_root],
   app/view/dashboard,
   app/view/forecast,
-  app/view/method,
   app/view/eda,
   app/view/exposure,
   app/view/about,
@@ -52,7 +51,6 @@ ui <- function(id) {
     nav_panel("EDA", eda$ui(ns("eda"))),
     nav_panel("Results", forecast$ui(ns("forecast"))),
     nav_panel("Your risk", exposure$ui(ns("exposure"))),
-    nav_panel("How it works", method$ui(ns("method"))),
     nav_panel("About", about$ui(ns("about"))),
     nav_spacer(),
     nav_item(tags$span(class = "badge-live", "Supply · exposure"))
@@ -66,7 +64,6 @@ server <- function(id) {
     dashboard$server("dashboard", store)
     eda$server("eda", store)
     forecast$server("forecast", store)
-    method$server("method", store)
     exposure$server("exposure", store)
     about$server("about", store)
   })

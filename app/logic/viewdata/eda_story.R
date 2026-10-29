@@ -64,7 +64,7 @@ chart_age_wave <- function(prep) {
     style_chart()
 }
 
-# ---- 2 Locked-in 5y exits (grouped bars) -----------------------------------
+# ---- 2 Locked-in 5y deregistrations (grouped bars) -------------------------
 
 #' @export
 prep_locked_exits <- function(revalidation) {

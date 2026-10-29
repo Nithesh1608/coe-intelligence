@@ -233,7 +233,7 @@ p_locked <- ggplot(locked_in, aes(factor(exit_year), renewals, fill = category))
   scale_fill_manual(values = cat_colours, labels = cat_labels) +
   scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.12))) +
   labs(
-    title = paste0("Locked-in exits average ", n0(avg_21_24), " a year in 2021 to 2024 and ",
+    title = paste0("Locked-in deregistrations average ", n0(avg_21_24), " a year in 2021 to 2024 and ",
                    n0(avg_26_28), " in 2026 to 2028"),
     subtitle = "Cars that must be scrapped because they took a 5-year COE renewal",
     x = "Year the car must leave the road", y = "Number of cars", fill = NULL

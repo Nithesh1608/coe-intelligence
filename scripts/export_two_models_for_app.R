@@ -1,4 +1,4 @@
-# Export the two production showcases + simple average for the app (plain labels)
+# Export the live elastic-net showcase + simple average for the app
 suppressPackageStartupMessages({
   library(dplyr)
   library(tidyr)
@@ -15,27 +15,15 @@ panel <- read.csv(file.path(exp, "feature_panel.csv"), stringsAsFactors = FALSE)
 panel$month <- as.Date(panel$month)
 panel$category <- as.character(panel$category)
 
-panel <- panel %>%
-  arrange(category, month) %>%
-  group_by(category) %>%
-  mutate(
-    due10_yoy = due10 - dplyr::lag(due10, 12L),
-    due10_mom3 = due10 - dplyr::lag(due10, 3L),
-    y_mom3 = y_lag2 - dplyr::lag(y_lag2, 3L),
-    exit_accel = y_lag2 - y_lag12
-  ) %>%
-  ungroup()
-
 base_cols <- c(
   "due10", "due15", "due_near", "recent12", "y_lag12", "y_lag2",
   "reval5_lag12", "reval5_lag24", "reval5_lag60", "lpqp",
   "post_2022", "moy_sin", "moy_cos"
 )
-mom_cols <- c(base_cols, "due10_yoy", "due10_mom3", "y_mom3", "exit_accel")
 
 panel <- panel %>%
   group_by(category) %>%
-  mutate(across(all_of(mom_cols), ~ {
+  mutate(across(all_of(base_cols), ~ {
     med <- median(.x[month <= TRAIN_END], na.rm = TRUE)
     ifelse(is.na(.x), med, .x)
   })) %>%
@@ -59,13 +47,8 @@ for (cat in c("A", "B")) {
   te <- panel %>% filter(category == cat, month >= TEST_START)
   rows[[length(rows) + 1]] <- tibble(
     month = te$month, category = cat, model = "core_forecast",
-    label = "Core supply forecast",
+    label = "Elastic net",
     actual = te$y, predicted = round(fit_pred(tr, te, base_cols))
-  )
-  rows[[length(rows) + 1]] <- tibble(
-    month = te$month, category = cat, model = "momentum_forecast",
-    label = "Momentum supply forecast",
-    actual = te$y, predicted = round(fit_pred(tr, te, mom_cols))
   )
   rows[[length(rows) + 1]] <- tibble(
     month = te$month, category = cat, model = "simple_average",
@@ -80,7 +63,6 @@ out$pct_off <- round(100 * out$gap / pmax(out$actual, 1), 1)
 
 write.csv(out, file.path(exp, "two_models_monthly.csv"), row.names = FALSE)
 
-# Rollups for Desk
 roll <- out %>%
   mutate(
     period = dplyr::case_when(
@@ -101,7 +83,6 @@ roll <- out %>%
 
 write.csv(roll, file.path(exp, "two_models_rollup.csv"), row.names = FALSE)
 
-# Hit rates
 hit <- out %>%
   mutate(pct = abs(predicted - actual) / pmax(actual, 1)) %>%
   group_by(model, label, category) %>%
@@ -113,5 +94,5 @@ hit <- out %>%
   )
 write.csv(hit, file.path(exp, "two_models_hit_rates.csv"), row.names = FALSE)
 
-cat("Exported two_models_monthly.csv / rollup / hit_rates\n")
+cat("Exported live elastic net + simple average (monthly / rollup / hit_rates)\n")
 print(hit)

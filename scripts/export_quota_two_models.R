@@ -1,4 +1,4 @@
-# Quota outlook for both showcased exit engines (train-only alpha, locked test)
+# Quota outlook for live elastic net (+ simple average baseline; train-only alpha)
 suppressPackageStartupMessages({
   library(dplyr)
   library(glmnet)
@@ -57,12 +57,11 @@ trailing_12 <- function(cat, end_m, model) {
 
 test_months <- sort(unique(two$month[two$model == "core_forecast"]))
 label_of <- c(
-  core_forecast = "Core supply forecast",
-  momentum_forecast = "Momentum supply forecast",
+  core_forecast = "Elastic net",
   simple_average = "Simple 12-month average"
 )
 out <- list()
-for (model in c("core_forecast", "momentum_forecast", "simple_average")) {
+for (model in c("core_forecast", "simple_average")) {
   for (tm in test_months) {
     for (cat in c("A", "B")) {
       a <- alphas$alpha[alphas$category == cat][[1]]

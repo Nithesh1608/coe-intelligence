@@ -1,6 +1,6 @@
 # COE Intelligence
 
-DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B exits and formula quota — not premiums. **Your risk** is an exposure calculator for a locked order book / fleet schedule (simulated premium paths, optional supply tilt).
+DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B deregistrations and formula quota — not premiums. **Your risk** is an exposure calculator for a locked order book / fleet schedule (simulated premium paths, optional supply tilt).
 
 ## Run
 
@@ -14,11 +14,10 @@ rhino::app()
 | Tab | Purpose |
 | --- | --- |
 | Home | Desk landing — supply at a glance |
-| Results | Core / Momentum forecasts + quota outlook |
-| Your risk | Exposure calculator (dealer book + fleet) |
-| How it works | Method in plain language |
-| About | Product brief |
 | EDA | Exploratory charts |
+| Results | Elastic-net deregistrations + quota outlook |
+| Your risk | Exposure calculator (dealer book + fleet) |
+| About | Cleaning, features, models, exposure |
 
 ## Data
 

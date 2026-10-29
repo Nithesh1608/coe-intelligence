@@ -46,7 +46,7 @@ ui <- function(id) {
       tags$span(class = "eda-spine__dot", "→"),
       tags$span("Season & cycles"),
       tags$span(class = "eda-spine__dot", "→"),
-      tags$span("Exits → quota"),
+      tags$span("Deregistrations → quota"),
       tags$span(class = "eda-spine__dot", "→"),
       tags$span("Age & lock-in"),
       tags$span(class = "eda-spine__dot", "→"),
@@ -79,13 +79,13 @@ ui <- function(id) {
 
     eda_section(
       3, "The mechanical link",
-      "Cars leaving the road set up the next certificates",
+      "Deregistrations set up the next certificates",
       paste(
-        "LTA’s replacement rule looks back at recent deregistrations. When exits rise, the next quota quarter",
+        "LTA’s replacement rule looks back at recent deregistrations. When deregistrations rise, the next quota quarter",
         "usually follows — that is the lever our elastic-net models learn."
       ),
       "03_Deregistrations_and_supply.png",
-      "EDA 2 · RQ2 — prior 12-month exits vs subsequent quarterly quota."
+      "EDA 2 · RQ2 — prior 12-month deregistrations vs subsequent quarterly quota."
     ),
 
     eda_section(
@@ -100,14 +100,14 @@ ui <- function(id) {
     ),
 
     eda_section(
-      5, "Some exits are already booked",
+      5, "Some deregistrations are already booked",
       "Five-year renewals lock scrap dates five years ahead",
       paste(
-        "Those cars cannot renew again. The locked-in exit cushion was thicker in 2021–24 than in 2026–28 —",
+        "Those cars cannot renew again. The locked-in deregistration cushion was thicker in 2021–24 than in 2026–28 —",
         "knowable today, before any model."
       ),
       "e1_04_locked_exits.png",
-      "EDA 1 chart 4 — exits implied by completed 5-year revalidations."
+      "EDA 1 chart 4 — deregistrations implied by completed 5-year revalidations."
     ),
 
     eda_section(

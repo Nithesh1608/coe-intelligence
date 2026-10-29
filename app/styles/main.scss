@@ -1479,6 +1479,30 @@ body {
   padding: 0.4rem 0 0.5rem;
 }
 
+.about-page .about-section {
+  margin-top: 1.75rem;
+  max-width: 78ch;
+}
+
+.about-page .about-section > h2 {
+  font-family: "Syne", sans-serif;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.65rem;
+}
+
+.about-page .about-section > p {
+  color: #d4d4d4;
+  line-height: 1.55;
+  margin: 0 0 0.75rem;
+}
+
+.about-page .about-section code {
+  font-family: var(--mono);
+  font-size: 0.82em;
+  color: var(--accent-2);
+}
+
 .about-list {
   margin: 0;
   padding-left: 1.1rem;

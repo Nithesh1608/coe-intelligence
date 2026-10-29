@@ -64,7 +64,7 @@ quota_track_chart <- function(df, forecast_name = "Our supply forecast") {
     e_datazoom(type = "inside")
 }
 
-#' Exits: actual vs one forecast vs simple average
+#' Deregistrations: actual vs one forecast vs simple average
 #' expects: month, actual, forecast, simple
 #' @export
 exit_track_chart <- function(df, forecast_name = "Our forecast") {
@@ -72,7 +72,7 @@ exit_track_chart <- function(df, forecast_name = "Our forecast") {
   plot_df$month <- format(as.Date(plot_df$month), "%b %Y")
   plot_df |>
     e_charts(month) |>
-    e_line(actual, name = "Cars that left", symbol = "circle", symbolSize = 5,
+    e_line(actual, name = "Deregistrations", symbol = "circle", symbolSize = 5,
            lineStyle = list(width = 2.4)) |>
     e_line(forecast, name = forecast_name, symbol = "none",
            lineStyle = list(width = 2)) |>

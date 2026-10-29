@@ -101,25 +101,29 @@ load_store <- function(root = project_root()) {
   revalidation <- read_rds_safe("revalidation.rds")
   pqp <- read_rds_safe("pqp.rds")
 
-  two_monthly <- read_csv_safe(file.path(exp, "two_models_monthly.csv"))
-  two_rollup <- read_csv_safe(file.path(exp, "two_models_rollup.csv"))
-  two_hits <- read_csv_safe(file.path(exp, "two_models_hit_rates.csv"))
-  two_quota <- read_csv_safe(file.path(exp, "two_models_quota_outlook.csv"))
-  two_quota_scores <- read_csv_safe(file.path(exp, "two_models_quota_scores.csv"))
+  drop_momentum <- function(df) {
+    if (is.null(df) || !"model" %in% names(df)) return(df)
+    df[df$model != "momentum_forecast", , drop = FALSE]
+  }
+
+  two_monthly <- drop_momentum(read_csv_safe(file.path(exp, "two_models_monthly.csv")))
+  two_rollup <- drop_momentum(read_csv_safe(file.path(exp, "two_models_rollup.csv")))
+  two_hits <- drop_momentum(read_csv_safe(file.path(exp, "two_models_hit_rates.csv")))
+  two_quota <- drop_momentum(read_csv_safe(file.path(exp, "two_models_quota_outlook.csv")))
+  two_quota_scores <- drop_momentum(read_csv_safe(file.path(exp, "two_models_quota_scores.csv")))
   quota_outlook <- read_csv_safe(file.path(exp, "quota_outlook_calibrated.csv"))
   quota_scores <- read_csv_safe(file.path(exp, "quota_outlook_scores.csv"))
 
   meta <- list(
-    models = c("core_forecast", "momentum_forecast"),
+    live_model = "core_forecast",
+    models = c("core_forecast"),
     model_labels = c(
       core_forecast = "Elastic net",
-      momentum_forecast = "Elastic net + momentum",
       simple_average = "12-month average"
     ),
     model_blurb = c(
-      core_forecast = "Predicts monthly exits from due-stock and recent flow features, then maps to quota.",
-      momentum_forecast = "Same elastic net, plus year-on-year due-stock change and short-run exit acceleration.",
-      simple_average = "Naive baseline: average of the last twelve months of exits or quota."
+      core_forecast = "Predicts monthly deregistrations from due-stock and recent flow features, then maps to quota.",
+      simple_average = "Naive baseline: average of the last twelve months of deregistrations or quota."
     ),
     train_end = as.Date("2024-08-01"),
     test_start = as.Date("2024-09-01")
