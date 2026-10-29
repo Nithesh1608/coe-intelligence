@@ -1220,6 +1220,61 @@ body {
   line-height: 1.45;
 }
 
+.lead-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin: 0 0 0.5rem;
+}
+
+@media (max-width: 1100px) {
+  .lead-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .lead-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lead-cell {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1rem 1.05rem;
+  background: #0c0c0c;
+}
+
+.lead-cell--hot {
+  border-color: rgba(255, 92, 26, 0.45);
+}
+
+.lead-cell--accent {
+  border-color: rgba(200, 245, 66, 0.45);
+  background: linear-gradient(160deg, rgba(200, 245, 66, 0.08), #0c0c0c);
+}
+
+.lead-num {
+  font-family: "Syne", sans-serif;
+  font-weight: 800;
+  font-size: 1.55rem;
+  letter-spacing: -0.05em;
+  margin: 0.35rem 0 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.lead-num--sm {
+  font-size: 1.25rem;
+}
+
+.lead-lab {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
 .timing-signal {
   margin: 0 0 0.25rem;
   font-weight: 600;
