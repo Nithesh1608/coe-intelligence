@@ -80,7 +80,7 @@ ui <- function(id) {
         class = "lede lede--wide",
         "This is the test that matters for a planning horizon. The evaluation model was rolled forward month by ",
         "month from the training end, feeding its own predictions back as lags and projecting age stock from ",
-        "registration cohorts. Bands come from 500 bootstrap paths of its held-out errors."
+        "registration cohorts. Bands come from recursive bootstrap paths of its held-out errors."
       ),
       tags$ul(
         class = "viz-explain__list",

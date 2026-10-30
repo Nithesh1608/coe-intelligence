@@ -89,7 +89,7 @@ ui <- function(id) {
       tags$p(
         class = "lede lede--wide",
         "A single number is not enough to price a forward book. The fan is the production model rolled ",
-        "forward month by month from the last published deregistrations, with 500 bootstrap paths that ",
+        "forward month by month from the last published deregistrations, with recursive bootstrap paths that ",
         "resample the model's held-out errors, refit it on resampled training windows, and let PQP wander ",
         "as it has historically - so the band is earned, not drawn."
       ),
