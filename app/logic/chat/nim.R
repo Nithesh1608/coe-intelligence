@@ -73,6 +73,23 @@ nim_model_id <- function() {
   if (nzchar(m)) m else NIM_MODEL_DEFAULT
 }
 
+#' Short display label for the preferred model (no vendor URLs).
+#' @export
+nim_model_label <- function() {
+  id <- nim_model_id()
+  base <- sub("^.*/", "", id)
+  base <- gsub("[-_]+", " ", base)
+  # deepseek v4.1 flash -> DeepSeek V4.1 Flash
+  parts <- strsplit(base, " ", fixed = TRUE)[[1]]
+  paste(
+    vapply(parts, function(p) {
+      if (grepl("^[0-9]", p) || grepl("\\.", p)) return(toupper(p))
+      paste0(toupper(substr(p, 1L, 1L)), substr(p, 2L, nchar(p)))
+    }, character(1)),
+    collapse = " "
+  )
+}
+
 #' @export
 nim_model_candidates <- function() {
   unique(c(nim_model_id(), NIM_MODEL_FALLBACKS))
@@ -95,7 +112,7 @@ parse_nim_content <- function(body) {
   msg$content
 }
 
-nim_request <- function(messages, model, key, temperature = 0.25, max_tokens = 1200L) {
+nim_request <- function(messages, model, key, temperature = 0.2, max_tokens = 4096L) {
   box::use(httr2[
     request, req_headers, req_body_json, req_options, req_timeout,
     req_error, req_perform, resp_body_json, resp_status
@@ -142,7 +159,7 @@ activation_hint <- function(model) {
 
 #' Chat with NVIDIA NIM. `messages` = list of list(role=, content=).
 #' @export
-nim_chat <- function(messages, temperature = 0.25, max_tokens = 1200L) {
+nim_chat <- function(messages, temperature = 0.2, max_tokens = 4096L) {
   ensure_nvidia_env()
   key <- Sys.getenv("NVIDIA_API_KEY", "")
   if (!nzchar(key)) {

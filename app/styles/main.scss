@@ -1485,13 +1485,13 @@ body {
 }
 
 .coe-bot-page {
-  max-width: 860px;
+  max-width: 920px;
 }
 
 .coe-bot-status {
   font-family: var(--mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
   margin: 0 0 1rem;
 }
 
@@ -1505,43 +1505,51 @@ body {
 
 .coe-bot-shell {
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  background: #121212;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .coe-bot-thread {
-  min-height: 280px;
-  max-height: 52vh;
+  min-height: 320px;
+  max-height: 58vh;
   overflow-y: auto;
-  padding: 1rem 1.1rem;
+  padding: 1.1rem 1.15rem;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.95rem;
+  scroll-behavior: smooth;
 }
 
 .coe-bot-empty {
   color: var(--muted);
-  margin: 2rem 0;
+  margin: 2.5rem 0;
   text-align: center;
 }
 
 .coe-bot-bubble {
-  max-width: 92%;
-  padding: 0.75rem 0.9rem;
-  border-radius: 8px;
+  max-width: 96%;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
   border: 1px solid var(--line);
 }
 
 .coe-bot-bubble--user {
   align-self: flex-end;
-  background: rgba(255, 92, 26, 0.12);
-  border-color: rgba(255, 92, 26, 0.35);
+  background: rgba(255, 92, 26, 0.14);
+  border-color: rgba(255, 92, 26, 0.4);
 }
 
 .coe-bot-bubble--bot {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.03);
+  background: #1a1a1a;
+  border-color: #2a2a2a;
+}
+
+.coe-bot-bubble--pending {
+  opacity: 0.85;
 }
 
 .coe-bot-who {
@@ -1550,32 +1558,134 @@ body {
   font-size: 0.65rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 0.35rem;
+  color: #a3a3a3;
+  margin-bottom: 0.4rem;
+}
+
+.coe-bot-text {
+  color: #f2f2f2;
+  font-size: 0.98rem;
+  line-height: 1.6;
 }
 
 .coe-bot-text p {
-  margin: 0 0 0.55rem;
-  color: #e7e7e7;
-  line-height: 1.5;
-  font-size: 0.95rem;
+  margin: 0 0 0.65rem;
+  color: #f2f2f2;
 }
 
 .coe-bot-text p:last-child {
   margin-bottom: 0;
 }
 
+.coe-bot-h {
+  font-family: "Syne", sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  margin: 0.85rem 0 0.45rem;
+}
+
+.coe-bot-text > .coe-bot-h:first-child {
+  margin-top: 0;
+}
+
+.coe-bot-list {
+  margin: 0 0 0.7rem;
+  padding-left: 1.2rem;
+  color: #f2f2f2;
+}
+
+.coe-bot-list li {
+  margin: 0.2rem 0;
+}
+
+.coe-bot-list li::marker {
+  color: var(--accent);
+}
+
+.coe-bot-text code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+  color: #c8f542;
+}
+
+.coe-bot-table-wrap {
+  overflow-x: auto;
+  margin: 0.4rem 0 0.85rem;
+  border: 1px solid #2e2e2e;
+  border-radius: 6px;
+}
+
+.coe-bot-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  font-family: var(--mono);
+}
+
+.coe-bot-table th,
+.coe-bot-table td {
+  padding: 0.45rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid #2a2a2a;
+  color: #f0f0f0;
+  white-space: nowrap;
+}
+
+.coe-bot-table th {
+  background: #222;
+  color: #c8f542;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.coe-bot-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.coe-bot-pending {
+  color: #d4d4d4;
+  font-size: 0.95rem;
+}
+
+.coe-bot-dots {
+  display: inline-block;
+  margin-left: 0.15rem;
+  animation: coe-bot-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes coe-bot-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .coe-bot-composer {
   border-top: 1px solid var(--line);
   padding: 0.85rem 1rem 1rem;
-  background: rgba(0, 0, 0, 0.25);
+  background: #0d0d0d;
 }
 
 .coe-bot-composer textarea {
-  background: #0a0a0a !important;
-  color: var(--fg) !important;
-  border-color: var(--line) !important;
+  background: #161616 !important;
+  color: #f5f5f5 !important;
+  border-color: #333 !important;
   resize: vertical;
+  min-height: 3.2rem;
+}
+
+.coe-bot-composer textarea:focus {
+  border-color: rgba(255, 92, 26, 0.55) !important;
+  box-shadow: 0 0 0 2px rgba(255, 92, 26, 0.15);
 }
 
 .coe-bot-actions {
@@ -1585,7 +1695,7 @@ body {
 }
 
 .coe-bot-send {
-  min-width: 6rem;
+  min-width: 6.5rem;
 }
 
 .about-page .about-section > h2 {
