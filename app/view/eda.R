@@ -162,15 +162,17 @@ ui <- function(id) {
     ),
 
     div(
-      class = "eda-beat eda-beat--full",
+      class = "eda-beat eda-beat--full eda-beat--cta",
       div(
         class = "eda-beat__copy eda-beat__copy--wide",
         tags$span(class = "eda-beat__num", "04"),
         tags$span(class = "nx-kicker", "Feedback"),
-        tags$h3("Renewals, demand shocks and injections have their own tab"),
+        tags$h3("Open Scenarios for renewals, demand shocks and injections"),
         tags$p(
-          "The renewal feedback loop and the policy scenarios sit in Scenarios, where they act on the live ",
-          "forward path rather than on an illustration."
+          "This Market page is context only - no scenario chart here on purpose. ",
+          "The renewal feedback loop, premium glides and LTA injections live on the ",
+          tags$strong("Scenarios"),
+          " tab, where they move the live forward quota path."
         )
       )
     ),

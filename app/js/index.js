@@ -13,9 +13,17 @@
     const resizePlots = () => {
       window.dispatchEvent(new Event("resize"));
       if (!window.echarts) return;
-      document.querySelectorAll("[_echarts_instance_]").forEach((el) => {
+      // echarts4r often mounts the instance on an inner div without _echarts_instance_
+      // on the Shiny output node — walk widgets and children.
+      document.querySelectorAll(".echarts4r, [_echarts_instance_]").forEach((el) => {
         try {
-          const inst = window.echarts.getInstanceByDom(el);
+          let inst = window.echarts.getInstanceByDom(el);
+          if (!inst) {
+            for (const child of el.querySelectorAll("div")) {
+              inst = window.echarts.getInstanceByDom(child);
+              if (inst) break;
+            }
+          }
           if (inst) inst.resize();
         } catch (_) { /* ignore */ }
       });

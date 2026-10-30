@@ -2,8 +2,7 @@
 # live in the app (no refit) and chart quarterly quota against the baseline.
 
 box::use(
-  echarts4r[e_charts, e_line, e_bar, e_tooltip, e_legend, e_color, e_datazoom],
-  app/logic/viewdata/charts[style_chart],
+  echarts4r[e_charts, e_line, e_bar, e_color, e_datazoom, e_grid, e_tooltip, e_legend, e_x_axis, e_y_axis],
   app/logic/viewdata/pipeline[quarter_label],
   app/logic/model/scenarios[scenario_presets, apply_scenario, rollup_quarters, injection_split],
 )
@@ -113,33 +112,69 @@ prep_scenario <- function(store, category = "A", preset_id = "baseline", renewal
   )
 }
 
+as_plot_num <- function(x) {
+  suppressWarnings(as.numeric(x))
+}
+
+# Local style — skip e_theme("dark") purple canvas; keep the desk black.
+style_scenario_chart <- function(p) {
+  axis <- list(
+    axisLine = list(show = FALSE),
+    axisTick = list(show = FALSE),
+    axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono"),
+    splitLine = list(lineStyle = list(color = "rgba(255,255,255,0.06)"))
+  )
+  p |>
+    e_grid(left = 12, right = 16, top = 48, bottom = 16, containLabel = TRUE) |>
+    e_tooltip(trigger = "axis") |>
+    e_legend(right = 8, top = 4, textStyle = list(color = "#a3a3a3", fontSize = 11)) |>
+    e_x_axis(
+      axisLine = axis$axisLine,
+      axisTick = axis$axisTick,
+      axisLabel = axis$axisLabel,
+      splitLine = list(show = FALSE)
+    ) |>
+    e_y_axis(
+      axisLine = axis$axisLine,
+      axisTick = axis$axisTick,
+      axisLabel = axis$axisLabel,
+      splitLine = axis$splitLine
+    )
+}
+
 #' @export
 chart_scenario_quota <- function(prep) {
-  d <- prep$quarters
+  d <- as.data.frame(prep$quarters, stringsAsFactors = FALSE)
+  d$label <- as.character(d$label)
+  d$quota_base <- as_plot_num(d$quota_base)
+  d$quota_base_lo80 <- as_plot_num(d$quota_base_lo80)
+  d$quota_base_hi80 <- as_plot_num(d$quota_base_hi80)
+  d$quota_scenario <- as_plot_num(d$quota_scenario)
   d |>
     e_charts(label) |>
     e_line(quota_base_lo80, name = "Baseline 80% low", symbol = "none",
-           lineStyle = list(width = 1, opacity = 0.35, color = "#a3a3a3")) |>
+           lineStyle = list(width = 1, opacity = 0.45, color = "#a3a3a3")) |>
     e_line(quota_base_hi80, name = "Baseline 80% high", symbol = "none",
-           lineStyle = list(width = 1, opacity = 0.35, color = "#a3a3a3")) |>
+           lineStyle = list(width = 1, opacity = 0.45, color = "#a3a3a3")) |>
     e_line(quota_base, name = "Baseline quota", symbol = "none",
-           lineStyle = list(width = 1.8, type = "dashed", color = "#a3a3a3")) |>
+           lineStyle = list(width = 1.8, type = "dashed", color = "#d4d4d4")) |>
     e_line(quota_scenario, name = "Scenario quota", symbol = "circle", symbolSize = 5,
            lineStyle = list(width = 2.4, color = "#ff5c1a")) |>
-    e_color(c("#a3a3a3", "#a3a3a3", "#a3a3a3", "#ff5c1a")) |>
-    style_chart() |>
+    e_color(c("#a3a3a3", "#a3a3a3", "#d4d4d4", "#ff5c1a")) |>
+    style_scenario_chart() |>
     e_datazoom(type = "inside")
 }
 
 #' @export
 chart_scenario_dereg <- function(prep) {
-  d <- prep$quarters
-  d$dereg_base_k <- d$dereg_base / 1000
-  d$dereg_scenario_k <- d$dereg_scenario / 1000
+  d <- as.data.frame(prep$quarters, stringsAsFactors = FALSE)
+  d$label <- as.character(d$label)
+  d$dereg_base_k <- as_plot_num(d$dereg_base) / 1000
+  d$dereg_scenario_k <- as_plot_num(d$dereg_scenario) / 1000
   d |>
     e_charts(label) |>
     e_bar(dereg_base_k, name = "Baseline deregistrations (k)") |>
     e_bar(dereg_scenario_k, name = "Scenario deregistrations (k)") |>
     e_color(c("#737373", "#ff5c1a")) |>
-    style_chart()
+    style_scenario_chart()
 }
