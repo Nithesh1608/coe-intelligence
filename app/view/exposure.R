@@ -1,9 +1,10 @@
 box::use(
   shiny[
     NS, moduleServer, div, tags, numericInput, selectInput, sliderInput,
-    checkboxInput, actionButton, renderText, renderUI, uiOutput, reactive,
-    reactiveVal, observeEvent, updateNumericInput, updateSelectInput, req,
-    withProgress, incProgress, showNotification
+    checkboxInput, actionButton, fileInput, downloadButton, downloadHandler,
+    renderText, renderUI, uiOutput, reactive, reactiveVal, observeEvent,
+    updateNumericInput, updateSelectInput, req, withProgress, incProgress,
+    showNotification
   ],
   bslib[card, card_header, card_body, navset_card_underline, nav_panel],
   echarts4r[
@@ -12,7 +13,10 @@ box::use(
   ],
 )
 box::use(
-  app/logic/exposure/api[load_exposure_funs, load_exposure_data, make_pooled_book],
+  app/logic/exposure/api[
+    load_exposure_funs, load_exposure_data, make_pooled_book,
+    parse_order_book, parse_fleet_schedule
+  ],
   app/logic/viewdata/store[project_root],
 )
 
@@ -87,13 +91,30 @@ ui <- function(id) {
             checkboxInput(ns("tilt"), "Tilt paths by supply forecast", TRUE),
             numericInput(ns("nsim"), "Simulations", 500, 100, 1500, 100, width = "120px"),
             actionButton(ns("load_demo"), "Load example", class = "btn-demo"),
+            actionButton(ns("clear_upload"), "Clear upload", class = "btn-demo"),
             actionButton(ns("run"), "Price the book", class = "btn-demo")
           ),
+          div(
+            class = "desk-controls desk-controls--row",
+            style = "margin-top: 0.75rem; align-items: end;",
+            div(
+              style = "min-width: 260px; flex: 1;",
+              fileInput(
+                ns("dl_file"),
+                "Upload order book (CSV)",
+                accept = c(".csv", "text/csv"),
+                buttonLabel = "Browse…",
+                placeholder = "No file selected"
+              )
+            ),
+            downloadButton(ns("dl_tmpl"), "Download template", class = "btn btn-outline-secondary btn-sm")
+          ),
+          uiOutput(ns("book_status")),
           tags$p(
             class = "footnote",
-            "Pooled guaranteed orders by default. “A + B example book” loads the 50-order template. ",
-            "With tilt on, premium paths use the same elastic-net predicted quota as Results ",
-            "(calibrated outlook_from_forecast, rolled to quarters). Keep sims modest on Posit; 300–800 is usually enough."
+            "Download the template, edit your orders, then upload. Columns: order_id, category (A/B), ",
+            "quoted_premium, target_exercise, max_attempts, contract (guaranteed|capped|rebate), optional cap_topup. ",
+            "Without an upload, pooled controls / example book apply. Tilt uses elastic-net predicted quota from Results."
           )
         ),
         uiOutput(ns("dl_lead")),
@@ -128,9 +149,30 @@ ui <- function(id) {
             class = "desk-controls desk-controls--row",
             sliderInput(ns("fl_shift"), "Shift schedule (quarters)", 0, 2, 0, 1, width = "220px"),
             checkboxInput(ns("fl_capex"), "Include vehicle capital (if columns present)", FALSE),
+            actionButton(ns("fl_clear_upload"), "Clear upload", class = "btn-demo"),
             actionButton(ns("fl_run"), "Compare options", class = "btn-demo")
           ),
-          tags$p(class = "footnote", "Example fleet schedule + baseline premium simulations.")
+          div(
+            class = "desk-controls desk-controls--row",
+            style = "margin-top: 0.75rem; align-items: end;",
+            div(
+              style = "min-width: 260px; flex: 1;",
+              fileInput(
+                ns("fl_file"),
+                "Upload replacement schedule (CSV)",
+                accept = c(".csv", "text/csv"),
+                buttonLabel = "Browse…",
+                placeholder = "No file selected"
+              )
+            ),
+            downloadButton(ns("fl_tmpl"), "Download template", class = "btn btn-outline-secondary btn-sm")
+          ),
+          uiOutput(ns("fleet_status")),
+          tags$p(
+            class = "footnote",
+            "Fleet template columns: quarter, category (A/B), n_vehicles, parf_rebate; ",
+            "optional new_vehicle_cost, old_vehicle_residual for capex mode. Default is the example schedule."
+          )
         ),
         uiOutput(ns("fl_table")),
         tags$p(class = "footnote", shiny::textOutput(ns("fl_note"), inline = TRUE))
@@ -165,16 +207,94 @@ server <- function(id, store) {
       updateNumericInput(session, "quoted", value = round(lp / 500) * 500)
     }, ignoreInit = TRUE)
 
+    uploaded_book <- reactiveVal(NULL)
+    uploaded_fleet <- reactiveVal(NULL)
+
     observeEvent(input$load_demo, {
+      uploaded_book(NULL)
       lp <- last_premium(store$bidding, "A")
       updateNumericInput(session, "n_cars", value = 50)
-      updateSelectInput(session, "category", selected = "A")
+      updateSelectInput(session, "category", selected = "AB")
       updateNumericInput(session, "quoted", value = round(lp / 500) * 500)
       updateNumericInput(session, "nsim", value = 500)
+      showNotification("Using A+B example book (upload cleared).", type = "message")
     }, ignoreInit = TRUE)
+
+    observeEvent(input$dl_file, {
+      f <- input$dl_file
+      req(!is.null(f), nzchar(f$datapath %||% ""))
+      tryCatch({
+        b <- parse_order_book(f$datapath)
+        uploaded_book(b)
+        showNotification(
+          sprintf("Uploaded order book: %d orders (%s).", nrow(b), paste(unique(b$category), collapse = "+")),
+          type = "message"
+        )
+      }, error = function(e) {
+        uploaded_book(NULL)
+        showNotification(paste("Order book upload failed:", conditionMessage(e)), type = "error", duration = 12)
+      })
+    }, ignoreInit = TRUE)
+
+    observeEvent(input$clear_upload, {
+      uploaded_book(NULL)
+      showNotification("Cleared uploaded order book — using on-screen / example controls.", type = "message")
+    }, ignoreInit = TRUE)
+
+    observeEvent(input$fl_file, {
+      f <- input$fl_file
+      req(!is.null(f), nzchar(f$datapath %||% ""))
+      tryCatch({
+        sch <- parse_fleet_schedule(f$datapath)
+        uploaded_fleet(sch)
+        showNotification(
+          sprintf("Uploaded fleet schedule: %d rows.", nrow(sch)),
+          type = "message"
+        )
+      }, error = function(e) {
+        uploaded_fleet(NULL)
+        showNotification(paste("Fleet upload failed:", conditionMessage(e)), type = "error", duration = 12)
+      })
+    }, ignoreInit = TRUE)
+
+    observeEvent(input$fl_clear_upload, {
+      uploaded_fleet(NULL)
+      showNotification("Cleared uploaded fleet schedule — using example schedule.", type = "message")
+    }, ignoreInit = TRUE)
+
+    output$dl_tmpl <- downloadHandler(
+      filename = function() "order_book_template.csv",
+      content = function(file) {
+        tmpl <- exp_data$example_book
+        if (is.null(tmpl) || !nrow(tmpl)) {
+          tmpl <- make_pooled_book(6L, "A", last_premium(store$bidding, "A"))
+          tmpl$contract[c(3L, 5L)] <- c("capped", "rebate")
+        }
+        utils::write.csv(tmpl, file, row.names = FALSE)
+      }
+    )
+
+    output$fl_tmpl <- downloadHandler(
+      filename = function() "fleet_schedule_template.csv",
+      content = function(file) {
+        tmpl <- exp_data$example_fleet
+        if (is.null(tmpl) || !nrow(tmpl)) {
+          tmpl <- data.frame(
+            quarter = rep(1:4, each = 2),
+            category = rep(c("A", "B"), 4),
+            n_vehicles = rep(c(50L, 25L), 4),
+            parf_rebate = rep(c(8000, 12000), 4),
+            stringsAsFactors = FALSE
+          )
+        }
+        utils::write.csv(tmpl, file, row.names = FALSE)
+      }
+    )
 
     book <- reactive({
       req(!is.null(exp_data))
+      up <- uploaded_book()
+      if (!is.null(up) && nrow(up)) return(up)
       if (identical(input$category, "AB") && !is.null(exp_data$example_book)) {
         b <- exp_data$example_book
         b$quoted_premium[b$category == "A"] <- as.numeric(input$quoted)
@@ -183,6 +303,38 @@ server <- function(id, store) {
       }
       cat <- if (identical(input$category, "AB")) "A" else input$category
       make_pooled_book(input$n_cars, cat, input$quoted)
+    })
+
+    fleet_sched <- reactive({
+      req(!is.null(exp_data))
+      up <- uploaded_fleet()
+      if (!is.null(up) && nrow(up)) return(up)
+      exp_data$example_fleet
+    })
+
+    output$book_status <- renderUI({
+      b <- tryCatch(book(), error = function(e) NULL)
+      if (is.null(b) || !nrow(b)) return(NULL)
+      src <- if (!is.null(uploaded_book())) "Uploaded CSV" else if (identical(input$category, "AB")) "A+B example book" else "Pooled controls"
+      tags$p(
+        class = "footnote",
+        sprintf(
+          "Active book: %s · %d orders · cats %s · contracts %s",
+          src, nrow(b),
+          paste(sort(unique(as.character(b$category))), collapse = "/"),
+          paste(sort(unique(as.character(b$contract))), collapse = "/")
+        )
+      )
+    })
+
+    output$fleet_status <- renderUI({
+      f <- tryCatch(fleet_sched(), error = function(e) NULL)
+      if (is.null(f) || !nrow(f)) return(NULL)
+      src <- if (!is.null(uploaded_fleet())) "Uploaded CSV" else "Example schedule"
+      tags$p(
+        class = "footnote",
+        sprintf("Active schedule: %s · %d rows · %s vehicles", src, nrow(f), sum(as.integer(f$n_vehicles)))
+      )
     })
 
     # Live predicted quota from the elastic-net desk (same series as Results).
@@ -392,14 +544,15 @@ server <- function(id, store) {
         showNotification("Exposure engine is not available.", type = "error")
         return()
       }
-      if (is.null(exp_data$example_fleet) || is.null(exp_data$premium_sims_baseline)) {
+      sch <- fleet_sched()
+      if (is.null(sch) || !nrow(sch) || is.null(exp_data$premium_sims_baseline)) {
         showNotification("Fleet schedule or baseline sims missing.", type = "error")
         return()
       }
       tryCatch({
         withProgress(message = "Fleet options", value = 0.3, {
           out <- funs$fleet_decision(
-            exp_data$example_fleet,
+            sch,
             exp_data$premium_sims_baseline,
             shift_quarters = as.integer(input$fl_shift),
             include_capex = isTRUE(input$fl_capex)
