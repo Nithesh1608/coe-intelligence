@@ -4,10 +4,10 @@
 
 root <- if (file.exists("rhino.yml")) {
   normalizePath(".", winslash = "/", mustWork = TRUE)
-} else if (file.exists("../../rhino.yml")) {
-  normalizePath("../..", winslash = "/", mustWork = TRUE)
+} else if (file.exists("../../../rhino.yml")) {
+  normalizePath("../../..", winslash = "/", mustWork = TRUE)
 } else {
-  normalizePath("C:/COE Intelligence", winslash = "/", mustWork = TRUE)
+  stop("Run from the repo root (where rhino.yml lives) or from app/logic/eda/.")
 }
 setwd(root)
 

@@ -1,4 +1,8 @@
-# Load processed RDS + two-model showcase outputs. App does not refit models.
+# Load processed RDS + model artefacts. App does not refit models.
+
+`%||%` <- function(a, b) {
+  if (is.null(a) || !length(a) || (length(a) == 1L && is.na(a))) b else a
+}
 
 #' @export
 project_root <- function(start = getwd()) {
@@ -84,6 +88,11 @@ load_store <- function(root = project_root()) {
   )
   bidding$quota <- NULL
   bidding <- merge(bidding, qsum, by = c("month", "category"), all.x = TRUE)
+  # A month with only one of its two exercises in is partial: its summed quota
+  # is half a month and must not be compared with forecasts.
+  rounds <- stats::aggregate(bidding_no ~ month, data = bids[!is.na(bids$quota), ], FUN = function(z) length(unique(z)))
+  partial_months <- rounds$month[rounds$bidding_no < 2L & rounds$month == max(rounds$month)]
+  bidding$partial <- bidding$month %in% partial_months
   bidding <- bidding[order(bidding$month, bidding$category), ]
 
   panel <- flows[, c("month", "category", "registrations", "deregistrations", "population")]
@@ -116,6 +125,25 @@ load_store <- function(root = project_root()) {
   quota_outlook <- read_csv_safe(file.path(exp, "quota_outlook_calibrated.csv"))
   quota_scores <- read_csv_safe(file.path(exp, "quota_outlook_scores.csv"))
 
+  # Forward path (production fit rolled 36 months ahead with bootstrap bands),
+  # recursive backtest, scenario presets and the renewal response.
+  forward_quota <- read_csv_safe(file.path(exp, "forward_quota.csv"))
+  forward_dereg <- read_csv_safe(file.path(exp, "forward_dereg.csv"))
+  forward_scenarios <- read_csv_safe(file.path(exp, "forward_scenarios.csv"))
+  if (!is.null(forward_scenarios) && "quarter" %in% names(forward_scenarios)) {
+    forward_scenarios$quarter <- as_date_col(forward_scenarios$quarter)
+  }
+  if (!is.null(forward_quota) && "quarter" %in% names(forward_quota)) {
+    forward_quota$quarter <- as_date_col(forward_quota$quarter)
+  }
+  backtest <- read_csv_safe(file.path(exp, "backtest_recursive.csv"))
+  calibration <- read_csv_safe(file.path(exp, "backtest_calibration.csv"))
+  renewal_response <- read_csv_safe(file.path(exp, "renewal_response.csv"))
+  alphas <- read_csv_safe(file.path(exp, "quota_calibration_alpha.csv"))
+  coefficients <- read_csv_safe(file.path(exp, "enet_coefficients_production.csv"))
+  spec_df <- read_csv_safe(file.path(exp, "model_spec.csv"))
+  model_spec <- if (is.null(spec_df)) list() else stats::setNames(as.list(spec_df$value), spec_df$key)
+
   meta <- list(
     live_model = "core_forecast",
     models = c("core_forecast"),
@@ -124,11 +152,12 @@ load_store <- function(root = project_root()) {
       simple_average = "12-month average"
     ),
     model_blurb = c(
-      core_forecast = "Predicts monthly deregistrations from due-stock and recent flow features, then maps to quota.",
+      core_forecast = "Predicts monthly deregistrations from registration cohorts, age stock, renewals and PQP, then maps to quota.",
       simple_average = "Naive baseline: average of the last twelve months of deregistrations or quota."
     ),
-    train_end = as.Date("2024-08-01"),
-    test_start = as.Date("2024-09-01")
+    train_end = as.Date(model_spec$train_end %||% "2024-08-01"),
+    test_start = as.Date(model_spec$test_start %||% "2024-09-01"),
+    spec = model_spec
   )
 
   list(
@@ -148,9 +177,18 @@ load_store <- function(root = project_root()) {
     two_quota_scores = two_quota_scores,
     quota_outlook = quota_outlook,
     quota_scores = quota_scores,
+    forward_quota = forward_quota,
+    forward_dereg = forward_dereg,
+    forward_scenarios = forward_scenarios,
+    backtest = backtest,
+    calibration = calibration,
+    renewal_response = renewal_response,
+    alphas = alphas,
+    coefficients = coefficients,
     meta = meta,
     cat_label = cat_label,
     latest_dereg_month = max(panel$month[!is.na(panel$deregistrations)], na.rm = TRUE),
-    latest_bid_month = max(bidding$month, na.rm = TRUE)
+    latest_bid_month = max(bidding$month, na.rm = TRUE),
+    latest_complete_bid_month = max(bidding$month[!bidding$partial], na.rm = TRUE)
   )
 }

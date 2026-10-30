@@ -27,9 +27,9 @@ We regard quota.sg as validation rather than as an obstacle: its existence demon
 |  | Quota.sg | Our proposal |
 | ----- | ----- | ----- |
 | User | Individual buyer, one decision per decade | Dealer, importer, fleet operator — continuous exposure |
-| Horizon | Three quarters | Eight to twelve quarters |
-| Method | Rolling average of realised deregistrations | Registration-cohort survival model |
-| Output | Point estimate, Buy / Wait / Caution signal | Forecast distribution plus modelled cost exposure |
+| Horizon | Three quarters | Twelve quarters |
+| Method | Rolling average of realised deregistrations | Registration-cohort model: cohort survival projection of the fleet feeding an elastic net, rolled forward with a recursive bootstrap |
+| Output | Point estimate, Buy / Wait / Caution signal | Forecast distribution (50% and 80% bands) plus modelled cost exposure |
 | Question answered | "Should I bid now?" | "What is my COE cost exposure, and how do I time against it?" |
 | Model | Free, advertising-funded | Subscription |
 
@@ -39,45 +39,59 @@ We regard quota.sg as validation rather than as an obstacle: its existence demon
 * **No planning horizon:** Existing forecasts extend three quarters. Fleet replacement and inventory decisions are made over two to three years.  
 * **Point estimates hide the downside:** A business needs the adverse case as much as the central one. A single projected number cannot support a decision about how much exposure to carry.  
 * **Cross-category blindness:** Dealers allocate inventory across Categories A and B, but the categories are often analysed in isolation. Nothing shows how demand shifts between them as the spread narrows.  
-* **No feedback modelling:** When premiums are high, more owners renew at the Prevailing Quota Premium instead of scrapping, which suppresses future deregistrations and therefore future quota. This loop drives medium-term supply and is absent from every published forecast.
+* **No feedback modelling:** Renewal at the Prevailing Quota Premium competes with scrapping, so the renewal rate moves deregistrations and therefore future quota. This loop drives medium-term supply and is absent from every published forecast. (We expected dear premiums to raise renewals; LTA revalidation data since 2015 show the opposite, and the application models the fitted sign.)
 
 ## **4\. How are we going to tackle the problem?**
 
-We will build an interactive R application that projects COE supply over a two-to-three-year horizon as a distribution, and translates it into cost exposure for a specific order book or fleet schedule.
+We will build an interactive R application that projects COE supply over a three-year horizon as a distribution, and translates it into cost exposure for a specific order book or fleet schedule.
 
-Four views:
+Four views (tab names in the application in brackets):
 
-1. **Supply pipeline:** Registration cohorts traced forward into expected deregistrations and therefore quota, by category, over eight to twelve quarters, presented as a distribution with uncertainty bands rather than a single line.  
-2. **Feedback and scenarios:** Renewal rate modelled as a function of premium level, so the user can see how high premiums suppress future supply. Scenario controls for policy injections and for demand shocks.  
-3. **Category dynamics:** The A/B spread over time, and the substitution behaviour it drives — how Category A demand migrates to B as the gap closes.  
-4. **Exposure calculator:** The user enters a forward order book or a fleet replacement schedule; the application returns expected COE cost with a confidence range, and shows how the expected cost changes if purchases are shifted by one or two quarters.
+1. **Supply pipeline (Home):** Registration cohorts traced forward into expected deregistrations and therefore quota, by category, over twelve quarters, presented as a distribution with 50% and 80% bootstrap bands rather than a single line, plus a quarterly table.  
+2. **Feedback and scenarios (Scenarios):** Renewal share fitted as a function of PQP on LTA revalidation data, so the user can see how a premium path changes renewals, deregistrations and quota. Scenario controls for a direct renewal shift, premium glides, LTA injections, a clawback of the certificates LTA brought forward since 2023, and a merged A+B category.  
+3. **Category dynamics (Market):** The A/B spread over time and the substitution behaviour it drives — how Category A demand migrates to B as the gap closes — with the cohort flow and within-quarter swing charts.  
+4. **Exposure calculator (Your risk):** The user enters a forward order book or a fleet replacement schedule; the application returns expected COE cost with a confidence range, and shows how the expected cost changes if purchases are shifted by one or two quarters. Premium paths can be tilted by the forward quota path under a chosen scenario.
+
+A fifth tab, **Results**, reports calibration: one-step held-out error, period totals where the model missed, and a 24-month recursive backtest with coverage of the 80% band.
 
 ### **What data will we use, and where will we obtain it?**
 
 | Source | Dataset | Role |
 | ----- | ----- | ----- |
-| LTA, via data.gov.sg | [COE Bidding Results / Prices](https://data.gov.sg/datasets/d_69b3380ad7e51aff3a7dcc84eba52b8a/view)  (Data from Jan 2-1- to Sep 2026\) | Per-exercise premium, quota and bids received by category. Primary price series. |
-| SingStat, via data.gov.sg | [Motor Vehicle Quota, Quota Premium and PQP, Monthly](https://data.gov.sg/datasets/d_22094bf608253d36c0c63b52d852dd6e/view)  (Data from Feb 2002 to Jul 2026\) | Monthly quota and PQP; PQP drives the renewal feedback model. |
-| LTA DataMall | [Annual vehicle statistics: new registrations, deregistrations, vehicle population by type and age](https://datamall.lta.gov.sg/content/datamall/en/static-data.html) | Registration cohorts — the input to the survival model. Second, independent source. |
-| ACRA, via data.gov.sg | [Entity information, filtered to motor trade SSIC codes](https://data.gov.sg/collections/1/view) | Sizes the addressable market of dealers and importers for the business plan. |
-| OneMotoring / trade sources (crawled) | ARF and OMV schedules; COE-inclusive listing prices | Converts quota exposure into total vehicle cost. Source site cited in the report rather than submitted. |
+| LTA, via data.gov.sg / DataMall | [COE Bidding Results / Prices](https://data.gov.sg/datasets/d_69b3380ad7e51aff3a7dcc84eba52b8a/view) (Jan 2010 to Oct 2026) | Per-exercise premium, quota and bids received by category. Primary price series; published quota is the calibration target. |
+| SingStat, via data.gov.sg | [Motor Vehicle Quota, Quota Premium and PQP, Monthly](https://data.gov.sg/datasets/d_22094bf608253d36c0c63b52d852dd6e/view) (Feb 2002 to Sep 2026) | Monthly quota and PQP; PQP drives the renewal response. |
+| SingStat Table Builder | Monthly new registrations, deregistrations and population under the Vehicle Quota System, by category (May 1990 to Aug 2026) | Registration cohorts and the modelling target (deregistrations). |
+| LTA DataMall | [Monthly vehicle statistics](https://datamall.lta.gov.sg/content/datamall/en/static-data.html): population by type and age (M01-03M), deregistrations by quota category (M05), COE revalidations (M10), bidding results and PQP (M11), Car Cost Update (M032) | Age stock for the due cohort, renewal share, second independent deregistration series, and the ARF / OMV / dealer-price table that converts quota exposure into total vehicle cost. |
+| ACRA, via data.gov.sg | [Entity information, filtered to motor trade SSIC codes](https://data.gov.sg/collections/1/view) | Sizes the addressable market of dealers and importers for the business plan (used in the deck, not in the application). |
+
+The two data.gov.sg tables are pulled with `httr2` (`scripts/acquire_data.R`); DataMall and Table Builder exports need a browser session and are documented in the same script. The Car Cost Update workbook replaces the crawl of OneMotoring and trade listings that we first planned.
 
 Two data issues we have already identified. Categories A and B were **redefined in May 2022** around electric vehicles' maximum power output, so a naive long series compares two different products. Bidding exercises were **suspended in April, May and June 2020**, leaving a structural gap.
 
 ### **What kinds of visualisation will we develop?**
 
-* **Fan chart** of projected quota by category over twelve quarters, with prediction intervals widening at longer horizons.  
+* **Fan chart** of projected quota by category over twelve quarters, with 50% and 80% bootstrap bands widening at longer horizons.  
 * **Cohort flow diagram** tracing registrations in year *t* through survival and renewal into deregistrations in year *t+10*, making the mechanics of the projection legible.  
 * **Within-quarter volatility chart** showing the maximum premium swing inside each quarter historically — the chart that quantifies the dealer's exposure problem.  
-* **Spread chart** of Cat A versus Cat B, annotated with policy events, with a linked view of A/B volume shares to show substitution.  
-* **Feedback loop explorer**: an interactive control on the renewal rate, showing how it propagates into supply two to three years out.  
+* **Spread chart** of Cat A versus Cat B, with a linked view of A/B volume shares to show substitution.  
+* **Scenario explorer**: renewal lever, premium glides and injections acting on the live forward path, with baseline and scenario quarterly quota side by side.  
+* **Recursive backtest chart and calibration table**: the model rolled forward 24 months from the training end against realised deregistrations, with MAPE, bias and 80% coverage by horizon.  
 * **Exposure waterfall** for the user's own order book: expected cost, confidence range, and the effect of shifting timing.
 
-All charts in `ggplot2`, made interactive with `plotly`, delivered in a Shiny application. Acquisition uses `httr2` against the data.gov.sg API and `readxl` for DataMall workbooks; cleaning uses `dplyr` and `lubridate`; the cohort model uses survival-style attrition curves with bootstrapped intervals.
+Live charts use `echarts4r` inside a Rhino / Shiny application; the static EDA figures are `ggplot2`. Acquisition uses `httr2` against the data.gov.sg API and `readxl` for the DataMall workbook; cleaning uses `dplyr` and `lubridate`. The supply model is an elastic net (`glmnet`) on registration-cohort, age-stock, renewal and PQP features, with the forward age stock projected from registration cohorts and calibrated survival factors, and intervals from a recursive block bootstrap of held-out residuals plus the quota-mapping residual.
 
 ### **Scope and honesty**
 
-We forecast **supply**, which is largely mechanical, and we quantify **exposure** under uncertainty. We do not claim to forecast premiums, which depend additionally on demand, credit conditions and policy. This limitation will be stated in the application itself. We will backtest the supply model against realised quota and report its calibration openly, including where it performs poorly.
+We forecast **supply**, which is largely mechanical, and we quantify **exposure** under uncertainty. We do not claim to forecast premiums, which depend additionally on demand, credit, and policy. This limitation is stated in the application itself. We backtest the supply model two ways — one step ahead on a locked 24-month window, and rolled forward recursively for 24 months from the training end — and report calibration openly on the Results tab, including the periods where the model under-called Category B and where LTA's discretionary releases sat outside the band. The model specification was chosen on that held-out window, and the application says so.
+
+### **Changes since the submitted proposal**
+
+* **Category E dropped.** The desk covers Categories A and B only; E is an open category with different demand and was removed from the model, the exposure engine and the charts.  
+* **Method.** "Survival model" became a registration-cohort projection (cohort survival factors age the fleet forward) feeding an elastic net. Autoregressive lags were removed from the live specification because they under-extrapolated the 2016–17 cohort reaching year ten.  
+* **Renewal feedback sign.** The data show dearer PQP lowers renewals; the scenario layer uses the fitted slope.  
+* **Horizon.** Thirty-six months forward (twelve quarters), the upper end of the proposed range.  
+* **Tooling.** `echarts4r` for live charts instead of `ggplot2` + `plotly`; the Car Cost Update workbook from DataMall instead of a web crawl.  
+* **Backtest.** Twenty-four months held out rather than three years, because the age-stock series starts in 2016.
 
 ## **5\. Project plan**
 

@@ -1,6 +1,6 @@
 # COE Intelligence
 
-DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B deregistrations and formula quota — not premiums. **Your risk** is an exposure calculator for a locked order book / fleet schedule (simulated premium paths, optional supply tilt).
+DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B deregistrations and the quota they imply twelve quarters ahead with bootstrap bands, lets you move that path with renewal, premium and policy scenarios, and prices the exposure of a locked order book or fleet schedule. It does **not** forecast premiums.
 
 ## Run
 
@@ -11,39 +11,47 @@ rhino::app()
 
 ## Tabs
 
-| Tab | Purpose |
-| --- | --- |
-| Home | Desk landing — supply at a glance |
-| EDA | Exploratory charts |
-| Results | Elastic-net deregistrations + quota outlook |
-| Your risk | Exposure calculator (dealer book + fleet) |
-| COE bot | Free-form Q&A via NVIDIA NIM, grounded on brief + held-out scores |
-| About | Cleaning, features, models, exposure |
+| Tab | Proposal view | Purpose |
+| --- | --- | --- |
+| Home | Supply pipeline | Released quota vs the held-out model, then the production model rolled 36 months forward with 50% / 80% bootstrap bands and a quarterly table |
+| Scenarios | Feedback and scenarios | Renewal share as a fitted function of PQP, renewal lever, premium glides, LTA injection or clawback, merged A+B |
+| Market | Category dynamics | Cohort flow, within-quarter premium swings, A/B spread and volume shares, supporting EDA |
+| Results | Calibration | One-step held-out scores, period totals where the model missed, 24-month recursive backtest with 80% coverage |
+| Your risk | Exposure calculator | Dealer book and fleet schedule priced on simulated premium paths, optionally tilted by the forward quota path |
+| About | | Data, cleaning, features, model, scenarios, exposure, limits |
 
-### COE bot / NVIDIA NIM
+The COE bot (`app/view/coe_bot.R`, `app/logic/chat/`) stays in the codebase but is not wired into the navigation; `app/main.R` says how to restore it.
 
-Free-form chat via NVIDIA NIM (`deepseek-ai/deepseek-v4.1-flash` by default). Each turn
-sends a slim system pack: `project_brief.md` + live quota/hit-rate scores. Calls go through
-system `curl` (R/libcurl often stalls on this host).
+## Rebuild everything
 
-- **Local:** gitignored `.Renviron` with `NVIDIA_API_KEY=`… and optional `NVIDIA_NIM_MODEL=`.
-- **Posit Connect Cloud:** content **Variables** → secret `NVIDIA_API_KEY` (do not commit the key).
-- If NIM is unreachable, the bot posts the error in the thread instead of hanging silently.
+```r
+Rscript scripts/acquire_data.R        # data.gov.sg tables via httr2; prints the manual DataMall / SingStat steps
+Rscript scripts/run_data_cleaning.R   # knits data/data_cleaning.Rmd -> data/processed/*.rds
+Rscript scripts/fit_and_forecast.R    # feature panel, evaluation + production fits, backtest, forward path, scenarios
+Rscript scripts/verify_exposure.R     # multi-case check of the exposure engine
+```
 
-## Data
+`fit_and_forecast.R` writes every CSV under `data/processed/model_experiment/` that the app reads, including `feature_panel.csv`, `forward_quota.csv`, `forward_dereg.csv`, `forward_scenarios.csv`, `backtest_recursive.csv`, `backtest_calibration.csv`, `renewal_response.csv` and `model_spec.csv`. The app only loads artefacts; it never refits.
+
+## Tests
+
+```r
+rhino::test_r()
+```
+
+Covers date helpers, feature engineering and cohort projection, quota mapping and band summaries, the scenario layer (renewal shift, premium glide, injection, clawback split), the exposure engine on deterministic cases, and the consistency of the shipped forward artefacts.
+
+## Layout
 
 | Path | Role |
 | --- | --- |
-| `data/data_cleaning.Rmd` | Cleaning notebook |
-| `data/raw/` | Official extracts |
-| `data/processed/` | Cleaned RDS + app forecast CSVs |
-| `data/processed/exposure/` | Exposure calculator inputs |
+| `app/logic/model/` | Features, elastic net + recursive bootstrap, scenario layer (shared by scripts, app and tests) |
+| `app/logic/viewdata/` | Store loader and chart preparation |
 | `app/logic/exposure/` | Exposure engine + API |
+| `app/logic/eda/` | Static EDA sources and renderer |
+| `app/view/` | Shiny modules, one per tab |
+| `data/data_cleaning.Rmd` | Cleaning notebook |
+| `data/raw/` | Official extracts (DataMall, SingStat); `data/raw/datagov/api/` holds httr2 pulls |
+| `data/processed/` | Cleaned RDS + model artefacts (`model_experiment/`) + exposure inputs (`exposure/`) |
 
-```r
-Rscript scripts/run_data_cleaning.R
-Rscript scripts/export_two_models_for_app.R
-Rscript scripts/build_quota_outlook.R
-```
-
-Proposal: `Project Proposal.md`. EDA story lives in the app (`app/view/eda.R`, `app/logic/viewdata/eda_story.R`).
+Proposal: `Project Proposal.md`.

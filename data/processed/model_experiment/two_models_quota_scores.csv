@@ -1,5 +1,5 @@
-﻿"model","label","category","MAE","MAPE"
-"core_forecast","Core supply forecast","A","284.124707408635","0.119143918178571"
-"core_forecast","Core supply forecast","B","173.391612110163","0.116475433664118"
-"simple_average","Simple 12-month average","A","520.344738876009","0.213738952839274"
-"simple_average","Simple 12-month average","B","257.148435126102","0.170046415864612"
+"model","label","category","MAE","MAPE"
+"core_forecast","Elastic net","A",381.790374387843,0.161013404008848
+"simple_average","Simple 12-month average","A",561.661300088236,0.231014804675802
+"core_forecast","Elastic net","B",276.174841116762,0.181007938436972
+"simple_average","Simple 12-month average","B",257.544762865939,0.170300810413186

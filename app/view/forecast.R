@@ -1,11 +1,16 @@
 box::use(
-  shiny[NS, moduleServer, div, tags, selectInput, renderUI, uiOutput],
+  shiny[NS, moduleServer, div, tags, selectInput, renderUI, uiOutput, req],
   bslib[card, card_header, card_body],
-  echarts4r[renderEcharts4r, echarts4rOutput],
+  echarts4r[renderEcharts4r, echarts4rOutput, e_charts, e_line, e_color, e_datazoom],
 )
 box::use(
-  app/logic/viewdata/charts[exit_track_chart],
+  app/logic/viewdata/charts[exit_track_chart, style_chart],
 )
+
+fmt_pct <- function(x, digits = 0) {
+  if (!is.finite(x)) return("-")
+  paste0(format(round(100 * as.numeric(x), digits), nsmall = digits), "%")
+}
 
 LIVE_MODEL <- "core_forecast"
 
@@ -51,7 +56,50 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "White = actual deregistrations. Orange = elastic net. Grey dashed = 12-month average."
+      "White = actual deregistrations. Orange = elastic net, one step ahead with actual lags. Grey dashed = 12-month average."
+    ),
+
+    tags$section(
+      class = "viz-explain",
+      tags$span(class = "nx-kicker", "Where it misses"),
+      tags$h2("The honest view: where the model was wrong"),
+      tags$p(
+        class = "lede lede--wide",
+        "Totals by period against actual deregistrations. A negative gap means the model under-called supply. ",
+        "The 2025-26 surge is the 2016-17 registration boom reaching year ten; the cohort features carry it, ",
+        "but the exit rate also rose as PQP climbed, and that part the model only partly caught."
+      )
+    ),
+    uiOutput(ns("miss_table")),
+
+    tags$section(
+      class = "viz-explain",
+      tags$span(class = "nx-kicker", "Recursive backtest"),
+      tags$h2("Rolled forward 24 months from August 2024, no peeking"),
+      tags$p(
+        class = "lede lede--wide",
+        "This is the test that matters for a planning horizon. The evaluation model was rolled forward month by ",
+        "month from the training end, feeding its own predictions back as lags and projecting age stock from ",
+        "registration cohorts. Bands come from 500 bootstrap paths of its held-out errors."
+      ),
+      tags$ul(
+        class = "viz-explain__list",
+        tags$li(tags$strong("MAPE - "), "mean absolute percentage error of the central path."),
+        tags$li(tags$strong("Bias - "), "signed total error; negative means supply was under-called."),
+        tags$li(tags$strong("80% coverage - "), "share of months inside the 80% band; 80% is the target, below it the band is too narrow.")
+      )
+    ),
+    card(
+      class = "desk-card",
+      full_screen = TRUE,
+      card_header("Recursive path versus actual deregistrations"),
+      card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("bt_chart"), height = "380px"))
+    ),
+    uiOutput(ns("cal_table")),
+    tags$p(
+      class = "footnote",
+      "Specification was chosen on this held-out window (cohort-only predictors, lambda.min), so these numbers ",
+      "are the fairest we can report, not an independent test. The next twelve months of releases will be."
     )
   )
 }
@@ -105,6 +153,82 @@ server <- function(id, store) {
         stringsAsFactors = FALSE
       )
       exit_track_chart(df, live_label)
+    })
+
+    output$miss_table <- renderUI({
+      r <- store$two_rollup
+      if (is.null(r) || !nrow(r)) return(NULL)
+      r <- r[as.character(r$category) == input$cat, ]
+      r <- r[order(r$period, r$model), ]
+      rows <- lapply(seq_len(nrow(r)), function(i) {
+        off <- as.numeric(r$pct_off[i])
+        cls <- if (abs(off) <= 10) "ex-row--green" else if (abs(off) <= 20) "" else "ex-row--accent"
+        tags$tr(
+          class = cls,
+          tags$td(r$period[i]),
+          tags$td(if (r$model[i] == LIVE_MODEL) live_label else "12-month average"),
+          tags$td(fmt_int(r$actual[i])),
+          tags$td(fmt_int(r$predicted[i])),
+          tags$td(sprintf("%s%s", if (off >= 0) "+" else "", fmt_int(r$gap[i]))),
+          tags$td(sprintf("%+.1f%%", off))
+        )
+      })
+      tags$table(
+        class = "table table-sm",
+        style = "color:#fafafa;",
+        tags$thead(tags$tr(
+          tags$th("Period"), tags$th("Model"), tags$th("Actual exits"), tags$th("Predicted"),
+          tags$th("Gap"), tags$th("Off by")
+        )),
+        tags$tbody(rows)
+      )
+    })
+
+    output$bt_chart <- renderEcharts4r({
+      bt <- store$backtest
+      req(!is.null(bt), nrow(bt) > 0)
+      d <- bt[as.character(bt$category) == input$cat, ]
+      d <- d[order(as.Date(d$month)), ]
+      d$label <- format(as.Date(d$month), "%b %Y")
+      d |>
+        e_charts(label) |>
+        e_line(dereg_lo80, name = "80% low", symbol = "none", lineStyle = list(width = 1, opacity = 0.4)) |>
+        e_line(dereg_hi80, name = "80% high", symbol = "none", lineStyle = list(width = 1, opacity = 0.4)) |>
+        e_line(dereg_actual, name = "Actual deregistrations", symbol = "circle", symbolSize = 5, lineStyle = list(width = 2.4)) |>
+        e_line(dereg_mid, name = "Recursive forecast", symbol = "none", lineStyle = list(width = 2.2)) |>
+        e_color(c("#ff5c1a", "#ff5c1a", "#fafafa", "#ff5c1a")) |>
+        style_chart() |>
+        e_datazoom(type = "inside")
+    })
+
+    output$cal_table <- renderUI({
+      cal <- store$calibration
+      if (is.null(cal) || !nrow(cal)) {
+        return(tags$p(class = "footnote", "Recursive backtest not available - run scripts/fit_and_forecast.R."))
+      }
+      d <- cal[as.character(cal$category) == input$cat, ]
+      rows <- lapply(seq_len(nrow(d)), function(i) {
+        tags$tr(
+          tags$td(d$horizon[i]),
+          tags$td(d$months[i]),
+          tags$td(fmt_pct(d$dereg_mape[i])),
+          tags$td(sprintf("%+.0f%%", d$dereg_bias_pct[i])),
+          tags$td(fmt_pct(d$dereg_cover80[i])),
+          tags$td(fmt_pct(d$quota_mape[i])),
+          tags$td(sprintf("%+.0f%%", d$quota_bias_pct[i])),
+          tags$td(fmt_pct(d$quota_cover80[i]))
+        )
+      })
+      tags$table(
+        class = "table table-sm",
+        style = "color:#fafafa;",
+        tags$thead(tags$tr(
+          tags$th("Horizon"), tags$th("Months"),
+          tags$th("Exits MAPE"), tags$th("Exits bias"), tags$th("Exits 80% cover"),
+          tags$th("Quota MAPE"), tags$th("Quota bias"), tags$th("Quota 80% cover")
+        )),
+        tags$tbody(rows)
+      )
     })
   })
 }

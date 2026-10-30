@@ -1,6 +1,10 @@
 box::use(
-  shiny[NS, moduleServer, div, tags],
+  shiny[NS, moduleServer, div, tags, renderUI, uiOutput, renderText, textOutput],
 )
+
+`%||%` <- function(a, b) {
+  if (is.null(a) || !length(a) || (length(a) == 1L && is.na(a))) b else a
+}
 
 section <- function(title, ...) {
   tags$section(
@@ -18,6 +22,9 @@ stat <- function(label, value) {
   )
 }
 
+pct <- function(x, d = 0) if (is.finite(x)) paste0(format(round(100 * x, d), nsmall = d), "%") else "-"
+num <- function(x) if (is.finite(x)) format(round(x), big.mark = ",", trim = TRUE) else "-"
+
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -30,18 +37,18 @@ ui <- function(id) {
       tags$p(
         class = "lede lede--wide",
         "A Category A/B supply desk for dealers, parallel importers, and fleets that buy certificates ",
-        "continuously — not once a decade. We forecast deregistrations and the quota they imply, with ",
-        "honest uncertainty, then translate that into cost exposure on a locked order book. ",
-        "We do not forecast premiums."
+        "continuously, not once a decade. We project deregistrations and the quota they imply twelve ",
+        "quarters ahead with a bootstrap band, let you move that path with renewal, premium and policy ",
+        "scenarios, and translate it into cost exposure on a locked order book. We do not forecast premiums."
       )
     ),
 
     div(
       class = "about-stats",
-      stat("Horizon", "8–12 quarters"),
+      stat("Horizon", "12 quarters"),
       stat("Categories", "A and B"),
-      stat("Live model", "Elastic net"),
-      stat("Exposure", "Book & fleet")
+      stat("Live model", "Cohort elastic net"),
+      stat("Band", "500-path bootstrap")
     ),
 
     section(
@@ -50,22 +57,13 @@ ui <- function(id) {
         "Most COE tools serve the individual buyer. Trade buyers face a different risk. ",
         "A dealer who quotes a COE-inclusive package is short certificates until the tender clears: ",
         "if the premium rises between order and win, the dealer absorbs the difference. ",
-        "A fleet replacing hundreds of vehicles cares whether that cohort lands in a supply trough or a peak — ",
+        "A fleet replacing hundreds of vehicles cares whether that cohort lands in a supply trough or a peak; ",
         "shifting replacement by a quarter or two can move seven-figure totals."
       ),
       tags$p(
         "Both need the same thing they cannot get from consumer apps: a view of ",
         tags$strong("supply"),
         " far enough ahead to plan against, expressed as a range rather than a single number."
-      ),
-      div(
-        class = "about-promise",
-        tags$h3("What we promise"),
-        tags$p(
-          "Project mechanical supply from registration cohorts already in the public record, ",
-          "show calibration against released quota, and price book risk under simulated premium paths — ",
-          "optionally tilted by the same supply forecast. No premium point forecast dressed up as certainty."
-        )
       )
     ),
 
@@ -91,256 +89,174 @@ ui <- function(id) {
     ),
 
     section(
-      "What you get in the app",
+      "The four views",
       tags$ul(
         class = "about-list",
         tags$li(
-          tags$strong("Home. "),
-          "Released certificates versus the live elastic-net quota path, plus a fan chart with a widening uncertainty band."
+          tags$strong("Home - supply pipeline. "),
+          "Released certificates against the held-out model, then the production model rolled 36 months ",
+          "forward with 50% and 80% bootstrap bands and a quarterly table."
         ),
         tags$li(
-          tags$strong("EDA. "),
-          "Cohort flow (registrations → year-10 exits), within-quarter premium swings, A/B spreads and volume shares, ",
-          "and a renewal-feedback explorer — the storytelling layer behind the model."
+          tags$strong("Scenarios - feedback and policy. "),
+          "Renewal share as a fitted function of PQP, a direct renewal lever, premium glide paths, ",
+          "LTA injections or clawbacks, and a merged A+B view."
         ),
         tags$li(
-          tags$strong("Results. "),
-          "Out-of-sample scores versus a trailing-average baseline, category detail, and the calibrated quota mapping."
+          tags$strong("Market - category dynamics. "),
+          "Cohort flow, within-quarter premium swings, the A/B spread and volume shares, plus the supporting EDA."
         ),
         tags$li(
-          tags$strong("Your risk. "),
-          "Upload or edit a dealer book / fleet schedule; settle it against block-bootstrap premium paths, ",
-          "with optional tilt from predicted quota."
+          tags$strong("Your risk - exposure calculator. "),
+          "Upload or edit a dealer book / fleet schedule and settle it against block-bootstrap premium paths, ",
+          "optionally tilted by the forward quota path under a chosen scenario."
         ),
         tags$li(
-          tags$strong("COE bot. "),
-          "Free-form Q&A against the project brief and live artefacts (NVIDIA NIM when a key is configured)."
+          tags$strong("Results - calibration. "),
+          "One-step held-out scores, period totals where the model missed, and a 24-month recursive backtest ",
+          "with coverage of the 80% band."
         )
       )
     ),
 
     section(
-      "Why supply is forecastable",
+      "Why supply is forecastable, and what is not",
       tags$p(
-        "Every COE runs about ten years. Quota is driven largely by deregistrations; deregistrations are driven ",
-        "largely by registrations roughly a decade earlier. Those cohorts are already published. ",
-        "The next two to three years of pipeline are partly knowable today — if you present them as a distribution ",
-        "a business can plan against, not a single smoothed point."
+        "Every COE runs about ten years and most cars leave just before the PARF deadline. Quota is a share of ",
+        "recent deregistrations; deregistrations are driven by the registration cohort reaching year ten. Those ",
+        "cohorts are in the public record, so the next two to three years of due stock are knowable today. ",
+        "The 2016-17 registration boom is reaching year ten now, which is why exits surged in 2025-26."
       ),
       tags$p(
-        "We still refuse to claim the next clearing price. Demand, credit, and policy sit outside this desk. ",
-        "Your risk stresses premiums with history (and optional supply drift); it does not invent a premium model."
+        "Two things are not mechanical. The exit rate of a due cohort moves with PQP, and in the data dearer PQP ",
+        "means fewer renewals and more exits, not more renewals. And LTA sets quota with discretion over the ",
+        "formula: it released more than the rule implied in 2023-25. Both are modelled explicitly and both are in the band."
       )
     ),
 
     section(
       "Data sources and cleaning",
       tags$p(
-        "Raw extracts come from LTA DataMall (bidding results, PQP, LTA deregistrations by quota category, ",
-        "population by age, COE revalidations, car-cost sheets) and SingStat / data.gov.sg ",
-        "(long-run premiums, registrations, deregistrations, population under the Vehicle Quota System)."
+        "Raw extracts come from LTA DataMall (bidding results, PQP, deregistrations by quota category, population by age, ",
+        "COE revalidations, the Car Cost Update workbook) and SingStat / data.gov.sg (long-run premiums, registrations, ",
+        "deregistrations and population under the Vehicle Quota System). ",
+        tags$code("scripts/acquire_data.R"),
+        " pulls the two open-API tables with httr2 and documents the browser downloads."
       ),
       tags$ul(
         class = "about-list",
         tags$li(
           tags$strong("Bidding panel. "),
-          "Category labels are normalised (e.g. “Category A” → A). Rows are completed over month × ",
-          "bidding round × category so suspended exercises stay as missing values, not zeros — ",
-          "COVID suspensions in Apr–Jun 2020 are flagged that way. Bid pressure is ",
-          tags$code("bids_received / quota"),
-          ". The app’s monthly view averages premiums and sums quota across the two exercises."
+          "Rows are completed over month x round x category so suspended exercises stay as missing values; ",
+          "the Apr-Jun 2020 suspension is flagged that way. A month with only one exercise in is marked partial ",
+          "and never compared with a forecast."
         ),
         tags$li(
           tags$strong("Regime markers. "),
-          "Cat A’s power-cap change (Feb 2014) and the A/B EV redefinition (May 2022) are attached ",
-          "as regime flags so later models can treat the post-2022 world separately."
+          "Cat A's power cap (Feb 2014) and the A/B EV redefinition (May 2022) are carried as regime flags; ",
+          "the model has a post-2022 indicator."
         ),
         tags$li(
           tags$strong("Two deregistration series. "),
-          "SingStat VQS flows are the modelling target (Cat A/B monthly exits from the road). ",
-          "LTA M05 is kept in parallel and reconciled in an audit table — useful for formula-quota ",
-          "checks, but not mixed into the response variable."
+          "SingStat VQS flows are the modelling target. LTA M05 is reconciled against them in an audit table ",
+          "and agrees to the unit on the overlap."
         ),
         tags$li(
           tags$strong("Age stock. "),
-          "LTA age bands are mapped to numeric lower/upper ages; “20 & above” is unified. ",
-          "Cars are stocked as a pooled A+B group in the source, so A vs B shares are inferred ",
-          "from recent deregistration mix when we build due-stock features."
+          "LTA age bands are mapped to numeric ages; cars are pooled A+B at source, so A and B due stock use ",
+          "the category's share of recent deregistrations."
         ),
         tags$li(
           tags$strong("Revalidations. "),
-          "Tenure is parsed from the revalidation type (5-year vs 10-year). Renewal rates are joined ",
-          "to PQP for diagnostics; the live forecast path uses lagged revalidation counts as predictors, ",
-          "not a separate renewal simulator."
-        ),
-        tags$li(
-          tags$strong("Audits. "),
-          "Registration − deregistration vs Δpopulation, and SingStat vs LTA deregistrations, ",
-          "are written under ",
-          tags$code("data/audit/"),
-          " so identity breaks stay visible."
+          "5-year and 10-year renewals are separated; renewal share is joined to PQP for the response fit."
         )
       )
     ),
 
     section(
-      "Feature engineering and selection",
+      "Features",
       tags$p(
-        "The unit of prediction is one category-month of SingStat deregistrations. ",
-        "Every predictor is dated strictly before month ",
-        tags$em("t"),
-        " (age stock and PQP from ",
-        tags$em("t−1"),
-        ") so the fit cannot peek at the outcome."
+        "The unit is one category-month of SingStat deregistrations. Every predictor is dated strictly before ",
+        "month t. The live specification uses cohort predictors only, with no autoregressive terms, so the forward ",
+        "path is driven by what is already on the road rather than by its own last value."
       ),
-      tags$p(tags$strong("Core block (live elastic net)")),
       tags$ul(
         class = "about-list",
         tags$li(
-          tags$code("due10"), " / ", tags$code("due15"), " / ", tags$code("due_near"),
-          " — cars in the year-10, year-15, and nearby age bands at ",
-          tags$em("t−1"),
-          ", scaled by the A/B deregistration share and spread over 12 months. ",
-          "This is the mechanical “due stock” that should scrap or renew soon."
+          tags$code("due10"), ", ", tags$code("due15"), ", ", tags$code("due_near"),
+          " - cars aged 9-<10, 14-<15 and the neighbouring bands at t-1, scaled by category share and spread over 12 months."
         ),
         tags$li(
-          tags$code("recent12"), ", ", tags$code("y_lag2"), ", ", tags$code("y_lag12"),
-          " — short memory of the deregistration series itself (trailing mean and lags)."
+          tags$code("reg_lag120"), ", ", tags$code("reg_lag180"), ", ", tags$code("reg_lag240"),
+          " - the category's own registrations 10, 15 and 20 years earlier (3-month centred)."
+        ),
+        tags$li(
+          tags$code("pop_young"), ", ", tags$code("pop_renewed"),
+          " - fleet that can leave early or after a 10-year renewal."
         ),
         tags$li(
           tags$code("reval5_lag12/24/60"),
-          " — five-year revalidations at those lags; a 5-year renewal today is a locked deregistration ",
-          "five years later."
+          " - five-year revalidations at those lags; a 5-year renewal is a locked exit five years later."
         ),
         tags$li(
-          tags$code("lpqp"),
-          " — log of lagged PQP relative to a S$50k reference; a cheap renewal incentive signal."
-        ),
-        tags$li(
-          tags$code("post_2022"),
-          " — indicator for the EV/category redefinition, plus month-of-year sine/cosine for seasonality."
+          tags$code("y_lag12"), ", ", tags$code("lpqp"), ", ", tags$code("post_2022"), ", month-of-year sine and cosine."
         )
       ),
       tags$p(
-        "Train-era exploratory screens (correlation and a pure lasso at ",
-        tags$code("λ.1se"),
-        ") consistently kept due-stock and recent lags; revalidation lags and ",
-        tags$code("post_2022"),
-        " mattered more for Cat B. The live model does not hard-zero those screens — ",
-        "it passes the full feature matrix into an elastic net and lets shrinkage decide."
+        "Forward rows are built with the same function. Age stock after the last observed month is projected from ",
+        "registration cohorts: band k at month M is the registrations aged k to k+1 at M times a survival factor ",
+        "calibrated on the latest observed stock."
       )
     ),
 
     section(
       "Modelling",
-      tags$ul(
-        class = "about-list",
-        tags$li(
-          tags$strong("Estimator. "),
-          tags$code("glmnet::cv.glmnet"),
-          " with mixing parameter ",
-          tags$code("α = 0.5"),
-          " (elastic net: ridge stability + lasso sparsity), loss = MAE, ",
-          "penalty chosen at ",
-          tags$code("λ.1se"),
-          ". Predictions are floored at 20% of ",
-          tags$code("recent12"),
-          " then rounded."
-        ),
-        tags$li(
-          tags$strong("Split. "),
-          "Fit through August 2024; held-out score from September 2024 onward (24 months in the shipped files). ",
-          "Production rows start from 2018 so early sparse age history does not dominate."
-        ),
-        tags$li(
-          tags$strong("Live model. "),
-          "One elastic net on the core feature set. ",
-          "Baseline on Results is the trailing 12-month mean of deregistrations — a naive comparator, not a competitor model."
-        ),
-        tags$li(
-          tags$strong("Quota mapping. "),
-          "Textbook LTA replacement is roughly a quarter of trailing 12-month deregistrations. ",
-          "This desk covers Categories A and B only, and calibrates a category-specific scale ",
-          tags$code("α"),
-          " as the train-era median of ",
-          tags$em("published monthly A/B quota / trailing-12m deregistrations"),
-          " (~0.082 for A, ~0.078 for B). Outlook quota = ",
-          tags$code("α × D₁₂"),
-          " where ",
-          tags$code("D₁₂"),
-          " splices actual deregistrations before the test window with model predictions inside it."
-        )
-      )
+      uiOutput(ns("model_block"))
+    ),
+
+    section(
+      "Scenarios and the renewal feedback",
+      uiOutput(ns("scenario_block"))
     ),
 
     section(
       "Exposure calculator (Your risk)",
       tags$p(
         "Your risk does not invent a premium forecast. It resamples historical tender-to-tender premium shocks ",
-        "(block bootstrap on log changes), optionally tilts those paths by a supply scenario, then settles ",
+        "(block bootstrap on log changes), optionally tilts those paths by the forward quota path, then settles ",
         "a dealer order book or fleet schedule against the simulated premiums."
       ),
       tags$ul(
         class = "about-list",
         tags$li(
           tags$strong("Premium paths. "),
-          "Shocks come from published A/B round-to-round moves. Paths are built by accumulating demeaned ",
-          "log shocks from the latest premium/PQP; PQP on the path is a trailing mean of recent premiums. ",
-          "Horizon is measured in exercises (six per quarter)."
+          "Shocks come from published A/B round-to-round moves since 2010, demeaned and accumulated from the ",
+          "latest premium. PQP on the path is a trailing mean of recent premiums. Six exercises per quarter."
         ),
         tags$li(
           tags$strong("Supply tilt. "),
-          "When enabled, each path gets a drift ",
-          tags$code("elasticity × Δlog(Q) / 6"),
-          " per exercise, using estimated quota→premium elasticities (about −0.22 for A/B) and the ",
-          tags$strong("same elastic-net predicted quota"),
-          " as Results (calibrated ",
-          tags$code("outlook_from_forecast"),
-          ", rolled up to quarters). Tighter forecast supply → positive premium drift; looser supply → the opposite. ",
-          "That is how predicted supply enters pricing — as a directional stress on simulated premiums, ",
-          "not as a point forecast of the clearing price."
+          "Each path gets a drift of elasticity x change in log quota per exercise, with quota-to-premium ",
+          "elasticities of about -0.22 estimated on quarterly history, and the quota path taken from Home under ",
+          "the scenario you select. Tighter supply pushes simulated premiums up; looser pulls them down."
         ),
         tags$li(
           tags$strong("Dealer book. "),
-          "Orders are guaranteed, capped, or rebate contracts. Each order attempts successive tenders with ",
-          "a success probability you set; realised premium at the first win (or last attempt) determines ",
-          "dealer loss vs the quoted package. Portfolio summaries are expectation, percentiles, VaR / CVaR, ",
-          "and P(loss). Timing shift moves the whole book by 0–2 quarters on the same paths."
+          "Orders are guaranteed, capped, or rebate contracts. Each order attempts successive tenders with a success ",
+          "probability you set; the premium at first win settles it. Outputs are expectation, percentiles, VaR / CVaR, ",
+          "P(loss) and the effect of shifting the whole book by one or two quarters."
         ),
         tags$li(
           tags$strong("Fleet. "),
-          "A quarterly A/B replacement schedule chooses bid-new vs 5y/10y renew under simulated QP/PQP, ",
-          "with optional PARF and amortisation. Same supply-tilted paths, mid-quarter exercise index."
+          "A quarterly A/B replacement schedule chooses bid-new versus 5-year / 10-year renew under simulated QP / PQP, ",
+          "with optional PARF and amortisation."
         )
       )
     ),
 
     section(
       "Scope and honesty",
-      tags$ul(
-        class = "about-list",
-        tags$li(
-          tags$strong("We forecast supply, not premiums. "),
-          "Premiums also depend on demand, credit, and policy. That limit is stated on Home and in Your risk."
-        ),
-        tags$li(
-          tags$strong("Calibration is public. "),
-          "Results shows out-of-sample error versus released quota and versus a naive trailing average."
-        ),
-        tags$li(
-          tags$strong("Known data breaks. "),
-          "A/B were redefined around EV power in May 2022; bidding was suspended Apr–Jun 2020. ",
-          "Both are handled explicitly rather than papered over."
-        ),
-        tags$li(
-          tags$strong("Offline fit. "),
-          "Models are fitted offline; the app loads processed artefacts only. It does not retrain online."
-        )
-      ),
-      tags$p(
-        class = "footnote",
-        "DBA3702 · Cat A/B supply desk · open LTA / SingStat data · elastic net α = 0.5, λ.1se."
-      )
+      uiOutput(ns("honesty_block")),
+      tags$p(class = "footnote", textOutput(ns("footer"), inline = TRUE))
     )
   )
 }
@@ -348,6 +264,159 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    invisible(store)
+    spec <- store$meta$spec %||% list()
+
+    score_of <- function(model, cat) {
+      sc <- store$two_quota_scores
+      if (is.null(sc)) return(NA_real_)
+      v <- sc$MAPE[as.character(sc$model) == model & as.character(sc$category) == cat]
+      if (length(v)) as.numeric(v[[1]]) else NA_real_
+    }
+    cal_of <- function(cat, horizon, col) {
+      cal <- store$calibration
+      if (is.null(cal)) return(NA_real_)
+      v <- cal[[col]][as.character(cal$category) == cat & as.character(cal$horizon) == horizon]
+      if (length(v)) as.numeric(v[[1]]) else NA_real_
+    }
+    alpha_of <- function(cat) {
+      a <- store$alphas
+      if (is.null(a)) return(NA_real_)
+      as.numeric(a$alpha[as.character(a$category) == cat][[1]])
+    }
+
+    output$model_block <- renderUI({
+      tags$ul(
+        class = "about-list",
+        tags$li(
+          tags$strong("Estimator. "),
+          tags$code("glmnet::cv.glmnet"), " with mixing parameter 0.5 (elastic net), MAE loss, penalty at ",
+          tags$code(spec$lambda_rule %||% "lambda.min"),
+          ". Predictions are floored at 20% of the trailing 12-month mean."
+        ),
+        tags$li(
+          tags$strong("Two fits. "),
+          sprintf(
+            "An evaluation fit trained to %s and scored on %s onward (24 months), and a production fit on every month through %s that drives the forward path.",
+            format(as.Date(spec$train_end %||% "2024-08-01"), "%b %Y"),
+            format(as.Date(spec$test_start %||% "2024-09-01"), "%b %Y"),
+            format(as.Date(spec$last_observed_month %||% "2026-08-01"), "%b %Y")
+          )
+        ),
+        tags$li(
+          tags$strong("Specification choice. "),
+          "Candidate feature sets (with and without autoregressive lags, with and without the fleet-stock terms) and both ",
+          "penalty rules were compared on one-step error and on the 24-month recursive backtest. The cohort-only set at ",
+          "lambda.min was the only one that held Category B within about seven percent at 13-24 months; it was chosen on ",
+          "that held-out window, so Results reports it as the fairest available number rather than an independent test."
+        ),
+        tags$li(
+          tags$strong("One-step held-out quota error. "),
+          sprintf(
+            "Elastic net %s (A) and %s (B) against %s and %s for the trailing-average baseline.",
+            pct(score_of("core_forecast", "A")), pct(score_of("core_forecast", "B")),
+            pct(score_of("simple_average", "A")), pct(score_of("simple_average", "B"))
+          )
+        ),
+        tags$li(
+          tags$strong("Recursive 13-24 month error. "),
+          sprintf(
+            "Deregistrations %s (A, bias %+.0f%%) and %s (B, bias %+.0f%%); quota %s (A) and %s (B).",
+            pct(cal_of("A", "13-24 months", "dereg_mape")), cal_of("A", "13-24 months", "dereg_bias_pct"),
+            pct(cal_of("B", "13-24 months", "dereg_mape")), cal_of("B", "13-24 months", "dereg_bias_pct"),
+            pct(cal_of("A", "13-24 months", "quota_mape")), pct(cal_of("B", "13-24 months", "quota_mape"))
+          )
+        ),
+        tags$li(
+          tags$strong("Quota mapping. "),
+          sprintf(
+            "Monthly quota = alpha x trailing 12-month deregistrations, alpha the training-window median of published / trailing exits: %.3f for A and %.3f for B (the textbook 25%% annual rule is 0.019 monthly).",
+            alpha_of("A"), alpha_of("B")
+          ),
+          " LTA's discretion over the formula is measured as the relative residual of that mapping and resampled into the quota band."
+        ),
+        tags$li(
+          tags$strong("Bands. "),
+          sprintf(
+            "%s recursive paths per category from three earned sources: each month's prediction is multiplied by one plus a block-resampled held-out relative residual; each path uses one of %s refits of the model on block-resampled training windows (parameter uncertainty); and each path carries its own PQP random walk built from historical monthly PQP changes. Quota paths then add the mapping residual (sd %s for A, %s for B) in six-month blocks. Reported bands are the 25-75 and 10-90 percentiles.",
+            spec$bootstrap_sims %||% "500", spec$bootstrap_refits %||% "100", spec$mapping_resid_sd_A %||% "-", spec$mapping_resid_sd_B %||% "-"
+          )
+        )
+      )
+    })
+
+    output$scenario_block <- renderUI({
+      r <- store$renewal_response
+      slope_txt <- if (is.null(r) || !nrow(r)) "" else sprintf(
+        "On 2015-2026 LTA revalidations, renewal share falls %.1f points (A) and %.1f points (B) for every 10%% rise in PQP (R² %.2f and %.2f).",
+        100 * abs(r$slope_log_pqp[r$category == "A"]) * log(1.1), 100 * abs(r$slope_log_pqp[r$category == "B"]) * log(1.1),
+        r$r2[r$category == "A"], r$r2[r$category == "B"]
+      )
+      bf <- suppressWarnings(as.numeric(spec$brought_forward_since_2023 %||% NA))
+      tags$ul(
+        class = "about-list",
+        tags$li(
+          tags$strong("Baseline. "),
+          "The production forward path with PQP held at its last value."
+        ),
+        tags$li(
+          tags$strong("Renewal response. "),
+          slope_txt,
+          " The proposal assumed the opposite sign; the data decided. A scenario PQP path changes renewal share through ",
+          "this slope, and each extra renewal removes one exit from the due cohort that month."
+        ),
+        tags$li(
+          tags$strong("Levers. "),
+          "A direct renewal shift in share points, premium glides to $80k or $160k by the end of the horizon, an LTA ",
+          "injection of certificates per quarter, and a merged A+B view."
+        ),
+        tags$li(
+          tags$strong("Clawback. "),
+          if (is.finite(bf)) sprintf(
+            "Since Feb 2023 LTA has published about %s more A/B certificates than the formula implies. The clawback preset removes that stock evenly over the next eight quarters.",
+            num(bf)
+          ) else "A preset removes the certificates LTA brought forward since 2023 over eight quarters."
+        ),
+        tags$li(
+          tags$strong("Propagation. "),
+          "Quota is rebuilt as alpha x trailing-12 exits after the change, so a renewal shift today reaches quota over the ",
+          "following twelve months. Scenarios move the central path and carry the baseline band with it."
+        )
+      )
+    })
+
+    output$honesty_block <- renderUI({
+      tags$ul(
+        class = "about-list",
+        tags$li(
+          tags$strong("We forecast supply, not premiums. "),
+          "Premiums also depend on demand, credit, and policy. Your risk stresses premiums with history and an optional supply drift; it does not predict the next clearing price."
+        ),
+        tags$li(
+          tags$strong("Where the model is weak. "),
+          sprintf(
+            "In the recursive backtest the 80%% quota band covered %s (A) and %s (B) of months at 1-6 months, where LTA's 2024-25 releases ran above the formula. Category B exits were under-called by %+.0f%% in the first year. These are on Results, not hidden.",
+            pct(cal_of("A", "1-6 months", "quota_cover80")), pct(cal_of("B", "1-6 months", "quota_cover80")),
+            cal_of("B", "7-12 months", "dereg_bias_pct")
+          )
+        ),
+        tags$li(
+          tags$strong("Known data breaks. "),
+          "A/B were redefined around EV power in May 2022; bidding was suspended Apr-Jun 2020. Both are handled explicitly."
+        ),
+        tags$li(
+          tags$strong("Reproducible. "),
+          tags$code("Rscript scripts/run_data_cleaning.R"), " then ", tags$code("Rscript scripts/fit_and_forecast.R"),
+          " rebuild every artefact the app reads, including the feature panel, the backtest, the forward path and the scenarios. ",
+          "The app itself only loads artefacts; it does not refit."
+        )
+      )
+    })
+
+    output$footer <- renderText({
+      sprintf(
+        "DBA3702 - Cat A/B supply desk - open LTA / SingStat data - elastic net alpha 0.5, %s - last observed deregistrations %s.",
+        spec$lambda_rule %||% "lambda.min", format(as.Date(spec$last_observed_month %||% "2026-08-01"), "%b %Y")
+      )
+    })
   })
 }

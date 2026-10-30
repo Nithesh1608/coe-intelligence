@@ -54,8 +54,7 @@ simulate_premiums <- function(dlog_hist, p0, pqp0, start_month, elasticity = 0,
 #               max_attempts, contract (guaranteed|rebate|capped), cap_topup
 #   sims:       list by category from simulate_premiums()
 # -----------------------------------------------------------------------------
-dealer_exposure <- function(order_book, sims, p_success = 0.70, shift = 0,
-                            allow_cat_E = FALSE, sims_E = NULL, e_switch_cost = 2000) {
+dealer_exposure <- function(order_book, sims, p_success = 0.70, shift = 0) {
   n_sims <- nrow(sims[[1]]$qp); n_ex <- ncol(sims[[1]]$qp)
   per_order <- pmap_dfr(order_book, function(order_id, category, quoted_premium, target_exercise,
                                              max_attempts, contract, cap_topup, ...) {
@@ -65,12 +64,6 @@ dealer_exposure <- function(order_book, sims, p_success = 0.70, shift = 0,
     first_ok <- apply(attempts, 1, function(a) { w <- which(a); if (length(w)) w[1] else NA })
     ex_idx   <- pmin(t0 + coalesce(first_ok, max_attempts) - 1, n_ex)
     realised <- qp[cbind(seq_len(n_sims), ex_idx)]
-    filled_E <- rep(FALSE, n_sims)
-    if (allow_cat_E && !is.null(sims_E)) {
-      e_px <- sims_E$qp[cbind(seq_len(n_sims), ex_idx)]
-      filled_E <- e_px + e_switch_cost < realised
-      realised <- ifelse(filled_E, e_px + e_switch_cost, realised)
-    }
     unfilled <- is.na(first_ok)
     diff <- realised - quoted_premium
     dealer_loss <- switch(contract,
@@ -81,12 +74,12 @@ dealer_exposure <- function(order_book, sims, p_success = 0.70, shift = 0,
     tibble(order_id, category, contract, sim = seq_len(n_sims),
            realised_premium = realised, exercise_idx = ex_idx,
            attempts_used = coalesce(first_ok, max_attempts),
-           unfilled, filled_E, dealer_loss, customer_topup = diff - dealer_loss)
+           unfilled, dealer_loss, customer_topup = diff - dealer_loss)
   })
   portfolio <- per_order |> group_by(sim) |>
     summarise(total_cost = sum(realised_premium), dealer_pnl = -sum(dealer_loss),
               customer_topup = sum(customer_topup), n_unfilled = sum(unfilled),
-              n_E = sum(filled_E), .groups = "drop")
+              .groups = "drop")
   summary <- portfolio |> summarise(
     expected_cost = mean(total_cost), cost_p10 = quantile(total_cost, .1),
     cost_p50 = median(total_cost), cost_p90 = quantile(total_cost, .9),
@@ -94,7 +87,7 @@ dealer_exposure <- function(order_book, sims, p_success = 0.70, shift = 0,
     var95_loss = -quantile(dealer_pnl, .05),
     cvar95_loss = -mean(dealer_pnl[dealer_pnl <= quantile(dealer_pnl, .05)]),
     prob_loss = mean(dealer_pnl < 0), expected_customer_topup = mean(customer_topup),
-    expected_unfilled = mean(n_unfilled), share_filled_E = mean(n_E) / nrow(order_book)) |>
+    expected_unfilled = mean(n_unfilled)) |>
     mutate(shift = shift)
   list(per_order = per_order, portfolio = portfolio, summary = summary)
 }

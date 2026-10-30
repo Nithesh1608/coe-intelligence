@@ -1,8 +1,9 @@
 # Multi-case verification for the Your risk / exposure calculator.
 # Run: Rscript scripts/verify_exposure.R
 
-setwd("c:/COE Intelligence")
-options(box.path = getwd())
+root <- normalizePath(".", winslash = "/", mustWork = TRUE)
+if (!file.exists(file.path(root, "rhino.yml"))) stop("Run from the repo root: Rscript scripts/verify_exposure.R")
+options(box.path = root)
 set.seed(3702)
 
 pass <- 0L
@@ -49,6 +50,8 @@ check("price_sensitivity present", !is.null(exp_data$price_sensitivity))
 check("example_book present", !is.null(exp_data$example_book) && nrow(exp_data$example_book) > 0)
 check("example_fleet present", !is.null(exp_data$example_fleet) && nrow(exp_data$example_fleet) > 0)
 check("premium_sims_baseline present", !is.null(exp_data$premium_sims_baseline))
+check("price_sensitivity is A/B only", all(exp_data$price_sensitivity$category %in% c("A", "B")))
+check("forward quota available", !is.null(store$forward_quota) && nrow(store$forward_quota) > 0)
 check("bidding / latest month", !is.null(store$bidding) && !is.null(store$latest_bid_month))
 
 dlog_for <- function(cat) {
@@ -84,13 +87,17 @@ last_pqp <- function(category, fallback) {
   as.numeric(utils::tail(d[order(d$month), ], 1)$pqp[[1]])
 }
 
+# Quarterly forward quota (full quarters) from the production forward path.
 quota_path_for <- function(cat) {
-  scen <- exp_data$scenario_examples
-  if (is.null(scen) || !("total_median" %in% names(scen))) return(NULL)
-  s <- scen[grepl("^Baseline", as.character(scen$scenario)) & scen$category == cat, ]
-  if (!nrow(s)) return(NULL)
-  s <- s[order(s$h), ]
-  as.numeric(s$total_median)
+  fq <- store$forward_quota
+  if (is.null(fq) || !nrow(fq)) return(NULL)
+  d <- fq[as.character(fq$category) == cat, ]
+  d$quarter <- as.Date(d$quarter)
+  agg <- stats::aggregate(mid ~ quarter, d, sum)
+  n_m <- stats::aggregate(month ~ quarter, d, length)
+  agg <- agg[n_m$month[match(agg$quarter, n_m$quarter)] == 3L, ]
+  if (nrow(agg) < 2L) return(NULL)
+  as.numeric(agg$mid[order(agg$quarter)])
 }
 
 build_sims <- function(cats, n_sims = 200L, vol_mult = 1, tilt = TRUE) {

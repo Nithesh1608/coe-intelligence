@@ -1,97 +1,97 @@
-﻿"month","category","model","label","actual","predicted","gap","pct_off"
-"2024-09-01","A","core_forecast","Core supply forecast","1887","1879","-8","-0.4"
-"2024-10-01","A","core_forecast","Core supply forecast","1906","2028","122","6.4"
-"2024-11-01","A","core_forecast","Core supply forecast","1421","1993","572","40.3"
-"2024-12-01","A","core_forecast","Core supply forecast","1973","2147","174","8.8"
-"2025-01-01","A","core_forecast","Core supply forecast","2072","2110","38","1.8"
-"2025-02-01","A","core_forecast","Core supply forecast","1704","2167","463","27.2"
-"2025-03-01","A","core_forecast","Core supply forecast","2070","2264","194","9.4"
-"2025-04-01","A","core_forecast","Core supply forecast","1964","2199","235","12"
-"2025-05-01","A","core_forecast","Core supply forecast","2112","2234","122","5.8"
-"2025-06-01","A","core_forecast","Core supply forecast","2288","2221","-67","-2.9"
-"2025-07-01","A","core_forecast","Core supply forecast","2191","2314","123","5.6"
-"2025-08-01","A","core_forecast","Core supply forecast","2891","2467","-424","-14.7"
-"2025-09-01","A","core_forecast","Core supply forecast","2263","2469","206","9.1"
-"2025-10-01","A","core_forecast","Core supply forecast","2672","2612","-60","-2.2"
-"2025-11-01","A","core_forecast","Core supply forecast","2311","2449","138","6"
-"2025-12-01","A","core_forecast","Core supply forecast","2677","2640","-37","-1.4"
-"2026-01-01","A","core_forecast","Core supply forecast","2978","2586","-392","-13.2"
-"2026-02-01","A","core_forecast","Core supply forecast","2337","2647","310","13.3"
-"2026-03-01","A","core_forecast","Core supply forecast","3343","2775","-568","-17"
-"2026-04-01","A","core_forecast","Core supply forecast","3275","2659","-616","-18.8"
-"2026-05-01","A","core_forecast","Core supply forecast","3588","2894","-694","-19.3"
-"2026-06-01","A","core_forecast","Core supply forecast","3415","2915","-500","-14.6"
-"2026-07-01","A","core_forecast","Core supply forecast","3091","2996","-95","-3.1"
-"2026-08-01","A","core_forecast","Core supply forecast","2964","3026","62","2.1"
-"2024-09-01","A","simple_average","Simple average of the last 12 months","1887","1748","-139","-7.4"
-"2024-10-01","A","simple_average","Simple average of the last 12 months","1906","1779","-127","-6.7"
-"2024-11-01","A","simple_average","Simple average of the last 12 months","1421","1810","389","27.4"
-"2024-12-01","A","simple_average","Simple average of the last 12 months","1973","1790","-183","-9.3"
-"2025-01-01","A","simple_average","Simple average of the last 12 months","2072","1793","-279","-13.5"
-"2025-02-01","A","simple_average","Simple average of the last 12 months","1704","1806","102","6"
-"2025-03-01","A","simple_average","Simple average of the last 12 months","2070","1808","-262","-12.7"
-"2025-04-01","A","simple_average","Simple average of the last 12 months","1964","1779","-185","-9.4"
-"2025-05-01","A","simple_average","Simple average of the last 12 months","2112","1734","-378","-17.9"
-"2025-06-01","A","simple_average","Simple average of the last 12 months","2288","1764","-524","-22.9"
-"2025-07-01","A","simple_average","Simple average of the last 12 months","2191","1866","-325","-14.8"
-"2025-08-01","A","simple_average","Simple average of the last 12 months","2891","1947","-944","-32.7"
-"2025-09-01","A","simple_average","Simple average of the last 12 months","2263","2040","-223","-9.9"
-"2025-10-01","A","simple_average","Simple average of the last 12 months","2672","2071","-601","-22.5"
-"2025-11-01","A","simple_average","Simple average of the last 12 months","2311","2135","-176","-7.6"
-"2025-12-01","A","simple_average","Simple average of the last 12 months","2677","2209","-468","-17.5"
-"2026-01-01","A","simple_average","Simple average of the last 12 months","2978","2268","-710","-23.8"
-"2026-02-01","A","simple_average","Simple average of the last 12 months","2337","2343","6","0.3"
-"2026-03-01","A","simple_average","Simple average of the last 12 months","3343","2396","-947","-28.3"
-"2026-04-01","A","simple_average","Simple average of the last 12 months","3275","2502","-773","-23.6"
-"2026-05-01","A","simple_average","Simple average of the last 12 months","3588","2612","-976","-27.2"
-"2026-06-01","A","simple_average","Simple average of the last 12 months","3415","2734","-681","-19.9"
-"2026-07-01","A","simple_average","Simple average of the last 12 months","3091","2828","-263","-8.5"
-"2026-08-01","A","simple_average","Simple average of the last 12 months","2964","2903","-61","-2.1"
-"2024-09-01","B","core_forecast","Core supply forecast","1327","1243","-84","-6.3"
-"2024-10-01","B","core_forecast","Core supply forecast","1481","1286","-195","-13.2"
-"2024-11-01","B","core_forecast","Core supply forecast","1391","1289","-102","-7.3"
-"2024-12-01","B","core_forecast","Core supply forecast","1541","1357","-184","-11.9"
-"2025-01-01","B","core_forecast","Core supply forecast","1533","1420","-113","-7.4"
-"2025-02-01","B","core_forecast","Core supply forecast","1496","1438","-58","-3.9"
-"2025-03-01","B","core_forecast","Core supply forecast","1746","1497","-249","-14.3"
-"2025-04-01","B","core_forecast","Core supply forecast","1874","1548","-326","-17.4"
-"2025-05-01","B","core_forecast","Core supply forecast","1935","1630","-305","-15.8"
-"2025-06-01","B","core_forecast","Core supply forecast","1969","1681","-288","-14.6"
-"2025-07-01","B","core_forecast","Core supply forecast","1870","1730","-140","-7.5"
-"2025-08-01","B","core_forecast","Core supply forecast","2023","1806","-217","-10.7"
-"2025-09-01","B","core_forecast","Core supply forecast","1974","1837","-137","-6.9"
-"2025-10-01","B","core_forecast","Core supply forecast","2011","1866","-145","-7.2"
-"2025-11-01","B","core_forecast","Core supply forecast","1877","1837","-40","-2.1"
-"2025-12-01","B","core_forecast","Core supply forecast","2027","1880","-147","-7.3"
-"2026-01-01","B","core_forecast","Core supply forecast","2303","1942","-361","-15.7"
-"2026-02-01","B","core_forecast","Core supply forecast","1807","1922","115","6.4"
-"2026-03-01","B","core_forecast","Core supply forecast","2516","1978","-538","-21.4"
-"2026-04-01","B","core_forecast","Core supply forecast","2492","1991","-501","-20.1"
-"2026-05-01","B","core_forecast","Core supply forecast","2806","2041","-765","-27.3"
-"2026-06-01","B","core_forecast","Core supply forecast","2615","2019","-596","-22.8"
-"2026-07-01","B","core_forecast","Core supply forecast","2449","2046","-403","-16.5"
-"2026-08-01","B","core_forecast","Core supply forecast","2385","2081","-304","-12.7"
-"2024-09-01","B","simple_average","Simple average of the last 12 months","1327","1086","-241","-18.2"
-"2024-10-01","B","simple_average","Simple average of the last 12 months","1481","1110","-371","-25.1"
-"2024-11-01","B","simple_average","Simple average of the last 12 months","1391","1148","-243","-17.5"
-"2024-12-01","B","simple_average","Simple average of the last 12 months","1541","1177","-364","-23.6"
-"2025-01-01","B","simple_average","Simple average of the last 12 months","1533","1218","-315","-20.5"
-"2025-02-01","B","simple_average","Simple average of the last 12 months","1496","1243","-253","-16.9"
-"2025-03-01","B","simple_average","Simple average of the last 12 months","1746","1275","-471","-27"
-"2025-04-01","B","simple_average","Simple average of the last 12 months","1874","1317","-557","-29.7"
-"2025-05-01","B","simple_average","Simple average of the last 12 months","1935","1385","-550","-28.4"
-"2025-06-01","B","simple_average","Simple average of the last 12 months","1969","1461","-508","-25.8"
-"2025-07-01","B","simple_average","Simple average of the last 12 months","1870","1550","-320","-17.1"
-"2025-08-01","B","simple_average","Simple average of the last 12 months","2023","1615","-408","-20.2"
-"2025-09-01","B","simple_average","Simple average of the last 12 months","1974","1682","-292","-14.8"
-"2025-10-01","B","simple_average","Simple average of the last 12 months","2011","1736","-275","-13.7"
-"2025-11-01","B","simple_average","Simple average of the last 12 months","1877","1780","-97","-5.2"
-"2025-12-01","B","simple_average","Simple average of the last 12 months","2027","1821","-206","-10.2"
-"2026-01-01","B","simple_average","Simple average of the last 12 months","2303","1861","-442","-19.2"
-"2026-02-01","B","simple_average","Simple average of the last 12 months","1807","1925","118","6.5"
-"2026-03-01","B","simple_average","Simple average of the last 12 months","2516","1951","-565","-22.5"
-"2026-04-01","B","simple_average","Simple average of the last 12 months","2492","2016","-476","-19.1"
-"2026-05-01","B","simple_average","Simple average of the last 12 months","2806","2067","-739","-26.3"
-"2026-06-01","B","simple_average","Simple average of the last 12 months","2615","2140","-475","-18.2"
-"2026-07-01","B","simple_average","Simple average of the last 12 months","2449","2193","-256","-10.5"
-"2026-08-01","B","simple_average","Simple average of the last 12 months","2385","2242","-143","-6"
+"month","category","model","label","actual","predicted","gap","pct_off"
+"2024-09-01","A","core_forecast","Elastic net",1887,1700,-187,-9.9
+"2024-10-01","A","core_forecast","Elastic net",1906,1750,-156,-8.2
+"2024-11-01","A","core_forecast","Elastic net",1421,1480,59,4.2
+"2024-12-01","A","core_forecast","Elastic net",1973,1871,-102,-5.2
+"2025-01-01","A","core_forecast","Elastic net",2072,1835,-237,-11.4
+"2025-02-01","A","core_forecast","Elastic net",1704,1759,55,3.2
+"2025-03-01","A","core_forecast","Elastic net",2070,1901,-169,-8.2
+"2025-04-01","A","core_forecast","Elastic net",1964,2334,370,18.8
+"2025-05-01","A","core_forecast","Elastic net",2112,2520,408,19.3
+"2025-06-01","A","core_forecast","Elastic net",2288,2494,206,9
+"2025-07-01","A","core_forecast","Elastic net",2191,2457,266,12.1
+"2025-08-01","A","core_forecast","Elastic net",2891,2432,-459,-15.9
+"2025-09-01","A","core_forecast","Elastic net",2263,2711,448,19.8
+"2025-10-01","A","core_forecast","Elastic net",2672,2784,112,4.2
+"2025-11-01","A","core_forecast","Elastic net",2311,2761,450,19.5
+"2025-12-01","A","core_forecast","Elastic net",2677,2851,174,6.5
+"2026-01-01","A","core_forecast","Elastic net",2978,2688,-290,-9.7
+"2026-02-01","A","core_forecast","Elastic net",2337,2789,452,19.3
+"2026-03-01","A","core_forecast","Elastic net",3343,2814,-529,-15.8
+"2026-04-01","A","core_forecast","Elastic net",3275,3254,-21,-0.6
+"2026-05-01","A","core_forecast","Elastic net",3588,3124,-464,-12.9
+"2026-06-01","A","core_forecast","Elastic net",3415,3091,-324,-9.5
+"2026-07-01","A","core_forecast","Elastic net",3091,2797,-294,-9.5
+"2026-08-01","A","core_forecast","Elastic net",2964,2739,-225,-7.6
+"2024-09-01","A","simple_average","Simple average of the last 12 months",1887,1748,-139,-7.4
+"2024-10-01","A","simple_average","Simple average of the last 12 months",1906,1779,-127,-6.7
+"2024-11-01","A","simple_average","Simple average of the last 12 months",1421,1810,389,27.4
+"2024-12-01","A","simple_average","Simple average of the last 12 months",1973,1790,-183,-9.3
+"2025-01-01","A","simple_average","Simple average of the last 12 months",2072,1793,-279,-13.5
+"2025-02-01","A","simple_average","Simple average of the last 12 months",1704,1806,102,6
+"2025-03-01","A","simple_average","Simple average of the last 12 months",2070,1808,-262,-12.7
+"2025-04-01","A","simple_average","Simple average of the last 12 months",1964,1779,-185,-9.4
+"2025-05-01","A","simple_average","Simple average of the last 12 months",2112,1734,-378,-17.9
+"2025-06-01","A","simple_average","Simple average of the last 12 months",2288,1764,-524,-22.9
+"2025-07-01","A","simple_average","Simple average of the last 12 months",2191,1866,-325,-14.8
+"2025-08-01","A","simple_average","Simple average of the last 12 months",2891,1947,-944,-32.7
+"2025-09-01","A","simple_average","Simple average of the last 12 months",2263,2040,-223,-9.9
+"2025-10-01","A","simple_average","Simple average of the last 12 months",2672,2071,-601,-22.5
+"2025-11-01","A","simple_average","Simple average of the last 12 months",2311,2135,-176,-7.6
+"2025-12-01","A","simple_average","Simple average of the last 12 months",2677,2209,-468,-17.5
+"2026-01-01","A","simple_average","Simple average of the last 12 months",2978,2268,-710,-23.8
+"2026-02-01","A","simple_average","Simple average of the last 12 months",2337,2343,6,0.3
+"2026-03-01","A","simple_average","Simple average of the last 12 months",3343,2396,-947,-28.3
+"2026-04-01","A","simple_average","Simple average of the last 12 months",3275,2502,-773,-23.6
+"2026-05-01","A","simple_average","Simple average of the last 12 months",3588,2612,-976,-27.2
+"2026-06-01","A","simple_average","Simple average of the last 12 months",3415,2734,-681,-19.9
+"2026-07-01","A","simple_average","Simple average of the last 12 months",3091,2828,-263,-8.5
+"2026-08-01","A","simple_average","Simple average of the last 12 months",2964,2903,-61,-2.1
+"2024-09-01","B","core_forecast","Elastic net",1327,1122,-205,-15.4
+"2024-10-01","B","core_forecast","Elastic net",1481,1220,-261,-17.6
+"2024-11-01","B","core_forecast","Elastic net",1391,1109,-282,-20.3
+"2024-12-01","B","core_forecast","Elastic net",1541,1260,-281,-18.2
+"2025-01-01","B","core_forecast","Elastic net",1533,1213,-320,-20.9
+"2025-02-01","B","core_forecast","Elastic net",1496,1190,-306,-20.5
+"2025-03-01","B","core_forecast","Elastic net",1746,1206,-540,-30.9
+"2025-04-01","B","core_forecast","Elastic net",1874,1236,-638,-34
+"2025-05-01","B","core_forecast","Elastic net",1935,1398,-537,-27.8
+"2025-06-01","B","core_forecast","Elastic net",1969,1316,-653,-33.2
+"2025-07-01","B","core_forecast","Elastic net",1870,1474,-396,-21.2
+"2025-08-01","B","core_forecast","Elastic net",2023,1459,-564,-27.9
+"2025-09-01","B","core_forecast","Elastic net",1974,1664,-310,-15.7
+"2025-10-01","B","core_forecast","Elastic net",2011,1734,-277,-13.8
+"2025-11-01","B","core_forecast","Elastic net",1877,1740,-137,-7.3
+"2025-12-01","B","core_forecast","Elastic net",2027,1986,-41,-2
+"2026-01-01","B","core_forecast","Elastic net",2303,1949,-354,-15.4
+"2026-02-01","B","core_forecast","Elastic net",1807,2016,209,11.6
+"2026-03-01","B","core_forecast","Elastic net",2516,2100,-416,-16.5
+"2026-04-01","B","core_forecast","Elastic net",2492,2428,-64,-2.6
+"2026-05-01","B","core_forecast","Elastic net",2806,2491,-315,-11.2
+"2026-06-01","B","core_forecast","Elastic net",2615,2515,-100,-3.8
+"2026-07-01","B","core_forecast","Elastic net",2449,2465,16,0.7
+"2026-08-01","B","core_forecast","Elastic net",2385,2570,185,7.8
+"2024-09-01","B","simple_average","Simple average of the last 12 months",1327,1086,-241,-18.2
+"2024-10-01","B","simple_average","Simple average of the last 12 months",1481,1110,-371,-25.1
+"2024-11-01","B","simple_average","Simple average of the last 12 months",1391,1148,-243,-17.5
+"2024-12-01","B","simple_average","Simple average of the last 12 months",1541,1177,-364,-23.6
+"2025-01-01","B","simple_average","Simple average of the last 12 months",1533,1218,-315,-20.5
+"2025-02-01","B","simple_average","Simple average of the last 12 months",1496,1243,-253,-16.9
+"2025-03-01","B","simple_average","Simple average of the last 12 months",1746,1275,-471,-27
+"2025-04-01","B","simple_average","Simple average of the last 12 months",1874,1317,-557,-29.7
+"2025-05-01","B","simple_average","Simple average of the last 12 months",1935,1385,-550,-28.4
+"2025-06-01","B","simple_average","Simple average of the last 12 months",1969,1461,-508,-25.8
+"2025-07-01","B","simple_average","Simple average of the last 12 months",1870,1550,-320,-17.1
+"2025-08-01","B","simple_average","Simple average of the last 12 months",2023,1615,-408,-20.2
+"2025-09-01","B","simple_average","Simple average of the last 12 months",1974,1682,-292,-14.8
+"2025-10-01","B","simple_average","Simple average of the last 12 months",2011,1736,-275,-13.7
+"2025-11-01","B","simple_average","Simple average of the last 12 months",1877,1780,-97,-5.2
+"2025-12-01","B","simple_average","Simple average of the last 12 months",2027,1821,-206,-10.2
+"2026-01-01","B","simple_average","Simple average of the last 12 months",2303,1861,-442,-19.2
+"2026-02-01","B","simple_average","Simple average of the last 12 months",1807,1925,118,6.5
+"2026-03-01","B","simple_average","Simple average of the last 12 months",2516,1951,-565,-22.5
+"2026-04-01","B","simple_average","Simple average of the last 12 months",2492,2016,-476,-19.1
+"2026-05-01","B","simple_average","Simple average of the last 12 months",2806,2067,-739,-26.3
+"2026-06-01","B","simple_average","Simple average of the last 12 months",2615,2140,-475,-18.2
+"2026-07-01","B","simple_average","Simple average of the last 12 months",2449,2193,-256,-10.5
+"2026-08-01","B","simple_average","Simple average of the last 12 months",2385,2242,-143,-6

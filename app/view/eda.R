@@ -1,8 +1,5 @@
 box::use(
-  shiny[
-    NS, moduleServer, div, tags, addResourcePath, selectInput, sliderInput,
-    reactive
-  ],
+  shiny[NS, moduleServer, div, tags, addResourcePath, selectInput, reactive],
   bslib[card, card_header, card_body],
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
@@ -11,8 +8,7 @@ box::use(
   app/logic/viewdata/proposal_viz[
     load_premium_moves, prep_cohort_flow, chart_cohort_flow, cohort_year_choices,
     prep_within_quarter_swing, chart_within_quarter_swing,
-    prep_spread_and_shares, chart_spread, chart_volume_shares,
-    prep_feedback_scenario, chart_feedback_scenario
+    prep_spread_and_shares, chart_spread, chart_volume_shares
   ],
 )
 
@@ -82,7 +78,7 @@ ui <- function(id) {
     tags$h2("See the supply pipeline before you price the book"),
     tags$p(
       class = "lede lede--wide",
-      "Cohort timing, within-quarter premium swings, A/B substitution, and the renewal feedback loop ? ",
+      "Cohort timing, within-quarter premium swings and A/B substitution - ",
       "the views a dealer or fleet desk needs before locking packages or planning replacements."
     ),
 
@@ -141,7 +137,7 @@ ui <- function(id) {
       3, "Category mix",
       "A / B spread and volume shares",
       paste(
-        "This desk covers Categories A and B only. When the A?B premium gap narrows, demand can migrate between them.",
+        "This desk covers Categories A and B only. When the A-B premium gap narrows, demand can migrate between them.",
         "Premiums show the spread; certificate shares show whether the A/B supply mix moved with it."
       ),
       list(
@@ -165,36 +161,17 @@ ui <- function(id) {
       )
     ),
 
-    viz_block(
-      4, "Feedback",
-      "Renewals that tighten future supply",
-      paste(
-        "When PQP is expensive, more owners renew instead of scrapping. That cuts near-term deregistrations and future quota.",
-        "Move the renewal lever to see how supply two to three years out responds."
-      ),
-      list(
-        tags$span(tags$strong("Dashed - "), "baseline renewal behaviour through the replacement quota identity."),
-        tags$span(tags$strong("Orange - "), "same pipeline after your renewal shift (higher = more renewals = tighter future quota)."),
-        tags$span(tags$strong("Scope - "), "a supply scenario lever, not a premium forecast.")
-      ),
-      controls = list(
-        selectInput(
-          ns("fb_cat"), "Category",
-          choices = c("Category A" = "A", "Category B" = "B"),
-          selected = "A", width = "180px"
-        ),
-        sliderInput(
-          ns("fb_shift"), "Renewal-rate shift",
-          min = -0.25, max = 0.25, value = 0.10, step = 0.05, width = "260px"
+    div(
+      class = "eda-beat eda-beat--full",
+      div(
+        class = "eda-beat__copy eda-beat__copy--wide",
+        tags$span(class = "eda-beat__num", "04"),
+        tags$span(class = "nx-kicker", "Feedback"),
+        tags$h3("Renewals, demand shocks and injections have their own tab"),
+        tags$p(
+          "The renewal feedback loop and the policy scenarios sit in Scenarios, where they act on the live ",
+          "forward path rather than on an illustration."
         )
-      ),
-      charts = list(
-        card(
-          class = "desk-card",
-          card_header("Projected quarterly quota under renewal scenarios"),
-          card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("feedback"), height = "380px"))
-        ),
-        tags$p(class = "footnote", shiny::textOutput(ns("fb_note"), inline = TRUE))
       )
     ),
 
@@ -309,7 +286,7 @@ ui <- function(id) {
 
     tags$p(
       class = "footnote eda-close",
-      "Home shows the live quota fan. Your risk prices a locked book. Results shows model track record."
+      "Home shows the live quota fan. Scenarios moves it. Results shows the track record. Your risk prices a locked book."
     )
   )
 }
@@ -367,34 +344,6 @@ server <- function(id, store) {
       prep <- spread_prep()
       if (is.null(prep)) return(NULL)
       chart_volume_shares(prep)
-    })
-
-    fb_prep <- reactive({
-      prep_feedback_scenario(
-        store,
-        renewal_shift = as.numeric(input$fb_shift %||% 0.1),
-        category = input$fb_cat %||% "A",
-        horizon_months = 36L
-      )
-    })
-
-    output$feedback <- renderEcharts4r({
-      prep <- fb_prep()
-      if (is.null(prep)) return(NULL)
-      chart_feedback_scenario(prep)
-    })
-
-    output$fb_note <- shiny::renderText({
-      prep <- fb_prep()
-      if (is.null(prep)) return("")
-      shift <- prep$renewal_shift
-      direction <- if (shift > 0) "more renewals -> tighter future quota"
-      else if (shift < 0) "fewer renewals -> looser future quota"
-      else "no shift (matches baseline)"
-      sprintf(
-        "Cat %s | renewal shift %+.0f%% | %s | 12-quarter horizon.",
-        prep$category, 100 * shift, direction
-      )
     })
 
     # Do not force-render EDA charts while Home is open ? heavy prep + echarts

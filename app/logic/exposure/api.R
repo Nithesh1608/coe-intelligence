@@ -41,12 +41,15 @@ load_exposure_data <- function(root = project_root()) {
     utils::read.csv(p, stringsAsFactors = FALSE, check.names = FALSE)
   }
 
+  ab_only <- function(df) {
+    if (is.null(df) || !"category" %in% names(df)) return(df)
+    df[as.character(df$category) %in% c("A", "B"), , drop = FALSE]
+  }
   list(
     example_book = read_csv("example_order_book.csv"),
     example_fleet = read_csv("example_fleet_schedule.csv"),
     premium_moves = read_rds("premium_moves.rds"),
-    price_sensitivity = read_rds("price_sensitivity.rds"),
-    scenario_examples = read_rds("scenario_examples.rds"),
+    price_sensitivity = ab_only(read_rds("price_sensitivity.rds")),
     premium_sims_baseline = read_rds("premium_sims_baseline.rds")
   )
 }

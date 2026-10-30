@@ -19,6 +19,8 @@ box::use(
   ],
   app/logic/viewdata/store[project_root],
   app/logic/viewdata/proposal_viz[prep_exposure_waterfall, chart_exposure_waterfall],
+  app/logic/viewdata/scenario_viz[preset_choices, prep_scenario],
+  app/logic/viewdata/pipeline[quarter_start],
 )
 
 `%||%` <- function(a, b) {
@@ -90,6 +92,7 @@ ui <- function(id) {
             sliderInput(ns("psucc"), "Bid success chance", 0.3, 1, 0.7, 0.05, width = "180px"),
             sliderInput(ns("vol"), "Volatility ×", 0.5, 2, 1, 0.1, width = "160px"),
             checkboxInput(ns("tilt"), "Tilt paths by supply forecast", TRUE),
+            selectInput(ns("tilt_scn"), "Supply scenario for tilt", choices = preset_choices(), selected = "baseline", width = "300px"),
             numericInput(ns("nsim"), "Simulations", 500, 100, 1500, 100, width = "120px"),
             actionButton(ns("load_demo"), "Load example", class = "btn-demo"),
             actionButton(ns("clear_upload"), "Clear upload", class = "btn-demo"),
@@ -115,7 +118,8 @@ ui <- function(id) {
             class = "footnote",
             "Download the template, edit your orders, then upload. Columns: order_id, category (A/B), ",
             "quoted_premium, target_exercise, max_attempts, contract (guaranteed|capped|rebate), optional cap_topup. ",
-            "Without an upload, pooled controls / example book apply. Tilt uses elastic-net predicted quota from Results."
+            "Without an upload, pooled controls / example book apply. Tilt uses the forward quota path from Home, ",
+            "under the scenario you pick."
           )
         ),
         uiOutput(ns("dl_lead")),
@@ -363,46 +367,44 @@ server <- function(id, store) {
       )
     })
 
-    # Live predicted quota from the elastic-net desk (same series as Results).
-    # simulate_premiums expects a quarterly path: monthly outlook is summed by quarter.
-    quota_path_for <- function(cat) {
-      path_from_monthly <- function(month, value) {
-        ok <- is.finite(value) & !is.na(month)
-        if (sum(ok) < 2L) return(NULL)
-        month <- as.Date(month[ok])
-        value <- as.numeric(value[ok])
-        ord <- order(month)
-        month <- month[ord]
-        value <- value[ord]
-        value <- pmax(value, 1e-6)
-        qtr <- as.character(cut(month, breaks = "quarter"))
-        agg <- tapply(value, qtr, sum, na.rm = TRUE)
-        path <- as.numeric(agg)
-        if (length(path) >= 2L && all(is.finite(path)) && all(path > 0)) path else NULL
+    # Forward quota path for the tilt: the quarter containing the latest tender
+    # (published months plus forecast for the rest of it), then the next
+    # forecast quarters under the selected scenario. simulate_premiums drifts
+    # each quarter by the log change between consecutive quarterly totals.
+    quota_path_for <- function(cat, scenario_id = input$tilt_scn %||% "baseline", n_quarters = 8L) {
+      fq <- store$forward_quota
+      if (is.null(fq) || !nrow(fq)) return(NULL)
+      d <- fq[as.character(fq$category) == cat, ]
+      d <- d[order(as.Date(d$month)), ]
+      if (!nrow(d)) return(NULL)
+      scn <- tryCatch(
+        prep_scenario(store, category = cat, preset_id = scenario_id, horizon_quarters = n_quarters + 1L),
+        error = function(e) NULL
+      )
+      # Scenario quarterly totals (full quarters only), keyed by quarter start.
+      scn_q <- if (!is.null(scn)) stats::setNames(scn$quarters$quota_scenario, as.character(as.Date(scn$quarters$quarter))) else NULL
+      cur_q <- quarter_start(store$latest_bid_month)
+      # Current quarter: published months so far + forecast for the remainder.
+      b <- store$bidding
+      if ("partial" %in% names(b)) b <- b[!b$partial, ]
+      pub_cur <- b[as.character(b$category) == cat & is.finite(b$quota) & quarter_start(b$month) == cur_q, ]
+      fc_cur <- d[quarter_start(as.Date(d$month)) == cur_q & !(as.Date(d$month) %in% as.Date(pub_cur$month)), ]
+      cur_total <- sum(pub_cur$quota, na.rm = TRUE) + sum(fc_cur$mid, na.rm = TRUE)
+      if (!is.finite(cur_total) || cur_total <= 0) return(NULL)
+      nxt <- numeric()
+      q <- cur_q
+      for (i in seq_len(n_quarters)) {
+        q <- quarter_start(as.Date(q) + 93)
+        key <- as.character(q)
+        v <- if (!is.null(scn_q) && key %in% names(scn_q)) scn_q[[key]] else {
+          dq <- d[quarter_start(as.Date(d$month)) == q, ]
+          if (nrow(dq) == 3L) sum(dq$mid) else NA_real_
+        }
+        if (!is.finite(v)) break
+        nxt <- c(nxt, v)
       }
-
-      q <- store$quota_outlook
-      if (!is.null(q) && nrow(q) && all(c("month", "category", "outlook_from_forecast") %in% names(q))) {
-        d <- q[as.character(q$category) == cat, , drop = FALSE]
-        path <- path_from_monthly(d$month, d$outlook_from_forecast)
-        if (!is.null(path)) return(path)
-      }
-
-      tq <- store$two_quota
-      if (!is.null(tq) && nrow(tq) && all(c("month", "category", "model", "outlook") %in% names(tq))) {
-        live <- store$meta$live_model %||% "core_forecast"
-        d <- tq[as.character(tq$category) == cat & as.character(tq$model) == live, , drop = FALSE]
-        path <- path_from_monthly(d$month, d$outlook)
-        if (!is.null(path)) return(path)
-      }
-
-      # Last resort only if live outlook artefacts are missing.
-      scen <- exp_data$scenario_examples
-      if (is.null(scen) || !("total_median" %in% names(scen))) return(NULL)
-      s <- scen[grepl("^Baseline", as.character(scen$scenario)) & scen$category == cat, ]
-      if (!nrow(s)) return(NULL)
-      s <- s[order(s$h), ]
-      as.numeric(s$total_median)
+      path <- c(cur_total, nxt)
+      if (length(path) < 2L) NULL else as.numeric(path)
     }
 
     dlog_for <- function(cat) {
@@ -438,8 +440,8 @@ server <- function(id, store) {
         q_path <- if (isTRUE(input$tilt)) quota_path_for(cat_code) else NULL
         if (isTRUE(input$tilt) && is.null(q_path)) {
           stop(
-            "Tilt is on but no predicted quota path for Cat ", cat_code,
-            ". Check quota_outlook_calibrated / core_forecast outlook."
+            "Tilt is on but no forward quota path for Cat ", cat_code,
+            ". Run scripts/fit_and_forecast.R to build forward_quota.csv."
           )
         }
         sims[[cat_code]] <- funs$simulate_premiums(
@@ -614,10 +616,11 @@ server <- function(id, store) {
       if (is.null(r)) return("")
       if (isTRUE(input$tilt)) {
         cats <- unique(as.character(book()$category))
-        n_q <- sum(vapply(cats, function(c) length(quota_path_for(c) %||% numeric()), integer(1)))
+        n_q <- max(vapply(cats, function(c) length(quota_path_for(c) %||% numeric()), integer(1)))
+        scn_label <- names(preset_choices())[match(input$tilt_scn %||% "baseline", preset_choices())]
         sprintf(
-          "Supply tilt ON — drift from elastic-net predicted quota (Results outlook), %s quarterly points across categories. Paths still resample historical premium moves.",
-          n_q
+          "Supply tilt ON — drift from the forward quota path (%s), %s quarters ahead from the current quarter. Tighter forecast supply pushes simulated premiums up, looser pulls them down. Paths still resample historical premium moves.",
+          scn_label %||% "baseline", max(0L, n_q - 1L)
         )
       } else {
         "Supply tilt OFF — premium paths are historical moves only; predicted quota is not applied."

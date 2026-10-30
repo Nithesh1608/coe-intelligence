@@ -1,4 +1,6 @@
-# Proposal visualisations: fan, cohort, swing, spread/shares, feedback, waterfall.
+# Proposal visualisations: fan, cohort flow, within-quarter swing,
+# spread/shares, exposure waterfall. The feedback/scenario explorer lives in
+# app/logic/viewdata/scenario_viz.R.
 
 box::use(
   echarts4r[
@@ -6,7 +8,7 @@ box::use(
     e_grid, e_color, e_datazoom, e_x_axis, e_y_axis, e_labels
   ],
   app/logic/viewdata/charts[style_chart],
-  app/logic/viewdata/pipeline[naive_path, quota_path, year_end_pop_c, add_months],
+  app/logic/viewdata/pipeline[add_months],
 )
 
 `%||%` <- function(a, b) {
@@ -15,92 +17,102 @@ box::use(
 
 # ---- 1 Fan chart of projected quota -----------------------------------------
 
-#' Build history + forward path with widening prediction intervals.
+#' History (published monthly quota + held-out outlook) followed by the
+#' production forward path with bootstrap 50% / 80% bands.
 #' @export
-prep_quota_fan <- function(store, category = "A", horizon_months = 24L) {
-  live <- store$meta$live_model %||% "core_forecast"
-  mape <- 0.12
-  sc <- store$two_quota_scores
-  if (!is.null(sc) && nrow(sc)) {
-    row <- sc[sc$model == live & sc$category == category, , drop = FALSE]
-    if (nrow(row) && is.finite(row$MAPE[[1]])) mape <- as.numeric(row$MAPE[[1]])
-  }
+prep_quota_fan <- function(store, category = "A", horizon_months = 36L, history_from = as.Date("2019-01-01")) {
+  fq <- store$forward_quota
+  if (is.null(fq) || !nrow(fq)) return(NULL)
+  fwd <- fq[as.character(fq$category) == category, , drop = FALSE]
+  fwd <- fwd[order(as.Date(fwd$month)), , drop = FALSE]
+  fwd <- fwd[seq_len(min(nrow(fwd), as.integer(horizon_months))), , drop = FALSE]
+  if (!nrow(fwd)) return(NULL)
 
+  # Published monthly quota (sum of the two exercises) for history.
+  b <- store$bidding
+  if ("partial" %in% names(b)) b <- b[!b$partial, ]
+  b <- b[as.character(b$category) == category & is.finite(b$quota), c("month", "quota")]
+  b <- b[order(b$month), ]
+  b <- b[b$month >= history_from, ]
+  # Held-out one-step outlook where available, to show the fit on history.
   q <- store$quota_outlook
-  if (!is.null(q) && nrow(q) && "outlook_from_forecast" %in% names(q)) {
-    d <- q[as.character(q$category) == category, , drop = FALSE]
-    d <- d[order(d$month), ]
-    mid_col <- "outlook_from_forecast"
-  } else {
-    tq <- store$two_quota
-    d <- tq[tq$model == live & tq$category == category, , drop = FALSE]
-    d <- d[order(d$month), ]
-    mid_col <- "outlook"
-  }
-  if (!nrow(d)) return(NULL)
+  outlook <- if (!is.null(q)) q[as.character(q$category) == category, c("month", "outlook_from_forecast")] else NULL
 
-  d$month <- as.Date(d$month)
-  d$mid <- as.numeric(d[[mid_col]])
-  d$published <- if ("published" %in% names(d)) as.numeric(d$published) else NA_real_
-
-  latest_pub <- max(d$month[is.finite(d$published)], na.rm = TRUE)
-  if (!is.finite(latest_pub)) latest_pub <- max(d$month, na.rm = TRUE)
-
-  hist <- d[d$month <= latest_pub, c("month", "published", "mid"), drop = FALSE]
-  names(hist)[names(hist) == "published"] <- "actual"
-  # Collapse the band on history so e_band2 stays continuous into the forecast.
-  hist$lo <- hist$mid
-  hist$hi <- hist$mid
+  first_fwd <- min(as.Date(fwd$month))
+  hist <- data.frame(month = as.Date(b$month), actual = as.numeric(b$quota), stringsAsFactors = FALSE)
+  hist <- hist[hist$month < first_fwd, ]
+  hist$mid <- if (!is.null(outlook)) as.numeric(outlook$outlook_from_forecast[match(hist$month, as.Date(outlook$month))]) else NA_real_
+  hist$lo80 <- NA_real_
+  hist$hi80 <- NA_real_
+  hist$lo50 <- NA_real_
+  hist$hi50 <- NA_real_
   hist$phase <- "history"
 
-  # Prefer calibrated forward months after last published; else extend mid with bands.
-  fwd <- d[d$month > latest_pub, , drop = FALSE]
-  if (!nrow(fwd)) {
-    last_mid <- utils::tail(hist$mid[is.finite(hist$mid)], 1)
-    if (!length(last_mid)) last_mid <- utils::tail(hist$actual[is.finite(hist$actual)], 1)
-    fwd <- data.frame(
-      month = add_months(latest_pub, seq_len(as.integer(horizon_months))),
-      mid = as.numeric(last_mid),
-      stringsAsFactors = FALSE
-    )
-  } else {
-    fwd <- fwd[seq_len(min(nrow(fwd), as.integer(horizon_months))), ]
-    fwd <- fwd[, c("month", "mid"), drop = FALSE]
-  }
-
-  h <- seq_len(nrow(fwd))
-  width <- pmax(fwd$mid, 1) * mape * 1.96 * sqrt(h / 12)
-  fwd$actual <- NA_real_
-  fwd$lo <- pmax(0, fwd$mid - width)
-  fwd$hi <- fwd$mid + width
-  fwd$phase <- "forecast"
-
-  both <- rbind(
-    hist[, c("month", "actual", "mid", "lo", "hi", "phase")],
-    fwd[, c("month", "actual", "mid", "lo", "hi", "phase")]
+  fwd_df <- data.frame(
+    month = as.Date(fwd$month),
+    actual = as.numeric(fwd$published),
+    mid = as.numeric(fwd$mid),
+    lo80 = as.numeric(fwd$lo80), hi80 = as.numeric(fwd$hi80),
+    lo50 = as.numeric(fwd$lo50), hi50 = as.numeric(fwd$hi50),
+    phase = "forecast",
+    stringsAsFactors = FALSE
   )
-  both$label <- format(as.Date(both$month), "%b %Y")
-  list(df = both, category = category, mape = mape, as_of = latest_pub)
+  both <- rbind(hist, fwd_df)
+  both$label <- format(both$month, "%b %Y")
+
+  cal <- store$calibration
+  cover <- NA_real_
+  if (!is.null(cal) && nrow(cal)) {
+    cc <- cal[as.character(cal$category) == category, ]
+    if (nrow(cc)) cover <- stats::weighted.mean(cc$quota_cover80, cc$months, na.rm = TRUE)
+  }
+  list(
+    df = both, category = category,
+    as_of = max(hist$month, na.rm = TRUE),
+    horizon = nrow(fwd_df),
+    last_published = max(fwd_df$month[is.finite(fwd_df$actual)], hist$month, na.rm = TRUE),
+    cover80 = cover
+  )
 }
 
 #' @export
 chart_quota_fan <- function(prep) {
   d <- prep$df
   if (is.null(d) || !nrow(d)) return(NULL)
-  # Lo/hi envelope lines - portable across echarts4r versions (no e_band2).
+  # Envelope lines are portable across echarts4r versions (no e_band2).
   d |>
     e_charts(label) |>
-    e_line(lo, name = "Low", symbol = "none",
-           lineStyle = list(width = 1.2, opacity = 0.4, color = "#ff5c1a")) |>
-    e_line(hi, name = "High", symbol = "none",
-           lineStyle = list(width = 1.2, opacity = 0.4, color = "#ff5c1a")) |>
+    e_line(lo80, name = "80% band low", symbol = "none",
+           lineStyle = list(width = 1, opacity = 0.35, color = "#ff5c1a")) |>
+    e_line(hi80, name = "80% band high", symbol = "none",
+           lineStyle = list(width = 1, opacity = 0.35, color = "#ff5c1a")) |>
+    e_line(lo50, name = "50% band low", symbol = "none",
+           lineStyle = list(width = 1.2, opacity = 0.6, color = "#ff5c1a", type = "dashed")) |>
+    e_line(hi50, name = "50% band high", symbol = "none",
+           lineStyle = list(width = 1.2, opacity = 0.6, color = "#ff5c1a", type = "dashed")) |>
     e_line(actual, name = "Certificates released", symbol = "circle", symbolSize = 5,
            lineStyle = list(width = 2.4, color = "#fafafa")) |>
     e_line(mid, name = "Central supply path", symbol = "none",
            lineStyle = list(width = 2.2, color = "#ff5c1a")) |>
-    e_color(c("#ff5c1a", "#ff5c1a", "#fafafa", "#ff5c1a")) |>
+    e_color(c("#ff5c1a", "#ff5c1a", "#ff5c1a", "#ff5c1a", "#fafafa", "#ff5c1a")) |>
     style_chart() |>
     e_datazoom(type = "inside")
+}
+
+#' Quarterly forward quota table for a category (for Home and the deck).
+#' @export
+forward_quarters <- function(store, category = "A", n = 12L) {
+  fq <- store$forward_quota
+  if (is.null(fq) || !nrow(fq)) return(NULL)
+  d <- fq[as.character(fq$category) == category, ]
+  d$quarter <- as.Date(d$quarter)
+  full <- stats::aggregate(cbind(mid, lo80, hi80, published) ~ quarter, data = d,
+                           FUN = function(z) sum(z), na.action = stats::na.pass)
+  n_m <- stats::aggregate(month ~ quarter, data = d, FUN = length)
+  full$months <- n_m$month[match(full$quarter, n_m$quarter)]
+  full <- full[full$months == 3L, ]
+  full <- full[order(full$quarter), ]
+  utils::head(full, n)
 }
 
 # ---- 2 Cohort flow ----------------------------------------------------------
@@ -123,7 +135,6 @@ prep_cohort_flow <- function(store, exit_year = NULL) {
   if (!nrow(yearly)) return(NULL)
 
   if (is.null(exit_year)) {
-    # Prefer latest year with a full 12 months of renewal rows.
     n_mo <- stats::aggregate(month ~ year, rr[rr$category %in% c("A", "B"), ], function(z) length(unique(z)))
     full <- n_mo$year[n_mo$month >= 12]
     exit_year <- if (length(full)) max(full) else max(yearly$year)
@@ -145,10 +156,11 @@ prep_cohort_flow <- function(store, exit_year = NULL) {
   due <- as.numeric(row$coes_expiring[[1]])
   renewed <- as.numeric(row$revalidations[[1]])
   dereg <- as.numeric(row$deregistrations_lta[[1]])
-  # Attrition / early exits between registration and the year-10 decision.
   lost <- max(0, regs - due)
-  # Replacement identity for the A/B desk: ~25% of trailing deregistrations.
-  into_ab <- 0.25 * dereg
+  # Calibrated A/B quota scale (alpha x trailing-12 deregistrations, monthly).
+  alpha <- 0.08
+  if (!is.null(store$alphas) && nrow(store$alphas)) alpha <- mean(store$alphas$alpha, na.rm = TRUE)
+  into_ab <- alpha * dereg
 
   links <- data.frame(
     source = c(
@@ -206,7 +218,6 @@ cohort_year_choices <- function(root) {
 
 #' @export
 chart_cohort_flow <- function(prep) {
-  # Stage bars render reliably on first paint; sankey often stays blank until resize.
   stages <- data.frame(
     stage = c(
       sprintf("Registered %s", prep$reg_year),
@@ -224,7 +235,6 @@ chart_cohort_flow <- function(prep) {
     ),
     stringsAsFactors = FALSE
   )
-  # Prefer exact registered total from links when present.
   reg_v <- sum(prep$links$value[grepl("^Registered", prep$links$source)], na.rm = TRUE)
   if (is.finite(reg_v) && reg_v > 0) stages$value[1] <- reg_v
   stages$stage <- factor(stages$stage, levels = stages$stage)
@@ -315,8 +325,7 @@ prep_spread_and_shares <- function(bidding, from = as.Date("2016-01-01")) {
 #' @export
 chart_spread <- function(prep) {
   d <- prep$premiums
-  # No e_mark_line: category-axis markLines crash echarts ("Cannot read ... 'coord'")
-  # on some Posit/browser builds and can blank every chart on the page.
+  # No e_mark_line: category-axis markLines crash echarts on some builds.
   d |>
     e_charts(label) |>
     e_line(A, name = "Cat A", symbol = "none", lineStyle = list(width = 2)) |>
@@ -337,77 +346,7 @@ chart_volume_shares <- function(prep) {
     e_datazoom(type = "inside")
 }
 
-# ---- 5 Feedback loop explorer -----------------------------------------------
-
-#' Renewal shift ? deregistration path ? replacement quota path.
-#' @export
-prep_feedback_scenario <- function(store, renewal_shift = 0, category = "A", horizon_months = 36L) {
-  cats <- c("A", "B", "C", "D")
-  naive_list <- lapply(cats, function(cat) {
-    naive_path(store, cat, horizon_months = as.integer(horizon_months), renewal_shift = as.numeric(renewal_shift))
-  })
-  names(naive_list) <- cats
-  pop_c <- year_end_pop_c(store)
-  q <- quota_path(store, naive_list, pop_c)
-  q <- q[q$category == category, , drop = FALSE]
-  q <- q[order(q$month), ]
-  # Quarterly rollup for a cleaner explorer line.
-  q$qtr <- as.character(cut(as.Date(q$month), breaks = "quarter"))
-  agg <- stats::aggregate(quota ~ qtr, q, sum)
-  agg <- agg[order(agg$qtr), ]
-  agg$label <- format(as.Date(agg$qtr), "%b %Y")
-  base <- prep_feedback_scenario_base_cache(store, category, horizon_months)
-  list(
-    df = agg,
-    base = base,
-    category = category,
-    renewal_shift = as.numeric(renewal_shift)
-  )
-}
-
-# Baseline (shift = 0) cached per session via enclosing env would be nicer;
-# compute inline when shift != 0 by calling again  keep simple helper:
-prep_feedback_scenario_base_cache <- function(store, category, horizon_months) {
-  cats <- c("A", "B", "C", "D")
-  naive_list <- lapply(cats, function(cat) {
-    naive_path(store, cat, horizon_months = as.integer(horizon_months), renewal_shift = 0)
-  })
-  names(naive_list) <- cats
-  q <- quota_path(store, naive_list, year_end_pop_c(store))
-  q <- q[q$category == category, ]
-  q$qtr <- as.character(cut(as.Date(q$month), breaks = "quarter"))
-  agg <- stats::aggregate(quota ~ qtr, q, sum)
-  agg <- agg[order(agg$qtr), ]
-  agg$label <- format(as.Date(agg$qtr), "%b %Y")
-  agg
-}
-
-#' @export
-chart_feedback_scenario <- function(prep) {
-  d <- merge(
-    prep$base[, c("label", "quota")],
-    prep$df[, c("label", "quota")],
-    by = "label",
-    all = TRUE,
-    suffixes = c("_base", "_scen")
-  )
-  # Keep scenario month order.
-  ord <- match(prep$df$label, d$label)
-  d <- d[ord[!is.na(ord)], ]
-  names(d)[names(d) == "quota_base"] <- "baseline"
-  names(d)[names(d) == "quota_scen"] <- "scenario"
-  d |>
-    e_charts(label) |>
-    e_line(baseline, name = "Baseline renewal", symbol = "none",
-           lineStyle = list(width = 1.6, type = "dashed", color = "#737373")) |>
-    e_line(scenario, name = "With your renewal shift", symbol = "none",
-           lineStyle = list(width = 2.4, color = "#ff5c1a")) |>
-    e_color(c("#737373", "#ff5c1a")) |>
-    style_chart() |>
-    e_datazoom(type = "inside")
-}
-
-# ---- 6 Exposure waterfall ---------------------------------------------------
+# ---- 5 Exposure waterfall ---------------------------------------------------
 
 #' Dealer book cost build-up from exposure summary + timing shifts.
 #' @export
@@ -425,7 +364,6 @@ prep_exposure_waterfall <- function(base_summary, shifts, quoted_total) {
 
   shift1 <- sh[as.numeric(sh$shift_quarters) == 1, , drop = FALSE]
   shift2 <- sh[as.numeric(sh$shift_quarters) == 2, , drop = FALSE]
-  # timing_shift uses exercise shifts 0,6,12 ? 0,1,2 quarters when EX_PER_QTR=6
   if (!nrow(shift1) && "shift" %in% names(sh)) {
     shift1 <- sh[as.numeric(sh$shift) == 6, , drop = FALSE]
     shift2 <- sh[as.numeric(sh$shift) == 12, , drop = FALSE]
