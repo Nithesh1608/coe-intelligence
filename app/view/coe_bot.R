@@ -320,7 +320,7 @@ server <- function(id, store) {
       p <- tryCatch(
         nim_chat_async(api_msgs, max_tokens = 1800L),
         error = function(e) {
-          promises::promise_resolve(list(ok = FALSE, error = conditionMessage(e)))
+          promise_resolve(list(ok = FALSE, error = conditionMessage(e)))
         }
       )
 
