@@ -4,7 +4,7 @@
   if (is.null(a) || (length(a) == 1L && is.na(a))) b else a
 }
 
-clip <- function(x, n = 16000L) {
+clip <- function(x, n = 9000L) {
   x <- paste(x, collapse = "\n")
   if (nchar(x) <= n) return(x)
   paste0(substr(x, 1L, n), "\n\n[…truncated…]")
@@ -35,8 +35,8 @@ system_prompt <- function() {
     "Never ask for or reveal API keys. Never claim you forecast premiums as the core product.",
     "FORMAT: Use GitHub-flavoured markdown. For multi-part questions, answer every part in order",
     "with ## headings. Use short paragraphs, bullet lists, and markdown tables for score grids.",
-    "Always finish the full answer — never stop mid-sentence or mid-word. Prefer compact wording",
-    "over copying the brief verbatim, but keep the numbers and rules exact.",
+    "Keep answers compact (aim under ~400 words unless the user asks for depth).",
+    "Always finish the full answer — never stop mid-sentence or mid-word. Keep numbers exact.",
     sep = " "
   )
 }
@@ -51,21 +51,6 @@ build_project_context <- function(store = NULL, root = NULL) {
     paste(readLines(brief_path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
   } else {
     "Brief missing."
-  }
-
-  readme <- file.path(root, "README.md")
-  readme_txt <- if (file.exists(readme)) {
-    paste(readLines(readme, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-  } else {
-    ""
-  }
-
-  proposal <- file.path(root, "Project Proposal.md")
-  proposal_txt <- if (file.exists(proposal)) {
-    lines <- readLines(proposal, warn = FALSE, encoding = "UTF-8")
-    paste(utils::head(lines, 80L), collapse = "\n")
-  } else {
-    ""
   }
 
   score_bits <- character()
@@ -84,15 +69,12 @@ build_project_context <- function(store = NULL, root = NULL) {
     )
   }
 
+  # Brief + live scores only — large README/proposal payloads slowed every turn.
   clip(paste(
     c(
       "# PROJECT CONTEXT",
       brief,
-      paste(score_bits[nzchar(score_bits)], collapse = "\n\n"),
-      "## README",
-      readme_txt,
-      "## Proposal excerpt (may lag the shipped product)",
-      proposal_txt
+      paste(score_bits[nzchar(score_bits)], collapse = "\n\n")
     ),
     collapse = "\n\n"
   ))

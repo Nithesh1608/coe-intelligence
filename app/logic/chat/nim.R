@@ -92,7 +92,8 @@ nim_model_label <- function() {
 
 #' @export
 nim_model_candidates <- function() {
-  unique(c(nim_model_id(), NIM_MODEL_FALLBACKS))
+  # Prefer a single model for latency; fall back only if the preferred id 404s.
+  unique(c(nim_model_id(), NIM_MODEL_FALLBACKS[[1]]))
 }
 
 parse_nim_content <- function(body) {
@@ -112,7 +113,7 @@ parse_nim_content <- function(body) {
   msg$content
 }
 
-nim_request <- function(messages, model, key, temperature = 0.2, max_tokens = 4096L) {
+nim_request <- function(messages, model, key, temperature = 0.2, max_tokens = 2200L) {
   box::use(httr2[
     request, req_headers, req_body_json, req_options, req_timeout,
     req_error, req_perform, resp_body_json, resp_status
@@ -133,14 +134,14 @@ nim_request <- function(messages, model, key, temperature = 0.2, max_tokens = 40
         model = model,
         messages = messages,
         temperature = temperature,
-        top_p = 0.95,
+        top_p = 0.9,
         max_tokens = as.integer(max_tokens),
         stream = FALSE
       ),
       auto_unbox = TRUE
     ) |>
     req_options(ipresolve = 1L, http_version = 2L) |>
-    req_timeout(90) |>
+    req_timeout(45) |>
     req_error(is_error = function(resp) FALSE) |>
     req_perform()
 
@@ -159,7 +160,7 @@ activation_hint <- function(model) {
 
 #' Chat with NVIDIA NIM. `messages` = list of list(role=, content=).
 #' @export
-nim_chat <- function(messages, temperature = 0.2, max_tokens = 4096L) {
+nim_chat <- function(messages, temperature = 0.2, max_tokens = 2200L) {
   ensure_nvidia_env()
   key <- Sys.getenv("NVIDIA_API_KEY", "")
   if (!nzchar(key)) {

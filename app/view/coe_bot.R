@@ -205,12 +205,13 @@ ui <- function(id) {
     tags$script(HTML(sprintf(
       "(function(){
         var ns='%s';
-        var optPending=false;
+        var locked=false;
         function scrollThread(){
           var el=document.getElementById(ns+'thread_scroll');
           if(el) el.scrollTop=el.scrollHeight;
         }
         function setBusy(on){
+          locked=!!on;
           var btn=document.getElementById(ns+'send');
           var shell=document.querySelector('.coe-bot-shell');
           if(btn){
@@ -219,48 +220,35 @@ ui <- function(id) {
           }
           if(shell) shell.classList.toggle('coe-bot-shell--busy', !!on);
         }
-        function showOptimistic(q){
-          if(optPending || !q) return;
-          optPending=true;
+        function triggerSend(){
+          if(locked) return;
+          var ta=document.getElementById(ns+'prompt');
+          if(!ta || !(ta.value||'').trim()) return;
           setBusy(true);
-          var thread=document.getElementById(ns+'thread_scroll');
-          if(!thread) return;
-          var empty=thread.querySelector('.coe-bot-empty');
-          if(empty) empty.remove();
-          function bubble(who, cls, html){
-            var d=document.createElement('div');
-            d.className='coe-bot-bubble '+cls;
-            d.setAttribute('data-optimistic','1');
-            d.innerHTML='<span class=\"coe-bot-who\">'+who+'</span>'+html;
-            thread.appendChild(d);
-          }
-          var esc=document.createElement('div');
-          esc.textContent=q;
-          bubble('You','coe-bot-bubble--user','<div class=\"coe-bot-text\"><p>'+esc.innerHTML+'</p></div>');
-          bubble('COE bot','coe-bot-bubble--bot coe-bot-bubble--pending',
-            '<div class=\"coe-bot-pending\"><span class=\"coe-bot-pulse\"></span><span>Writing a reply…</span></div>');
-          scrollThread();
+          var btn=document.getElementById(ns+'send');
+          if(btn) btn.click();
         }
         $(document).on('shiny:value', function(e){
-          if(e.name===ns+'thread'){
-            optPending=false;
-            setTimeout(scrollThread, 30);
-            var hasPending=document.querySelector('#'+ns+'thread_scroll .coe-bot-bubble--pending');
-            if(!hasPending) setBusy(false);
-          }
+          if(e.name!==ns+'thread') return;
+          setTimeout(scrollThread, 30);
+          var hasPending=document.querySelector('#'+ns+'thread_scroll .coe-bot-bubble--pending');
+          setBusy(!!hasPending);
         });
-        $(document).on('click', '#'+ns+'send', function(){
+        $(document).on('click', '#'+ns+'send', function(ev){
+          // Block only real user re-clicks while a reply is in flight.
+          var trusted=ev.originalEvent && ev.originalEvent.isTrusted;
+          if(locked && trusted){
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            return false;
+          }
           var ta=document.getElementById(ns+'prompt');
-          var q=ta ? (ta.value||'').trim() : '';
-          showOptimistic(q);
+          if(ta && (ta.value||'').trim()) setBusy(true);
         });
         $(document).on('keydown', '#'+ns+'prompt', function(ev){
           if(ev.key==='Enter' && !ev.shiftKey){
             ev.preventDefault();
-            var ta=ev.target;
-            var q=(ta.value||'').trim();
-            showOptimistic(q);
-            document.getElementById(ns+'send').click();
+            triggerSend();
           }
         });
       })();",
@@ -314,42 +302,45 @@ server <- function(id, store) {
     })
 
     observeEvent(input$send, {
-      req(!isTRUE(busy()))
+      if (isTRUE(busy())) return()
       q <- trimws(input$prompt %||% "")
       if (!nzchar(q)) return()
+
+      # Lock immediately so a second Enter/click cannot enqueue another job.
+      busy(TRUE)
+      updateActionButton(session, "send", label = "Writing…")
+
       if (!nvidia_key_ok()) {
         history(c(history(), list(list(
           role = "assistant",
           content = "API key missing — set NVIDIA_API_KEY in .Renviron (local) or Posit Connect Cloud Variables, then restart/republish."
         ))))
+        busy(FALSE)
+        updateActionButton(session, "send", label = "Send")
         return()
       }
 
-      prior <- history()
       prior <- c(
-        prior,
+        history(),
         list(list(role = "user", content = q)),
         list(list(role = "assistant", content = "", pending = TRUE))
       )
       history(prior)
       updateTextAreaInput(session, "prompt", value = "")
-      busy(TRUE)
-      updateActionButton(session, "send", label = "Writing…")
 
       turns <- utils::tail(
         Filter(function(m) !isTRUE(m$pending), prior),
-        8L
+        6L
       )
       api_msgs <- c(
         list(list(role = "system", content = sys)),
         turns
       )
 
-      # Flush user bubble + "Writing…" to the browser first; NIM call blocks
-      # the session, so doing it inside this observer hid the send until done.
+      # Paint the user bubble first; then call NIM (blocking) after flush.
       session$onFlushed(function() {
         out <- tryCatch(
-          nim_chat(api_msgs, max_tokens = 4096L),
+          nim_chat(api_msgs, max_tokens = 2200L),
           error = function(e) list(ok = FALSE, error = conditionMessage(e))
         )
         done <- Filter(function(m) !isTRUE(m$pending), history())
@@ -364,6 +355,6 @@ server <- function(id, store) {
         busy(FALSE)
         updateActionButton(session, "send", label = "Send")
       }, once = TRUE)
-    })
+    }, ignoreInit = TRUE)
   })
 }
