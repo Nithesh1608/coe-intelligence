@@ -1878,6 +1878,41 @@ body {
   max-width: 70ch;
 }
 
+.viz-explain {
+  margin: 2rem 0 1rem;
+  max-width: 72ch;
+}
+
+.viz-explain h2,
+.viz-explain h3 {
+  font-family: "Syne", sans-serif;
+  letter-spacing: -0.03em;
+  margin: 0.35rem 0 0.65rem;
+}
+
+.viz-explain__list {
+  margin: 0 0 1rem;
+  padding-left: 1.1rem;
+  color: #d4d4d4;
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+
+.viz-explain__list li {
+  margin-bottom: 0.35rem;
+}
+
+.viz-proposal__charts {
+  display: grid;
+  gap: 1rem;
+}
+
+.eda-divider {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 2.5rem 0 1.5rem;
+}
+
 .eda-beat--full {
   grid-template-columns: 1fr;
 }

@@ -1,15 +1,16 @@
 box::use(
-  shiny[NS, moduleServer, div, tags, selectInput, renderText],
+  shiny[NS, moduleServer, div, tags, selectInput, renderText, reactive],
   bslib[card, card_header, card_body],
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
 box::use(
   app/logic/viewdata/charts[quota_track_chart],
+  app/logic/viewdata/proposal_viz[prep_quota_fan, chart_quota_fan],
 )
 
 LIVE_MODEL <- "core_forecast"
 
-#' Home — supply forecast vs released quota (+ baseline)
+#' Home — supply forecast vs released quota (+ fan chart)
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -76,7 +77,34 @@ ui <- function(id) {
     tags$p(
       class = "footnote",
       "White = certificates released. Orange = elastic net. Grey dashed = 12-month average."
-    )
+    ),
+
+    tags$section(
+      class = "viz-explain",
+      tags$span(class = "nx-kicker", "Proposal · 1 of 6"),
+      tags$h2("Fan chart — projected quota with honest uncertainty"),
+      tags$p(
+        class = "lede lede--wide",
+        "A single forecast line hides the downside. The fan shows the central supply path from our elastic net, ",
+        "with bands that widen further out — so a dealer or fleet can plan against a range, not a point."
+      ),
+      tags$ul(
+        class = "viz-explain__list",
+        tags$li(tags$strong("White line — "), "certificates actually released (history)."),
+        tags$li(tags$strong("Orange line — "), "central projected quota from the live supply model."),
+        tags$li(tags$strong("Shaded band — "), "prediction interval that grows with horizon, scaled from held-out MAPE.")
+      )
+    ),
+    card(
+      class = "desk-card",
+      full_screen = TRUE,
+      card_header("Projected quota fan (next ~2 years)"),
+      card_body(
+        class = "chart-frame chart-frame--tall",
+        echarts4rOutput(ns("fan"), height = "420px")
+      )
+    ),
+    tags$p(class = "footnote", shiny::textOutput(ns("fan_note"), inline = TRUE))
   )
 }
 
@@ -108,6 +136,25 @@ server <- function(id, store) {
         stringsAsFactors = FALSE
       )
       quota_track_chart(df, live_label)
+    })
+
+    fan_prep <- reactive({
+      prep_quota_fan(store, category = input$cat, horizon_months = 24L)
+    })
+
+    output$fan <- renderEcharts4r({
+      prep <- fan_prep()
+      if (is.null(prep)) return(NULL)
+      chart_quota_fan(prep)
+    })
+
+    output$fan_note <- renderText({
+      prep <- fan_prep()
+      if (is.null(prep)) return("Fan chart unavailable — missing quota outlook.")
+      sprintf(
+        "Category %s · bands use held-out MAPE ≈ %.0f%% × 1.96 × √(horizon/12). As of %s. We forecast supply, not premiums.",
+        prep$category, 100 * prep$mape, format(prep$as_of, "%b %Y")
+      )
     })
   })
 }

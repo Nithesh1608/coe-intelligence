@@ -18,6 +18,7 @@ box::use(
     parse_order_book, parse_fleet_schedule
   ],
   app/logic/viewdata/store[project_root],
+  app/logic/viewdata/proposal_viz[prep_exposure_waterfall, chart_exposure_waterfall],
 )
 
 `%||%` <- function(a, b) {
@@ -136,6 +137,30 @@ ui <- function(id) {
               card_body(class = "chart-frame", echarts4rOutput(ns("dl_shift"), height = "320px"))
             )
           )
+        ),
+        div(
+          class = "calc-section viz-explain",
+          tags$span(class = "nx-kicker", "Proposal · 6 of 6"),
+          tags$h3("Exposure waterfall — your book in cost steps"),
+          tags$p(
+            paste(
+              "Starts from the quoted package total, steps to expected clearing cost under simulated paths,",
+              "shows the p10–p90 confidence range, then the cost change if you delay the whole book by one or two quarters."
+            )
+          ),
+          tags$ul(
+            class = "viz-explain__list",
+            tags$li(tags$strong("Quoted book — "), "sum of locked package premiums you promised."),
+            tags$li(tags$strong("Clearing gap — "), "difference between that quote and expected realised COE cost."),
+            tags$li(tags$strong("Upside / downside — "), "distance from expected cost to the p10 and p90 of the cost distribution."),
+            tags$li(tags$strong("Delay +1Q / +2Q — "), "change in expected cost if every order’s target exercise shifts later.")
+          ),
+          card(
+            class = "desk-card",
+            card_header("Order-book cost waterfall ($ thousands)"),
+            card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("dl_waterfall"), height = "400px"))
+          ),
+          tags$p(class = "footnote", shiny::textOutput(ns("dl_waterfall_note"), inline = TRUE))
         ),
         tags$p(class = "footnote", shiny::textOutput(ns("dl_note"), inline = TRUE))
       ),
@@ -521,6 +546,25 @@ server <- function(id, store) {
         e_tooltip() |>
         e_color(c("#c8f542", "#ff5c1a")) |>
         e_legend(bottom = 0)
+    })
+
+    output$dl_waterfall <- renderEcharts4r({
+      r <- dl_res()
+      req(!is.null(r))
+      b <- book()
+      quoted_total <- sum(as.numeric(b$quoted_premium), na.rm = TRUE)
+      prep <- prep_exposure_waterfall(r$base$summary, r$shifts, quoted_total)
+      chart_exposure_waterfall(prep)
+    })
+
+    output$dl_waterfall_note <- renderText({
+      r <- dl_res()
+      if (is.null(r)) return("Price the book to build the waterfall.")
+      s <- r$base$summary
+      sprintf(
+        "Expected COE cost %s · p10 %s · p90 %s · VaR95 loss %s. Timing bars use the same simulated paths as the delay chart.",
+        fmt_sgd(s$expected_cost), fmt_sgd(s$cost_p10), fmt_sgd(s$cost_p90), fmt_sgd(s$var95_loss)
+      )
     })
 
     output$dl_note <- renderText({
