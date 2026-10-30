@@ -89,13 +89,16 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    ensure_nvidia_env()
+    # Prefer store root; ensure_nvidia_env also walks box.path / parents.
+    root <- if (!is.null(store$root)) store$root else NULL
+    ensure_nvidia_env(root)
     history <- reactiveVal(list())
     busy <- reactiveVal(FALSE)
     ctx <- build_project_context(store)
     sys <- paste(system_prompt(), "\n\n", ctx, sep = "")
 
     output$status <- renderUI({
+      ensure_nvidia_env(root)
       if (nvidia_key_ok()) {
         tags$p(
           class = "coe-bot-status coe-bot-status--ok",

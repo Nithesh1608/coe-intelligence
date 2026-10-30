@@ -8,6 +8,11 @@ if (file.exists("renv")) {
 # Allow absolute module imports (relative to the app root).
 options(box.path = getwd())
 
+# Local NIM / secrets (gitignored). Load early so Shiny modules see the key.
+if (file.exists(".Renviron")) {
+  readRenviron(".Renviron")
+}
+
 # box.lsp languageserver external hook
 if (nzchar(system.file(package = "box.lsp"))) {
   options(

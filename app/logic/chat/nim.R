@@ -13,18 +13,51 @@ NIM_MODEL_FALLBACKS <- c(
   "aisingapore/sea-lion-7b-instruct"
 )
 
-#' Load project .Renviron once per process if present.
+renviron_candidate_dirs <- function(root = NULL) {
+  starts <- character()
+  if (!is.null(root) && nzchar(as.character(root)[[1]])) {
+    starts <- c(starts, as.character(root)[[1]])
+  }
+  bp <- getOption("box.path", "")
+  if (is.character(bp) && length(bp) && nzchar(bp[[1]])) {
+    starts <- c(starts, bp[[1]])
+  }
+  starts <- c(starts, getwd())
+  tryCatch({
+    box::use(app/logic/viewdata/store[project_root])
+    starts <- c(starts, project_root())
+  }, error = function(e) NULL)
+
+  dirs <- character()
+  for (start in unique(starts[nzchar(starts)])) {
+    here <- normalizePath(start, winslash = "/", mustWork = FALSE)
+    for (i in seq_len(12)) {
+      dirs <- c(dirs, here)
+      parent <- dirname(here)
+      if (identical(parent, here)) break
+      here <- parent
+    }
+  }
+  unique(dirs)
+}
+
+#' Load project .Renviron if NVIDIA_API_KEY is not already set.
+#' Searches cwd, box.path, and parents so Shiny still works when launched
+#' from a non-project working directory.
 #' @export
 ensure_nvidia_env <- function(root = NULL) {
-  if (!nzchar(Sys.getenv("NVIDIA_API_KEY", ""))) {
-    if (is.null(root)) {
-      box::use(app/logic/viewdata/store[project_root])
-      root <- project_root()
-    }
-    path <- file.path(root, ".Renviron")
-    if (file.exists(path)) readRenviron(path)
+  if (nzchar(Sys.getenv("NVIDIA_API_KEY", ""))) {
+    return(invisible(TRUE))
   }
-  invisible(nzchar(Sys.getenv("NVIDIA_API_KEY", "")))
+  for (dir in renviron_candidate_dirs(root)) {
+    path <- file.path(dir, ".Renviron")
+    if (!file.exists(path)) next
+    readRenviron(path)
+    if (nzchar(Sys.getenv("NVIDIA_API_KEY", ""))) {
+      return(invisible(TRUE))
+    }
+  }
+  invisible(FALSE)
 }
 
 #' @export

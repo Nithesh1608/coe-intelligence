@@ -2,17 +2,22 @@
 
 #' @export
 project_root <- function(start = getwd()) {
-  here <- normalizePath(start, winslash = "/", mustWork = FALSE)
-  for (i in seq_len(8)) {
-    if (
-      file.exists(file.path(here, "data", "processed", "vehicle_flows.rds")) ||
-        file.exists(file.path(here, "data", "processed", "coe_monthly_panel.csv"))
-    ) {
-      return(here)
+  starts <- c(start, getOption("box.path", ""))
+  starts <- unique(starts[nzchar(as.character(starts))])
+  for (s in starts) {
+    here <- normalizePath(s, winslash = "/", mustWork = FALSE)
+    for (i in seq_len(12)) {
+      if (
+        file.exists(file.path(here, "data", "processed", "vehicle_flows.rds")) ||
+          file.exists(file.path(here, "data", "processed", "coe_monthly_panel.csv")) ||
+          file.exists(file.path(here, "rhino.yml"))
+      ) {
+        return(here)
+      }
+      parent <- dirname(here)
+      if (identical(parent, here)) break
+      here <- parent
     }
-    parent <- dirname(here)
-    if (identical(parent, here)) break
-    here <- parent
   }
   normalizePath(start, winslash = "/", mustWork = FALSE)
 }
@@ -130,6 +135,7 @@ load_store <- function(root = project_root()) {
   )
 
   list(
+    root = root,
     panel = panel,
     bidding = bidding,
     bids_raw = bids,
