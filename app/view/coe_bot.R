@@ -215,21 +215,61 @@ ui <- function(id) {
     tags$script(HTML(sprintf(
       "(function(){
         var ns='%s';
+        var gate=false;
         function scrollThread(){
           var el=document.getElementById(ns+'thread_scroll');
           if(el) el.scrollTop=el.scrollHeight;
         }
+        function paintLocal(q){
+          var host=document.getElementById(ns+'thread');
+          if(!host || !q) return;
+          var empty=host.querySelector('.coe-bot-empty');
+          if(empty) empty.remove();
+          host.querySelectorAll('[data-opt=\"1\"]').forEach(function(n){ n.remove(); });
+          function add(who, cls, html){
+            var d=document.createElement('div');
+            d.className='coe-bot-bubble '+cls;
+            d.setAttribute('data-opt','1');
+            d.innerHTML='<span class=\"coe-bot-who\">'+who+'</span>'+html;
+            host.appendChild(d);
+          }
+          var esc=document.createElement('div');
+          esc.textContent=q;
+          add('You','coe-bot-bubble--user','<div class=\"coe-bot-text\"><p>'+esc.innerHTML+'</p></div>');
+          add('COE bot','coe-bot-bubble--bot coe-bot-bubble--pending',
+            '<div class=\"coe-bot-pending\"><span class=\"coe-bot-pulse\"></span><span>Writing a reply…</span></div>');
+          scrollThread();
+        }
+        function sendOnce(){
+          if(gate) return;
+          var ta=document.getElementById(ns+'prompt');
+          var q=ta ? (ta.value||'').trim() : '';
+          if(!q) return;
+          gate=true;
+          paintLocal(q);
+          // Ship the question separately — textarea is cleared for UX before Shiny reads it.
+          Shiny.setInputValue(ns+'prompt_shot', q, {priority:'event'});
+          var id=ns+'send';
+          var v=(window.Shiny && Shiny.shinyapp && Shiny.shinyapp.$inputValues[id]) || 0;
+          Shiny.setInputValue(id, Number(v)+1, {priority:'event'});
+          if(ta) ta.value='';
+        }
         $(document).on('shiny:value', function(e){
-          if(e.name===ns+'thread') setTimeout(scrollThread, 40);
+          if(e.name!==ns+'thread') return;
+          setTimeout(scrollThread, 40);
+          var pending=document.querySelector('#'+ns+'thread .coe-bot-bubble--pending');
+          if(!pending) gate=false;
+        });
+        $(document).on('click', '#'+ns+'send', function(ev){
+          ev.preventDefault();
+          ev.stopImmediatePropagation();
+          sendOnce();
+          return false;
         });
         $(document).on('keydown', '#'+ns+'prompt', function(ev){
           if(ev.key!=='Enter' || ev.shiftKey) return;
           ev.preventDefault();
-          var ta=ev.target;
-          if(!(ta.value||'').trim()) return;
-          var id=ns+'send';
-          var v=(window.Shiny && Shiny.shinyapp && Shiny.shinyapp.$inputValues[id]) || 0;
-          Shiny.setInputValue(id, Number(v)+1, {priority:'event'});
+          sendOnce();
         });
       })();",
       ns("")
@@ -283,7 +323,8 @@ server <- function(id, store) {
 
     observeEvent(input$send, {
       if (isTRUE(busy())) return()
-      q <- trimws(input$prompt %||% "")
+      # prompt_shot is set by JS so we still get the text after the box is cleared.
+      q <- trimws(input$prompt_shot %||% input$prompt %||% "")
       if (!nzchar(q)) return()
 
       if (!nvidia_key_ok()) {
@@ -316,12 +357,12 @@ server <- function(id, store) {
         turns
       )
 
-      # Async HTTP so Shiny can paint the user bubble + "Writing…" while NIM runs.
+      # CRITICAL: do not return this promise from the observer. If Shiny sees it
+      # as the observer result, it delays ALL output flush until NIM finishes —
+      # so the user bubble / "Writing…" never appear (promises + Shiny flush).
       p <- tryCatch(
         nim_chat_async(api_msgs, max_tokens = 1800L),
-        error = function(e) {
-          promise_resolve(list(ok = FALSE, error = conditionMessage(e)))
-        }
+        error = function(e) promise_resolve(list(ok = FALSE, error = conditionMessage(e)))
       )
 
       then(
@@ -344,11 +385,13 @@ server <- function(id, store) {
             content = paste0("Request failed: ", conditionMessage(err))
           ))))
         }
-      ) |>
-        finally(function() {
-          busy(FALSE)
-          updateActionButton(session, "send", label = "Send")
-        })
+      )
+      finally(p, function() {
+        busy(FALSE)
+        updateActionButton(session, "send", label = "Send")
+      })
+
+      invisible(NULL)
     }, ignoreInit = TRUE)
   })
 }
