@@ -606,9 +606,8 @@ server <- function(id, store) {
       )
     })
 
-    shiny::outputOptions(output, "dl_hist", suspendWhenHidden = FALSE)
-    shiny::outputOptions(output, "dl_shift", suspendWhenHidden = FALSE)
-    shiny::outputOptions(output, "dl_waterfall", suspendWhenHidden = FALSE)
+    # Keep exposure charts suspended until the tab is opened — avoids echarts
+    # init on hidden panels blanking Home.
 
     output$dl_note <- renderText({
       r <- dl_res()
