@@ -1,7 +1,7 @@
 box::use(
   shiny[
     NS, moduleServer, div, tags, addResourcePath, selectInput, sliderInput,
-    reactive, outputOptions
+    reactive
   ],
   bslib[card, card_header, card_body],
   echarts4r[renderEcharts4r, echarts4rOutput],
@@ -397,10 +397,7 @@ server <- function(id, store) {
       )
     })
 
-    outputOptions(output, "cohort", suspendWhenHidden = FALSE)
-    outputOptions(output, "swing", suspendWhenHidden = FALSE)
-    outputOptions(output, "spread", suspendWhenHidden = FALSE)
-    outputOptions(output, "shares", suspendWhenHidden = FALSE)
-    outputOptions(output, "feedback", suspendWhenHidden = FALSE)
+    # Do not force-render EDA charts while Home is open ? heavy prep + echarts
+    # init on hidden panels can crash the client and blank Home charts.
   })
 }

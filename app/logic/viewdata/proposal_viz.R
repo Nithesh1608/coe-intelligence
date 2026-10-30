@@ -3,7 +3,7 @@
 box::use(
   echarts4r[
     e_charts, e_line, e_bar, e_area, e_tooltip, e_legend,
-    e_grid, e_color, e_datazoom, e_x_axis, e_y_axis, e_mark_line, e_labels
+    e_grid, e_color, e_datazoom, e_x_axis, e_y_axis, e_labels
   ],
   app/logic/viewdata/charts[style_chart],
   app/logic/viewdata/pipeline[naive_path, quota_path, year_end_pop_c, add_months],
@@ -321,7 +321,9 @@ prep_spread_and_shares <- function(bidding, from = as.Date("2016-01-01")) {
 #' @export
 chart_spread <- function(prep) {
   d <- prep$premiums
-  p <- d |>
+  # No e_mark_line: category-axis markLines crash echarts ("Cannot read ... 'coord'")
+  # on some Posit/browser builds and can blank every chart on the page.
+  d |>
     e_charts(label) |>
     e_line(A, name = "Cat A", symbol = "none", lineStyle = list(width = 2)) |>
     e_line(B, name = "Cat B", symbol = "none", lineStyle = list(width = 2)) |>
@@ -329,17 +331,6 @@ chart_spread <- function(prep) {
     e_color(c("#ff5c1a", "#e4e4e7", "#fb7185")) |>
     style_chart() |>
     e_datazoom(type = "inside")
-
-  # Mark policy months that exist in the series.
-  for (i in seq_len(nrow(prep$events))) {
-    lab <- format(prep$events$date[[i]], "%b %Y")
-    if (lab %in% d$label) {
-      p <- e_mark_line(p, data = list(list(xAxis = lab, name = prep$events$label[[i]])),
-                       lineStyle = list(color = "#737373", type = "dashed"),
-                       label = list(formatter = prep$events$label[[i]], color = "#a3a3a3", fontSize = 10))
-    }
-  }
-  p
 }
 
 #' @export
