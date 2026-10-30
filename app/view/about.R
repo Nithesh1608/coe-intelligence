@@ -10,22 +10,131 @@ section <- function(title, ...) {
   )
 }
 
+stat <- function(label, value) {
+  div(
+    class = "about-stat",
+    tags$span(class = "eyebrow", label),
+    tags$p(value)
+  )
+}
+
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk about-page",
-    tags$p(class = "eyebrow", "About"),
-    tags$h1("COE Intelligence"),
-    tags$p(
-      class = "lede lede--wide",
-      "Category A/B supply forecasts for dealers, importers, and fleets, plus an exposure desk ",
-      "for a locked order book. We forecast deregistrations and the quota they imply. ",
-      "We do not forecast premiums; Your risk prices book risk under simulated premium paths."
+    tags$section(
+      class = "about-hero",
+      tags$p(class = "eyebrow", "About"),
+      tags$h1("COE Intelligence"),
+      tags$p(
+        class = "lede lede--wide",
+        "A Category A/B supply desk for dealers, parallel importers, and fleets that buy certificates ",
+        "continuously — not once a decade. We forecast deregistrations and the quota they imply, with ",
+        "honest uncertainty, then translate that into cost exposure on a locked order book. ",
+        "We do not forecast premiums."
+      )
+    ),
+
+    div(
+      class = "about-stats",
+      stat("Horizon", "8–12 quarters"),
+      stat("Categories", "A and B"),
+      stat("Live model", "Elastic net"),
+      stat("Exposure", "Book & fleet")
     ),
 
     section(
-      "Data cleaning",
+      "The problem",
+      tags$p(
+        "Most COE tools serve the individual buyer. Trade buyers face a different risk. ",
+        "A dealer who quotes a COE-inclusive package is short certificates until the tender clears: ",
+        "if the premium rises between order and win, the dealer absorbs the difference. ",
+        "A fleet replacing hundreds of vehicles cares whether that cohort lands in a supply trough or a peak — ",
+        "shifting replacement by a quarter or two can move seven-figure totals."
+      ),
+      tags$p(
+        "Both need the same thing they cannot get from consumer apps: a view of ",
+        tags$strong("supply"),
+        " far enough ahead to plan against, expressed as a range rather than a single number."
+      ),
+      div(
+        class = "about-promise",
+        tags$h3("What we promise"),
+        tags$p(
+          "Project mechanical supply from registration cohorts already in the public record, ",
+          "show calibration against released quota, and price book risk under simulated premium paths — ",
+          "optionally tilted by the same supply forecast. No premium point forecast dressed up as certainty."
+        )
+      )
+    ),
+
+    section(
+      "Who it is for",
+      tags$ul(
+        class = "about-list",
+        tags$li(
+          tags$strong("Dealers and parallel importers. "),
+          "Guaranteed, capped, or rebate package deals on a forward order book. ",
+          "Your risk turns that book into expected loss, VaR / CVaR, and timing shifts."
+        ),
+        tags$li(
+          tags$strong("Fleet, leasing, and ride-hail operators. "),
+          "Quarterly A/B replacement schedules priced against simulated QP / PQP, ",
+          "with bid-new versus 5-year / 10-year renew choices."
+        ),
+        tags$li(
+          tags$strong("Not for. "),
+          "A household deciding whether to bid this fortnight. Consumer Buy / Wait signals are a different product."
+        )
+      )
+    ),
+
+    section(
+      "What you get in the app",
+      tags$ul(
+        class = "about-list",
+        tags$li(
+          tags$strong("Home. "),
+          "Released certificates versus the live elastic-net quota path, plus a fan chart with a widening uncertainty band."
+        ),
+        tags$li(
+          tags$strong("EDA. "),
+          "Cohort flow (registrations → year-10 exits), within-quarter premium swings, A/B/E spreads and volume shares, ",
+          "and a renewal-feedback explorer — the storytelling layer behind the model."
+        ),
+        tags$li(
+          tags$strong("Results. "),
+          "Out-of-sample scores versus a trailing-average baseline, category detail, and the calibrated quota mapping."
+        ),
+        tags$li(
+          tags$strong("Your risk. "),
+          "Upload or edit a dealer book / fleet schedule; settle it against block-bootstrap premium paths, ",
+          "with optional tilt from predicted quota."
+        ),
+        tags$li(
+          tags$strong("COE bot. "),
+          "Free-form Q&A against the project brief and live artefacts (NVIDIA NIM when a key is configured)."
+        )
+      )
+    ),
+
+    section(
+      "Why supply is forecastable",
+      tags$p(
+        "Every COE runs about ten years. Quota is driven largely by deregistrations; deregistrations are driven ",
+        "largely by registrations roughly a decade earlier. Those cohorts are already published. ",
+        "The next two to three years of pipeline are partly knowable today — if you present them as a distribution ",
+        "a business can plan against, not a single smoothed point."
+      ),
+      tags$p(
+        "We still refuse to claim the next clearing price. Demand, credit, and policy sit outside this desk. ",
+        "Your risk stresses premiums with history (and optional supply drift); it does not invent a premium model."
+      )
+    ),
+
+    section(
+      "Data sources and cleaning",
       tags$p(
         "Raw extracts come from LTA DataMall (bidding results, PQP, LTA deregistrations by quota category, ",
         "population by age, COE revalidations, car-cost sheets) and SingStat / data.gov.sg ",
@@ -84,7 +193,7 @@ ui <- function(id) {
         tags$em("t−1"),
         ") so the fit cannot peek at the outcome."
       ),
-      tags$p(tags$strong("Core block (both models)")),
+      tags$p(tags$strong("Core block (live elastic net)")),
       tags$ul(
         class = "about-list",
         tags$li(
@@ -121,7 +230,6 @@ ui <- function(id) {
         "it passes the full feature matrix into an elastic net and lets shrinkage decide."
       )
     ),
-
 
     section(
       "Modelling",
@@ -205,10 +313,34 @@ ui <- function(id) {
           "A quarterly A/B replacement schedule chooses bid-new vs 5y/10y renew under simulated QP/PQP, ",
           "with optional PARF and amortisation. Same supply-tilted paths, mid-quarter exercise index."
         )
+      )
+    ),
+
+    section(
+      "Scope and honesty",
+      tags$ul(
+        class = "about-list",
+        tags$li(
+          tags$strong("We forecast supply, not premiums. "),
+          "Premiums also depend on demand, credit, and policy. That limit is stated on Home and in Your risk."
+        ),
+        tags$li(
+          tags$strong("Calibration is public. "),
+          "Results shows out-of-sample error versus released quota and versus a naive trailing average."
+        ),
+        tags$li(
+          tags$strong("Known data breaks. "),
+          "A/B were redefined around EV power in May 2022; bidding was suspended Apr–Jun 2020. ",
+          "Both are handled explicitly rather than papered over."
+        ),
+        tags$li(
+          tags$strong("Offline fit. "),
+          "Models are fitted offline; the app loads processed artefacts only. It does not retrain online."
+        )
       ),
       tags$p(
         class = "footnote",
-        "DBA3702 · Cat A/B supply desk · models fitted offline; the app loads processed artefacts only."
+        "DBA3702 · Cat A/B supply desk · open LTA / SingStat data · elastic net α = 0.5, λ.1se."
       )
     )
   )
