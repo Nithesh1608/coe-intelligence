@@ -18,9 +18,8 @@ rhino::app()
 | Market | Category dynamics | Cohort flow, within-quarter premium swings, A/B spread and volume shares, supporting EDA |
 | Results | Calibration | One-step held-out scores, period totals where the model missed, 24-month recursive backtest with 80% coverage |
 | Your risk | Exposure calculator | Dealer book and fleet schedule priced on simulated premium paths, optionally tilted by the forward quota path |
+| COE bot | | Free-form Q&A via NVIDIA NIM, grounded on the project brief + live scores |
 | About | | Data, cleaning, features, model, scenarios, exposure, limits |
-
-The COE bot (`app/view/coe_bot.R`, `app/logic/chat/`) stays in the codebase but is not wired into the navigation; `app/main.R` says how to restore it.
 
 ## Rebuild everything
 

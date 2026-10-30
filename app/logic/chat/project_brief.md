@@ -3,7 +3,7 @@
 ## Product
 DBA3702 dealer/fleet **COE supply** desk (Rhino/Shiny). Forecasts Cat A/B **deregistrations** and implied **quota** 36 months ahead with bootstrap bands. Does **not** forecast premiums. **Your risk** = exposure calculator for a locked dealer book / fleet schedule (simulated premium paths, optional supply tilt from the forward quota path under a chosen scenario). Category E is out of scope.
 
-Tabs: Home, Scenarios, Market, Results, Your risk, About. (The bot is not part of the product story.)
+Tabs: Home, Scenarios, Market, Results, Your risk, COE bot, About.
 
 ## Cleaning
 Sources: LTA DataMall + SingStat/data.gov.sg. `scripts/acquire_data.R` pulls the data.gov.sg tables via httr2.
