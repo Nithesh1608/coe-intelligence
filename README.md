@@ -17,18 +17,15 @@ rhino::app()
 | EDA | Exploratory charts |
 | Results | Elastic-net deregistrations + quota outlook |
 | Your risk | Exposure calculator (dealer book + fleet) |
-| COE bot | NVIDIA NIM assistant grounded on this project |
+| COE bot | Instant desk Q&A from the project brief + held-out scores |
 | About | Cleaning, features, models, exposure |
 
-### COE bot / NVIDIA NIM
+### COE bot
 
-- **Local:** gitignored `.Renviron` with `NVIDIA_API_KEY=`… and optional `NVIDIA_NIM_MODEL=`
-  (default `deepseek-ai/deepseek-v4.1-flash`). Enable that model once on
-  [build.nvidia.com](https://build.nvidia.com).
-- **Posit Connect Cloud:** do **not** commit the key. In the published content →
-  **Settings / Advanced → Variables** → add secret `NVIDIA_API_KEY` (same value as local).
-  Optionally add `NVIDIA_NIM_MODEL`. Republish or wait for the next GitHub push if auto-publish is on.
-  The app reads `Sys.getenv("NVIDIA_API_KEY")` the same way locally and on Posit.
+Answers are built **in-app** (no remote LLM): a topic router over the fixed project brief
+plus live tables from `two_models_quota_scores.csv` / hit rates. Fast on Posit and local;
+no API key required. Optional NIM helpers remain under `app/logic/chat/nim.R` if you want
+to wire a free-form model later.
 
 ## Data
 
