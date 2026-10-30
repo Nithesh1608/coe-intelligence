@@ -17,15 +17,17 @@ rhino::app()
 | EDA | Exploratory charts |
 | Results | Elastic-net deregistrations + quota outlook |
 | Your risk | Exposure calculator (dealer book + fleet) |
-| COE bot | Instant desk Q&A from the project brief + held-out scores |
+| COE bot | Free-form Q&A via NVIDIA NIM, grounded on brief + held-out scores |
 | About | Cleaning, features, models, exposure |
 
-### COE bot
+### COE bot / NVIDIA NIM
 
-Answers are built **in-app** (no remote LLM): a topic router over the fixed project brief
-plus live tables from `two_models_quota_scores.csv` / hit rates. Fast on Posit and local;
-no API key required. Optional NIM helpers remain under `app/logic/chat/nim.R` if you want
-to wire a free-form model later.
+Free-form chat via NVIDIA NIM (`deepseek-ai/deepseek-v4.1-flash` by default). Each turn
+sends a slim system pack: `project_brief.md` + live quota/hit-rate scores. HTTP is async
+so the UI stays responsive.
+
+- **Local:** gitignored `.Renviron` with `NVIDIA_API_KEY=`… and optional `NVIDIA_NIM_MODEL=`.
+- **Posit Connect Cloud:** content **Variables** → secret `NVIDIA_API_KEY` (do not commit the key).
 
 ## Data
 

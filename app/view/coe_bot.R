@@ -3,11 +3,15 @@ box::use(
     NS, moduleServer, div, tags, tagList, HTML,
     textAreaInput, actionButton, observeEvent,
     reactiveVal, renderUI, uiOutput,
-    updateTextAreaInput
+    updateTextAreaInput, updateActionButton
   ],
+  promises[then, finally, promise_resolve],
 )
 box::use(
-  app/logic/chat/local_answers[answer_question],
+  app/logic/chat/nim[
+    nim_chat_async, nvidia_key_ok, ensure_nvidia_env, nim_model_label
+  ],
+  app/logic/chat/context[system_prompt, build_project_context],
 )
 
 `%||%` <- function(a, b) {
@@ -152,18 +156,25 @@ format_bot_text <- function(text) {
   paste(out, collapse = "")
 }
 
-bubble <- function(role, text) {
+bubble <- function(role, text, pending = FALSE) {
   cls <- if (identical(role, "user")) {
     "coe-bot-bubble coe-bot-bubble--user"
+  } else if (isTRUE(pending)) {
+    "coe-bot-bubble coe-bot-bubble--bot coe-bot-bubble--pending"
   } else {
     "coe-bot-bubble coe-bot-bubble--bot"
   }
   who <- if (identical(role, "user")) "You" else "COE bot"
-  div(
-    class = cls,
-    tags$span(class = "coe-bot-who", who),
+  body <- if (isTRUE(pending)) {
+    tags$div(
+      class = "coe-bot-pending",
+      tags$span(class = "coe-bot-pulse", `aria-hidden` = "true"),
+      tags$span("Writing a reply…")
+    )
+  } else {
     tags$div(class = "coe-bot-text", HTML(format_bot_text(text)))
-  )
+  }
+  div(class = cls, tags$span(class = "coe-bot-who", who), body)
 }
 
 #' @export
@@ -175,9 +186,9 @@ ui <- function(id) {
     tags$h1("Ask the desk"),
     tags$p(
       class = "lede lede--wide",
-      "Instant answers from this project's brief and held-out scores — supply, features, quota, exposure."
+      "Free-form Q&A grounded on this project's brief, elastic-net setup, and held-out scores."
     ),
-    tags$p(class = "coe-bot-status coe-bot-status--ok", "Local desk answers · live score tables"),
+    uiOutput(ns("status")),
     div(
       class = "coe-bot-shell",
       div(class = "coe-bot-thread", id = ns("thread_scroll"), uiOutput(ns("thread"))),
@@ -188,7 +199,7 @@ ui <- function(id) {
           label = NULL,
           rows = 2,
           width = "100%",
-          placeholder = "e.g. How is supply forecast? What do the features mean? Show held-out scores."
+          placeholder = "Ask anything about the desk — supply model, features, scores, quota, Your risk…"
         ),
         div(
           class = "coe-bot-actions",
@@ -199,7 +210,7 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "No remote model call — replies are built in-app from the brief + CSVs. Not financial advice. Enter to send."
+      "Answers from the project context pack + model. Not financial advice. Enter to send · Shift+Enter for a new line."
     ),
     tags$script(HTML(sprintf(
       "(function(){
@@ -229,35 +240,115 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
+    root <- if (!is.null(store$root)) store$root else NULL
+    ensure_nvidia_env(root)
     history <- reactiveVal(list())
+    busy <- reactiveVal(FALSE)
+    ctx <- build_project_context(store)
+    sys <- paste(system_prompt(), "\n\n", ctx, sep = "")
+
+    output$status <- renderUI({
+      ensure_nvidia_env(root)
+      if (nvidia_key_ok()) {
+        tags$p(
+          class = "coe-bot-status coe-bot-status--ok",
+          paste("Model:", nim_model_label())
+        )
+      } else {
+        tags$p(
+          class = "coe-bot-status coe-bot-status--bad",
+          "API key missing — set NVIDIA_API_KEY in .Renviron (local) or Posit Connect Cloud Variables."
+        )
+      }
+    })
 
     output$thread <- renderUI({
       msgs <- history()
       if (!length(msgs)) {
         return(div(
           class = "coe-bot-empty",
-          tags$p("Try: “How is supply forecast?”, “What do the features mean?”, or “Show the held-out scores.”")
+          tags$p("Ask how supply is forecast, what features mean, or how exposure uses predicted quota.")
         ))
       }
-      do.call(tagList, lapply(msgs, function(m) bubble(m$role, m$content %||% "")))
+      do.call(tagList, lapply(msgs, function(m) {
+        bubble(m$role, m$content %||% "", pending = isTRUE(m$pending))
+      }))
     })
 
     observeEvent(input$clear, {
+      if (isTRUE(busy())) return()
       history(list())
       updateTextAreaInput(session, "prompt", value = "")
     })
 
     observeEvent(input$send, {
+      if (isTRUE(busy())) return()
       q <- trimws(input$prompt %||% "")
       if (!nzchar(q)) return()
 
-      out <- answer_question(q, store)
+      if (!nvidia_key_ok()) {
+        history(c(history(), list(
+          list(role = "user", content = q),
+          list(
+            role = "assistant",
+            content = "API key missing — set NVIDIA_API_KEY locally (.Renviron) or as a Posit Connect Cloud variable, then restart/republish."
+          )
+        )))
+        updateTextAreaInput(session, "prompt", value = "")
+        return()
+      }
+
+      busy(TRUE)
+      updateActionButton(session, "send", label = "Writing…")
       history(c(
         history(),
         list(list(role = "user", content = q)),
-        list(list(role = "assistant", content = out$text))
+        list(list(role = "assistant", content = "", pending = TRUE))
       ))
       updateTextAreaInput(session, "prompt", value = "")
+
+      turns <- utils::tail(
+        Filter(function(m) !isTRUE(m$pending), history()),
+        6L
+      )
+      api_msgs <- c(
+        list(list(role = "system", content = sys)),
+        turns
+      )
+
+      # Async HTTP so Shiny can paint the user bubble + "Writing…" while NIM runs.
+      p <- tryCatch(
+        nim_chat_async(api_msgs, max_tokens = 1800L),
+        error = function(e) {
+          promises::promise_resolve(list(ok = FALSE, error = conditionMessage(e)))
+        }
+      )
+
+      then(
+        p,
+        onFulfilled = function(out) {
+          done <- Filter(function(m) !isTRUE(m$pending), history())
+          if (isTRUE(out$ok)) {
+            history(c(done, list(list(role = "assistant", content = out$text))))
+          } else {
+            history(c(done, list(list(
+              role = "assistant",
+              content = paste0("Request failed: ", out$error %||% "unknown error")
+            ))))
+          }
+        },
+        onRejected = function(err) {
+          done <- Filter(function(m) !isTRUE(m$pending), history())
+          history(c(done, list(list(
+            role = "assistant",
+            content = paste0("Request failed: ", conditionMessage(err))
+          ))))
+        }
+      ) |>
+        finally(function() {
+          busy(FALSE)
+          updateActionButton(session, "send", label = "Send")
+        })
     }, ignoreInit = TRUE)
   })
 }

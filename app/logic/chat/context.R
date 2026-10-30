@@ -35,7 +35,8 @@ system_prompt <- function() {
     "Never ask for or reveal API keys. Never claim you forecast premiums as the core product.",
     "FORMAT: Use GitHub-flavoured markdown. For multi-part questions, answer every part in order",
     "with ## headings. Use short paragraphs, bullet lists, and markdown tables for score grids.",
-    "Keep answers compact (aim under ~400 words unless the user asks for depth).",
+    "Free-form answers are fine — paraphrase and structure for clarity; do not invent facts.",
+    "Keep answers compact (aim under ~350 words unless the user asks for depth).",
     "Always finish the full answer — never stop mid-sentence or mid-word. Keep numbers exact.",
     sep = " "
   )

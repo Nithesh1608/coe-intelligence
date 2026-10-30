@@ -5,6 +5,7 @@ library(treesitter.r)
 
 # Phase 1 data audit. Modelling packages are added only when a model is fit.
 library(httr2)
+library(promises)
 library(jsonlite)
 library(readxl)
 library(readr)
