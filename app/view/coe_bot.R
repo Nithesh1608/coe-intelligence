@@ -3,7 +3,7 @@ box::use(
     NS, moduleServer, div, tags, tagList, HTML,
     textAreaInput, actionButton, observeEvent,
     reactiveVal, renderUI, uiOutput,
-    updateTextAreaInput, updateActionButton, req
+    updateTextAreaInput, updateActionButton
   ],
 )
 box::use(
@@ -56,7 +56,6 @@ format_bot_text <- function(text) {
       next
     }
 
-    # Markdown table
     if (grepl("^\\s*\\|", line) && i < n && is_table_sep(lines[[i + 1L]])) {
       headers <- parse_table_row(line)
       i <- i + 2L
@@ -76,7 +75,12 @@ format_bot_text <- function(text) {
         }
         paste0(
           "<tr>",
-          paste0("<td>", vapply(cells[seq_along(headers)], inline_md, character(1)), "</td>", collapse = ""),
+          paste0(
+            "<td>",
+            vapply(cells[seq_along(headers)], inline_md, character(1)),
+            "</td>",
+            collapse = ""
+          ),
           "</tr>"
         )
       }, character(1))
@@ -87,7 +91,6 @@ format_bot_text <- function(text) {
       next
     }
 
-    # Headings
     if (grepl("^###\\s+", line)) {
       out <- c(out, paste0("<h4 class=\"coe-bot-h\">", inline_md(sub("^###\\s+", "", line)), "</h4>"))
       i <- i + 1L
@@ -104,7 +107,6 @@ format_bot_text <- function(text) {
       next
     }
 
-    # Unordered list
     if (grepl("^\\s*[-*]\\s+", line)) {
       items <- character()
       while (i <= n && grepl("^\\s*[-*]\\s+", lines[[i]])) {
@@ -115,7 +117,6 @@ format_bot_text <- function(text) {
       next
     }
 
-    # Ordered list
     if (grepl("^\\s*\\d+\\.\\s+", line)) {
       items <- character()
       while (i <= n && grepl("^\\s*\\d+\\.\\s+", lines[[i]])) {
@@ -126,7 +127,6 @@ format_bot_text <- function(text) {
       next
     }
 
-    # Paragraph (merge wrapped lines until blank / block start)
     buf <- line
     i <- i + 1L
     while (
@@ -202,54 +202,26 @@ ui <- function(id) {
       class = "footnote",
       "Grounded on this project's brief and held-out scores. Not financial advice. Enter to send · Shift+Enter for a new line."
     ),
+    # Scroll + Enter only. Do not disable the Send button in JS — that blocked
+    # Shiny from receiving the click and left the UI stuck on "Writing…".
     tags$script(HTML(sprintf(
       "(function(){
         var ns='%s';
-        var locked=false;
         function scrollThread(){
           var el=document.getElementById(ns+'thread_scroll');
           if(el) el.scrollTop=el.scrollHeight;
         }
-        function setBusy(on){
-          locked=!!on;
-          var btn=document.getElementById(ns+'send');
-          var shell=document.querySelector('.coe-bot-shell');
-          if(btn){
-            btn.disabled=!!on;
-            btn.textContent=on ? 'Writing…' : 'Send';
-          }
-          if(shell) shell.classList.toggle('coe-bot-shell--busy', !!on);
-        }
-        function triggerSend(){
-          if(locked) return;
-          var ta=document.getElementById(ns+'prompt');
-          if(!ta || !(ta.value||'').trim()) return;
-          setBusy(true);
-          var btn=document.getElementById(ns+'send');
-          if(btn) btn.click();
-        }
         $(document).on('shiny:value', function(e){
-          if(e.name!==ns+'thread') return;
-          setTimeout(scrollThread, 30);
-          var hasPending=document.querySelector('#'+ns+'thread_scroll .coe-bot-bubble--pending');
-          setBusy(!!hasPending);
-        });
-        $(document).on('click', '#'+ns+'send', function(ev){
-          // Block only real user re-clicks while a reply is in flight.
-          var trusted=ev.originalEvent && ev.originalEvent.isTrusted;
-          if(locked && trusted){
-            ev.preventDefault();
-            ev.stopImmediatePropagation();
-            return false;
-          }
-          var ta=document.getElementById(ns+'prompt');
-          if(ta && (ta.value||'').trim()) setBusy(true);
+          if(e.name===ns+'thread') setTimeout(scrollThread, 40);
         });
         $(document).on('keydown', '#'+ns+'prompt', function(ev){
-          if(ev.key==='Enter' && !ev.shiftKey){
-            ev.preventDefault();
-            triggerSend();
-          }
+          if(ev.key!=='Enter' || ev.shiftKey) return;
+          ev.preventDefault();
+          var ta=ev.target;
+          if(!(ta.value||'').trim()) return;
+          var id=ns+'send';
+          var v=(window.Shiny && Shiny.shinyapp && Shiny.shinyapp.$inputValues[id]) || 0;
+          Shiny.setInputValue(id, Number(v)+1, {priority:'event'});
         });
       })();",
       ns("")
@@ -306,7 +278,6 @@ server <- function(id, store) {
       q <- trimws(input$prompt %||% "")
       if (!nzchar(q)) return()
 
-      # Lock immediately so a second Enter/click cannot enqueue another job.
       busy(TRUE)
       updateActionButton(session, "send", label = "Writing…")
 
@@ -320,16 +291,15 @@ server <- function(id, store) {
         return()
       }
 
-      prior <- c(
+      history(c(
         history(),
         list(list(role = "user", content = q)),
         list(list(role = "assistant", content = "", pending = TRUE))
-      )
-      history(prior)
+      ))
       updateTextAreaInput(session, "prompt", value = "")
 
       turns <- utils::tail(
-        Filter(function(m) !isTRUE(m$pending), prior),
+        Filter(function(m) !isTRUE(m$pending), history()),
         6L
       )
       api_msgs <- c(
@@ -337,7 +307,6 @@ server <- function(id, store) {
         turns
       )
 
-      # Paint the user bubble first; then call NIM (blocking) after flush.
       session$onFlushed(function() {
         out <- tryCatch(
           nim_chat(api_msgs, max_tokens = 2200L),
