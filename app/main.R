@@ -4,10 +4,12 @@ box::use(
 )
 box::use(
   app/logic/viewdata/store[load_store, project_root],
+  app/logic/chat/nim[ensure_nvidia_env],
   app/view/dashboard,
   app/view/forecast,
   app/view/eda,
   app/view/exposure,
+  app/view/coe_bot,
   app/view/about,
 )
 
@@ -51,6 +53,7 @@ ui <- function(id) {
     nav_panel("EDA", eda$ui(ns("eda"))),
     nav_panel("Results", forecast$ui(ns("forecast"))),
     nav_panel("Your risk", exposure$ui(ns("exposure"))),
+    nav_panel("COE bot", coe_bot$ui(ns("coe_bot"))),
     nav_panel("About", about$ui(ns("about"))),
     nav_spacer(),
     nav_item(tags$span(class = "badge-live", "Supply · exposure"))
@@ -60,11 +63,13 @@ ui <- function(id) {
 #' @export
 server <- function(id) {
   moduleServer(id, function(input, output, session) {
+    ensure_nvidia_env(project_root())
     store <- load_store()
     dashboard$server("dashboard", store)
     eda$server("eda", store)
     forecast$server("forecast", store)
     exposure$server("exposure", store)
+    coe_bot$server("coe_bot", store)
     about$server("about", store)
   })
 }

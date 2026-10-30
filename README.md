@@ -17,7 +17,12 @@ rhino::app()
 | EDA | Exploratory charts |
 | Results | Elastic-net deregistrations + quota outlook |
 | Your risk | Exposure calculator (dealer book + fleet) |
+| COE bot | NVIDIA NIM assistant grounded on this project |
 | About | Cleaning, features, models, exposure |
+
+Local NIM (gitignored `.Renviron`): set `NVIDIA_API_KEY`, optionally `NVIDIA_NIM_MODEL`
+(default `deepseek-ai/deepseek-v4.1-flash`). Open that model on [build.nvidia.com](https://build.nvidia.com)
+once and accept / Get API Key so the account can call it.
 
 ## Data
 
