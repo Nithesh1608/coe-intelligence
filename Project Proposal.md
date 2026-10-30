@@ -38,7 +38,7 @@ We regard quota.sg as validation rather than as an obstacle: its existence demon
 * **Unpriced risk:** A dealer guaranteeing package prices is taking a position on COE without measuring it. There is no tool that converts a forward order book into an expected cost with a confidence range.  
 * **No planning horizon:** Existing forecasts extend three quarters. Fleet replacement and inventory decisions are made over two to three years.  
 * **Point estimates hide the downside:** A business needs the adverse case as much as the central one. A single projected number cannot support a decision about how much exposure to carry.  
-* **Cross-category blindness:** Dealers allocate inventory across Categories A, B and E, but the categories are analysed separately. Nothing shows how demand shifts between them as the spread narrows.  
+* **Cross-category blindness:** Dealers allocate inventory across Categories A and B, but the categories are often analysed in isolation. Nothing shows how demand shifts between them as the spread narrows.  
 * **No feedback modelling:** When premiums are high, more owners renew at the Prevailing Quota Premium instead of scrapping, which suppresses future deregistrations and therefore future quota. This loop drives medium-term supply and is absent from every published forecast.
 
 ## **4\. How are we going to tackle the problem?**
@@ -49,7 +49,7 @@ Four views:
 
 1. **Supply pipeline:** Registration cohorts traced forward into expected deregistrations and therefore quota, by category, over eight to twelve quarters, presented as a distribution with uncertainty bands rather than a single line.  
 2. **Feedback and scenarios:** Renewal rate modelled as a function of premium level, so the user can see how high premiums suppress future supply. Scenario controls for policy injections and for demand shocks.  
-3. **Category dynamics:** The A/B/E spread over time, and the substitution behaviour it drives — how Category A demand migrates to B and E as the gap closes.  
+3. **Category dynamics:** The A/B spread over time, and the substitution behaviour it drives — how Category A demand migrates to B as the gap closes.  
 4. **Exposure calculator:** The user enters a forward order book or a fleet replacement schedule; the application returns expected COE cost with a confidence range, and shows how the expected cost changes if purchases are shifted by one or two quarters.
 
 ### **What data will we use, and where will we obtain it?**
@@ -69,7 +69,7 @@ Two data issues we have already identified. Categories A and B were **redefined 
 * **Fan chart** of projected quota by category over twelve quarters, with prediction intervals widening at longer horizons.  
 * **Cohort flow diagram** tracing registrations in year *t* through survival and renewal into deregistrations in year *t+10*, making the mechanics of the projection legible.  
 * **Within-quarter volatility chart** showing the maximum premium swing inside each quarter historically — the chart that quantifies the dealer's exposure problem.  
-* **Spread chart** of Cat A versus Cat B versus Cat E, annotated with policy events, with a linked view of category volume shares to show substitution.  
+* **Spread chart** of Cat A versus Cat B, annotated with policy events, with a linked view of A/B volume shares to show substitution.  
 * **Feedback loop explorer**: an interactive control on the renewal rate, showing how it propagates into supply two to three years out.  
 * **Exposure waterfall** for the user's own order book: expected cost, confidence range, and the effect of shifting timing.
 

@@ -23,7 +23,7 @@ Live model passes the **full** core matrix into elastic net (shrinkage), not a h
 - Train ≤ 2024-08; locked test ≥ 2024-09 (~24m). Production from 2018-01.
 - Live id `core_forecast` (Elastic net). Baseline `simple_average` (trailing 12m mean).
 - Quota desk: α = train median(published monthly quota / trailing-12m dereg) ≈ 0.082 A, ≈ 0.078 B. Outlook = α × D₁₂.
-- Textbook LTA ~25% of trailing 12m (10% A/B base to E) is EDA-only — not the published desk number.
+- Textbook LTA ~25% of trailing 12m deregistrations is EDA context only — the published desk uses calibrated α on A/B.
 
 ## Exposure
 Block-bootstrap premium paths; optional supply tilt with elasticity ≈ −0.22 A/B. Dealer: guaranteed/capped/rebate, VaR/CVaR. Fleet: bid-new vs 5y/10y renew.

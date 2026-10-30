@@ -14,7 +14,7 @@ box::use(
   ],
 )
 
-palette <- c(A = "#ff5c1a", B = "#e4e4e7", C = "#c8f542", D = "#fbbf24", E = "#fb7185")
+palette <- c(A = "#ff5c1a", B = "#e4e4e7")
 
 axis <- list(
   axisLine = list(show = FALSE),
@@ -134,8 +134,7 @@ spread_chart <- function(df) {
     e_charts(month) |>
     e_line(A, smooth = TRUE, symbol = "none") |>
     e_line(B, smooth = TRUE, symbol = "none") |>
-    e_line(E, smooth = TRUE, symbol = "none") |>
-    e_color(c(palette[["A"]], palette[["B"]], palette[["E"]])) |>
+    e_color(c(palette[["A"]], palette[["B"]])) |>
     style_chart() |>
     e_datazoom(type = "inside")
 }

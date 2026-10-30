@@ -54,9 +54,6 @@ cat_label <- function(code) {
   switch(as.character(code),
     A = "Category A",
     B = "Category B",
-    C = "Category C",
-    D = "Category D",
-    E = "Category E",
     as.character(code)
   )
 }

@@ -14,7 +14,7 @@ singstat_coe <- readRDS("processed/singstat_coe.rds")
 vehicle_flows <- readRDS("processed/vehicle_flows.rds")
 
 # =========================================================
-# RQ1: Monthly COE supply â€” Categories A, B and E
+# RQ1: Monthly COE supply — Categories A and B
 # Chart 1: COE supply over time
 # =========================================================
 
@@ -24,12 +24,12 @@ library(ggplot2)
 
 # 1. Select categories and check duplicates ---------------------------
 
-coe_abe <- coe_results %>%
-  filter(category %in% c("A", "B", "E"))
+coe_ab <- coe_results %>%
+  filter(category %in% c("A", "B"))
 
 stopifnot(
   !anyDuplicated(
-    coe_abe[c("month", "bidding_no", "category")]
+    coe_ab[c("month", "bidding_no", "category")]
   )
 )
 
@@ -37,7 +37,7 @@ stopifnot(
 # Only sum months with both bidding exercises available.
 # Incomplete months remain NA and appear as gaps.
 
-coe_monthly <- coe_abe %>%
+coe_monthly <- coe_ab %>%
   group_by(category, month) %>%
   summarise(
     quota = if (
@@ -58,7 +58,7 @@ coe_monthly <- coe_abe %>%
   mutate(
     category = factor(
       category,
-      levels = c("A", "B", "E")
+      levels = c("A", "B")
     )
   )
 
@@ -104,7 +104,6 @@ p_rq1 <- ggplot(
       category = c(
         A = "Category A",
         B = "Category B",
-        E = "Category E"
       )
     )
   ) +
@@ -124,7 +123,7 @@ p_rq1 <- ggplot(
 
   labs(
     title = "COE supply over time",
-    subtitle = "Monthly auction quotas for Categories A, B and E",
+    subtitle = "Monthly auction quotas for Categories A and B",
     x = NULL,
     y = "Number of COEs",
     caption = paste(
@@ -210,7 +209,7 @@ dir.create(
 )
 
 ggsave(
-  filename = "outputs/rq1/monthly_quota_ABE.png",
+  filename = "outputs/rq1/monthly_quota_AB.png",
   plot = p_rq1,
   width = 12,
   height = 10,
@@ -220,7 +219,7 @@ ggsave(
 
 write.csv(
   coe_monthly,
-  "outputs/rq1/monthly_quota_ABE.csv",
+  "outputs/rq1/monthly_quota_AB.csv",
   row.names = FALSE
 )
 
@@ -236,7 +235,7 @@ library(ggplot2)
 # 1. Calculate trailing 12-month standard deviation -------------------
 
 coe_volatility <- coe_monthly %>%
-  filter(category %in% c("A", "B", "E")) %>%
+  filter(category %in% c("A", "B")) %>%
   select(category, month, quota) %>%
 
   # Ensure each observation represents one calendar month
@@ -277,13 +276,13 @@ coe_volatility <- coe_monthly %>%
   mutate(
     category = factor(
       category,
-      levels = c("A", "B", "E")
+      levels = c("A", "B")
     )
   )
 
 # 2. Define a shared y-axis range -------------------------------------
 # Round the upper limit up to the next 100 COEs.
-# This scale is shared across A, B and E within this chart.
+# Shared A/B scale.
 
 valid_sd <- coe_volatility$rolling_sd[
   is.finite(coe_volatility$rolling_sd)
@@ -333,7 +332,6 @@ p_volatility <- ggplot(
       category = c(
         A = "Category A",
         B = "Category B",
-        E = "Category E"
       )
     )
   ) +
@@ -356,7 +354,7 @@ p_volatility <- ggplot(
 
     subtitle = paste(
       "Trailing 12-month standard deviation",
-      "for Categories A, B and E"
+      "for Categories A and B"
     ),
 
     x = NULL,
@@ -450,7 +448,7 @@ dir.create(
 )
 
 ggsave(
-  filename = "outputs/chart2/coe_volatility_ABE.png",
+  filename = "outputs/chart2/coe_volatility_AB.png",
   plot = p_volatility,
   width = 12,
   height = 10,
@@ -460,7 +458,7 @@ ggsave(
 
 write.csv(
   coe_volatility,
-  "outputs/chart2/coe_volatility_ABE.csv",
+  "outputs/chart2/coe_volatility_AB.csv",
   row.names = FALSE
 )
 
@@ -480,9 +478,9 @@ stopifnot(
   inherits(dereg_lta$month, "Date")
 )
 
-# 1. Construct monthly quotas for A, B and E --------------------------
+# 1. Construct monthly quotas for A and B --------------------------
 rq2_monthly <- coe_results %>%
-  filter(category %in% c("A", "B", "E")) %>%
+  filter(category %in% c("A", "B")) %>%
   group_by(category, month) %>%
   summarise(
     quota = if (setequal(bidding_no, c(1, 2)) && !anyNA(quota))
@@ -509,18 +507,17 @@ rq2_quota <- rq2_monthly %>%
 
 # 3. Prepare monthly deregistration drivers ---------------------------
 # A -> A deregistrations; B -> B deregistrations.
-# E -> combined A+B+C deregistrations (a proxy, not an E series).
 dereg_wide <- dereg_lta %>%
-  filter(category %in% c("A", "B", "C")) %>%
+  filter(category %in% c("A", "B")) %>%
   select(month, category, deregistrations_lta) %>%
   complete(category, month = seq(min(month), max(month), by = "month")) %>%
   pivot_wider(names_from = category, values_from = deregistrations_lta)
 
-stopifnot(all(c("A", "B", "C") %in% names(dereg_wide)))
+stopifnot(all(c("A", "B") %in% names(dereg_wide)))
 
 rq2_drivers <- dereg_wide %>%
-  transmute(month, A, B, E = A + B + C) %>%
-  pivot_longer(c(A, B, E), names_to = "category", values_to = "dereg") %>%
+  transmute(month, A, B) %>%
+  pivot_longer(c(A, B), names_to = "category", values_to = "dereg") %>%
   arrange(category, month) %>%
   group_by(category) %>%
   mutate(
@@ -541,14 +538,14 @@ rq2_excluded <- rq2_all %>%
 
 rq2_data <- rq2_all %>%
   filter(!is.na(quarterly_quota), !is.na(deregistrations_12m)) %>%
-  mutate(category = factor(category, levels = c("A", "B", "E")))
+  mutate(category = factor(category, levels = c("A", "B")))
 
 print(rq2_excluded)
 print(rq2_data)
 
 # 5. Prepare and render aligned charts --------------------------------
 rq2_plot_data <- rq2_data %>%
-  mutate(category = factor(category, levels = c("A", "B", "E"))) %>%
+  mutate(category = factor(category, levels = c("A", "B"))) %>%
   arrange(category, quota_start)
 
 # Each row is a matched historical window and subsequent quota period.
@@ -564,20 +561,17 @@ rq2_long <- rq2_plot_data %>%
 panel_levels <- c(
   "A_deregistrations_12m", "A_quarterly_quota",
   "B_deregistrations_12m", "B_quarterly_quota",
-  "E_deregistrations_12m", "E_quarterly_quota"
 )
 panel_labels <- c(
   "A_deregistrations_12m" = "A | Historical deregistrations (12 months)",
   "A_quarterly_quota" = "A | Subsequent COE quota (3 months)",
   "B_deregistrations_12m" = "B | Historical deregistrations (12 months)",
   "B_quarterly_quota" = "B | Subsequent COE quota (3 months)",
-  "E_deregistrations_12m" = "E | Historical A+B+C deregistrations (proxy)",
-  "E_quarterly_quota" = "E | Subsequent COE quota (3 months)"
 )
 rq2_long <- rq2_long %>%
   mutate(panel = factor(panel, levels = panel_levels))
 
-# Display one date label every two quota periods on all six panels.
+# Display one date label every two quota periods on all four panels.
 periods <- sort(unique(rq2_plot_data$quota_start))
 date_breaks <- periods[seq(1, length(periods), by = 2)]
 
@@ -622,7 +616,7 @@ p_rq2_aligned <- ggplot(rq2_long, aes(quota_start, count, colour = metric)) +
       "Orange: actual counts in the relevant historical 12-month window. Blue: actual quota in the subsequent 3 months.",
       "Panel scales differ to reveal movements; compare direction and timing, not line heights or apparent slopes.",
       "For example, February 2023 pairs January-December 2022 deregistrations with February-April 2023 quota.",
-      "Category E uses pooled A+B+C counts as a proxy. Correlations are descriptive; overlapping windows and common trends matter.",
+      "Correlations are descriptive; overlapping windows and common trends matter.",
       "Source: supplied coe_results and dereg_lta datasets. Complete matched periods only.",
       sep = "\n")) +
   theme_minimal(base_size = 12) +
@@ -663,7 +657,7 @@ library(ggplot2)
 
 # 1. Prepare monthly quotas -------------------------------------------
 season_monthly <- coe_results %>%
-  filter(category %in% c("A", "B", "E"))
+  filter(category %in% c("A", "B"))
 
 stopifnot(
   !anyDuplicated(
@@ -690,13 +684,13 @@ season_monthly <- season_monthly %>%
       levels = 1:12,
       labels = month.abb
     ),
-    category = factor(category, levels = c("A", "B", "E"))
+    category = factor(category, levels = c("A", "B"))
   )
 
-# 2. Keep years complete across all three categories ------------------
+# 2. Keep years complete across A and B ------------------
 season_data <- season_monthly %>%
   group_by(year) %>%
-  filter(n() == 36L, !anyNA(quota)) %>%
+  filter(n() == 24L, !anyNA(quota)) %>%
   ungroup() %>%
   group_by(category, year) %>%
   mutate(
@@ -743,7 +737,6 @@ p_seasonality <- ggplot(
       category = c(
         A = "Category A",
         B = "Category B",
-        E = "Category E"
       )
     )
   ) +
@@ -805,7 +798,7 @@ dir.create(
 )
 
 ggsave(
-  "outputs/rq3/seasonality_ABE.png",
+  "outputs/rq3/seasonality_AB.png",
   plot = p_seasonality,
   width = 12,
   height = 10,
@@ -822,7 +815,7 @@ library(ggplot2)
 
 # 1. Prepare monthly quotas -------------------------------------------
 cycle_monthly <- coe_results %>%
-  filter(category %in% c("A", "B", "E"))
+  filter(category %in% c("A", "B"))
 
 stopifnot(
   !anyDuplicated(
@@ -844,14 +837,14 @@ cycle_monthly <- cycle_monthly %>%
   ) %>%
   mutate(
     year = as.integer(format(month, "%Y")),
-    category = factor(category, levels = c("A", "B", "E"))
+    category = factor(category, levels = c("A", "B"))
   )
 
-# 2. Identify years complete across all three categories --------------
+# 2. Identify years complete across A and B --------------
 complete_years <- cycle_monthly %>%
   group_by(year) %>%
   summarise(
-    usable = n() == 36L && !anyNA(quota),
+    usable = n() == 24L && !anyNA(quota),
     .groups = "drop"
   ) %>%
   filter(usable) %>%
@@ -905,7 +898,6 @@ p_long_term <- ggplot(
       category = c(
         A = "Category A",
         B = "Category B",
-        E = "Category E"
       )
     )
   ) +
@@ -969,7 +961,7 @@ dir.create(
 )
 
 ggsave(
-  "outputs/rq3/long_term_ABE.png",
+  "outputs/rq3/long_term_AB.png",
   plot = p_long_term,
   width = 12,
   height = 10,
@@ -979,14 +971,13 @@ ggsave(
 
 write.csv(
   annual_supply,
-  "outputs/rq3/annual_supply_ABE.csv",
+  "outputs/rq3/annual_supply_AB.csv",
   row.names = FALSE
 )
 # =========================================================
 # RQ4: COE renewal activity over time
 # =========================================================
 # Uses existing renewal_rate object. No import or file-selection prompt.
-# E is unavailable in the supplied renewal dataset; do not create an E proxy.
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -1044,7 +1035,7 @@ p_renewal <- ggplot(renewal_plot_data, aes(month, renewal_share)) +
     caption = paste(
       "Proxy = revalidations / (revalidations + deregistrations). Both categories share the same scale.",
       "This is not a verified renewal rate among vehicles reaching COE expiry, or a forecast of future deregistrations.",
-      "Category E is unavailable. Source: supplied renewal_rate dataset; January 2015-July 2026.",
+      "Source: supplied renewal_rate dataset; January 2015-July 2026.",
       sep = "\n")) +
   theme_minimal(base_size = 12) +
   theme(
@@ -1084,7 +1075,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-market_raw <- coe_results %>% filter(category %in% c("A", "B", "E"))
+market_raw <- coe_results %>% filter(category %in% c("A", "B"))
 stopifnot(!anyDuplicated(market_raw[c("month", "bidding_no", "category")]))
 market_monthly <- market_raw %>%
   group_by(category, month) %>%
@@ -1100,14 +1091,12 @@ market_monthly <- market_raw %>%
 market_long <- market_monthly %>%
   pivot_longer(c(quota, premium), names_to = "metric", values_to = "value") %>%
   mutate(panel = factor(paste(category, metric, sep = "_"), levels = c(
-        "A_quota", "A_premium", "B_quota", "B_premium", "E_quota", "E_premium")))
+        "A_quota", "A_premium", "B_quota", "B_premium", )))
 panel_labels <- c(
   A_quota = "Category A | Monthly quota (COEs)",
   A_premium = "Category A | Average premium (S$)",
   B_quota = "Category B | Monthly quota (COEs)",
-  B_premium = "Category B | Average premium (S$)",
-  E_quota = "Category E | Monthly quota (COEs)",
-  E_premium = "Category E | Average premium (S$)")
+  B_premium = "Category B | Average premium (S$)",)
 years <- as.integer(format(range(market_monthly$month), "%Y"))
 
 p_supply_premium <- ggplot(market_long, aes(month, value, colour = metric)) +
@@ -1125,7 +1114,7 @@ p_supply_premium <- ggplot(market_long, aes(month, value, colour = metric)) +
     labels = scales::label_comma(),
     breaks = scales::breaks_pretty(n = 4)) +
   labs(title = "COE supply and premiums over time",
-    subtitle = "Monthly quotas and average auction premiums for Categories A, B and E",
+    subtitle = "Monthly quotas and average auction premiums for Categories A and B",
     x = NULL, y = NULL,
     caption = paste(
       "Quota: sum of the two exercises. Premium: simple average of their clearing premiums (not PQP or a transaction-weighted price).",
@@ -1157,7 +1146,7 @@ exposure_scenarios <- expand_grid(uncovered_vehicles = c(10, 50, 100),
   mutate(additional_procurement_cost_sgd = uncovered_vehicles * premium_increase_sgd)
 
 dir.create("outputs/rq5", recursive = TRUE, showWarnings = FALSE)
-ggsave("outputs/rq5/supply_vs_premium_ABE.png", p_supply_premium,
+ggsave("outputs/rq5/supply_vs_premium_AB.png", p_supply_premium,
   width = 14, height = 10, dpi = 300, bg = "white")
 write.csv(market_monthly, "outputs/rq5/market_monthly.csv", row.names = FALSE)
 write.csv(exposure_scenarios,
@@ -1211,7 +1200,7 @@ p_vehicle_age <- ggplot(car_age_latest, aes(age_label, population, fill = cohort
     subtitle = paste("Latest complete snapshot:", format(snapshot_date, "%B %Y")),
     x = "Vehicle age (years)", y = "Number of cars",
     caption = paste(
-      "The supplied data groups cars as A+B; separate A, B and E age profiles are unavailable.",
+      "The supplied data groups cars as A+B; separate A/B age profiles are unavailable.",
       "Highlighted cohorts are ages 8 to under 10. They are not guaranteed future deregistrations or COE supply.",
       "Vehicle age is not remaining COE validity. Renewals and early deregistration affect timing. The 20+ bin is open-ended.",
       "Source: supplied pop_by_age dataset. One snapshot is used; monthly populations are not summed.",

@@ -82,7 +82,7 @@ ui <- function(id) {
     tags$h2("See the supply pipeline before you price the book"),
     tags$p(
       class = "lede lede--wide",
-      "Cohort timing, within-quarter premium swings, A/B/E substitution, and the renewal feedback loop - ",
+      "Cohort timing, within-quarter premium swings, A/B substitution, and the renewal feedback loop ? ",
       "the views a dealer or fleet desk needs before locking packages or planning replacements."
     ),
 
@@ -96,7 +96,7 @@ ui <- function(id) {
       list(
         tags$span(tags$strong("Registered to due - "), "the cohort that reaches the year-10 decision."),
         tags$span(tags$strong("Renewed (PQP) - "), "owners who pay to keep the car; that suppresses near-term scrap."),
-        tags$span(tags$strong("Into quota - "), "how deregistrations feed Categories A/B and the open E pool.")
+        tags$span(tags$strong("Into quota - "), "how deregistrations feed Categories A and B replacement quota.")
       ),
       controls = selectInput(
         ns("cohort_year"), "Exit year (year-10 decision)",
@@ -139,27 +139,27 @@ ui <- function(id) {
 
     viz_block(
       3, "Category mix",
-      "A / B / E spread and volume shares",
+      "A / B spread and volume shares",
       paste(
-        "Inventory is allocated across A, B and E. When the A-B gap narrows, demand can migrate.",
-        "Premiums show the spread; certificate shares show whether the supply mix moved with it."
+        "This desk covers Categories A and B only. When the A?B premium gap narrows, demand can migrate between them.",
+        "Premiums show the spread; certificate shares show whether the A/B supply mix moved with it."
       ),
       list(
-        tags$span(tags$strong("Premium lines - "), "Cat A, B, and open Cat E clearing prices."),
+        tags$span(tags$strong("Premium lines - "), "Cat A and Cat B clearing prices."),
         tags$span(tags$strong("Markers - "), "COVID bidding pause (2020) and the May 2022 A/B redefinition."),
-        tags$span(tags$strong("Share areas - "), "monthly mix of certificate volume across A/B/E.")
+        tags$span(tags$strong("Share areas - "), "monthly mix of certificate volume between A and B.")
       ),
       charts = div(
         class = "timing-compare",
         style = "grid-template-columns: 1fr;",
         card(
           class = "desk-card",
-          card_header("Premiums - Cat A vs B vs E"),
+          card_header("Premiums - Cat A vs Cat B"),
           card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("spread"), height = "360px"))
         ),
         card(
           class = "desk-card",
-          card_header("Certificate volume shares"),
+          card_header("Certificate volume shares (A vs B)"),
           card_body(class = "chart-frame", echarts4rOutput(ns("shares"), height = "320px"))
         )
       )
@@ -223,7 +223,7 @@ ui <- function(id) {
       1, "How much supply is there?",
       "Certificate quotas swing for years - they are not a smooth line",
       paste(
-        "Monthly auction quotas for Categories A, B and E show long waves and deep troughs.",
+        "Monthly auction quotas for Categories A and B show long waves and deep troughs.",
         "Pricing packages against average supply is pricing against a fiction."
       ),
       c("01_COE_supply_over_time.png", "02_COE_supply_volatility.png"),

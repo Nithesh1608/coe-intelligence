@@ -147,9 +147,8 @@ prep_cohort_flow <- function(store, exit_year = NULL) {
   dereg <- as.numeric(row$deregistrations_lta[[1]])
   # Attrition / early exits between registration and the year-10 decision.
   lost <- max(0, regs - due)
-  # Quota identity (approx): 90% of 25% of A+B deregistrations land in A/B quota; 10% to E.
-  into_ab <- 0.9 * 0.25 * dereg
-  into_e <- 0.1 * 0.25 * dereg
+  # Replacement identity for the A/B desk: ~25% of trailing deregistrations.
+  into_ab <- 0.25 * dereg
 
   links <- data.frame(
     source = c(
@@ -157,7 +156,6 @@ prep_cohort_flow <- function(store, exit_year = NULL) {
       sprintf("Registered %s", reg_year),
       sprintf("Due in %s", exit_year),
       sprintf("Due in %s", exit_year),
-      "Deregistered",
       "Deregistered"
     ),
     target = c(
@@ -165,10 +163,9 @@ prep_cohort_flow <- function(store, exit_year = NULL) {
       "Left earlier / other",
       "Renewed (PQP)",
       "Deregistered",
-      "Cat A/B quota",
-      "Cat E pool"
+      "Cat A/B quota"
     ),
-    value = c(due, lost, renewed, dereg, into_ab, into_e),
+    value = c(due, lost, renewed, dereg, into_ab),
     stringsAsFactors = FALSE
   )
   links <- links[links$value > 0 & is.finite(links$value), ]
@@ -216,16 +213,14 @@ chart_cohort_flow <- function(prep) {
       sprintf("Due in %s", prep$exit_year),
       "Renewed (PQP)",
       "Deregistered",
-      "Into Cat A/B quota",
-      "Into Cat E pool"
+      "Into Cat A/B quota"
     ),
     value = c(
       prep$due + max(0, sum(prep$links$value[prep$links$target == "Left earlier / other"], na.rm = TRUE)),
       prep$due,
       prep$renewed,
       prep$dereg,
-      sum(prep$links$value[prep$links$target == "Cat A/B quota"], na.rm = TRUE),
-      sum(prep$links$value[prep$links$target == "Cat E pool"], na.rm = TRUE)
+      sum(prep$links$value[prep$links$target == "Cat A/B quota"], na.rm = TRUE)
     ),
     stringsAsFactors = FALSE
   )
@@ -276,7 +271,7 @@ chart_within_quarter_swing <- function(prep) {
 
 # ---- 4 Spread + volume shares -----------------------------------------------
 
-#' Policy markers for A/B/E premium history.
+#' Policy markers for A/B premium history.
 #' @export
 policy_events <- function() {
   data.frame(
@@ -288,7 +283,7 @@ policy_events <- function() {
 
 #' @export
 prep_spread_and_shares <- function(bidding, from = as.Date("2016-01-01")) {
-  b <- bidding[bidding$category %in% c("A", "B", "E") & !is.na(bidding$premium), ]
+  b <- bidding[bidding$category %in% c("A", "B") & !is.na(bidding$premium), ]
   b$month <- as.Date(b$month)
   b <- b[b$month >= as.Date(from), ]
   if (!nrow(b)) return(NULL)
@@ -298,7 +293,7 @@ prep_spread_and_shares <- function(bidding, from = as.Date("2016-01-01")) {
     idvar = "month", timevar = "category", direction = "wide"
   )
   names(prem) <- gsub("premium.", "", names(prem), fixed = TRUE)
-  for (nm in c("A", "B", "E")) if (!nm %in% names(prem)) prem[[nm]] <- NA_real_
+  for (nm in c("A", "B")) if (!nm %in% names(prem)) prem[[nm]] <- NA_real_
   prem <- prem[order(prem$month), ]
   prem$label <- format(prem$month, "%b %Y")
   prem$spread_ab <- prem$B - prem$A
@@ -306,12 +301,11 @@ prep_spread_and_shares <- function(bidding, from = as.Date("2016-01-01")) {
   q <- b[!is.na(b$quota), c("month", "category", "quota")]
   qw <- stats::reshape(q, idvar = "month", timevar = "category", direction = "wide")
   names(qw) <- gsub("quota.", "", names(qw), fixed = TRUE)
-  for (nm in c("A", "B", "E")) if (!nm %in% names(qw)) qw[[nm]] <- 0
-  qw$total <- rowSums(qw[, c("A", "B", "E")], na.rm = TRUE)
+  for (nm in c("A", "B")) if (!nm %in% names(qw)) qw[[nm]] <- 0
+  qw$total <- rowSums(qw[, c("A", "B")], na.rm = TRUE)
   qw <- qw[qw$total > 0, ]
   qw$share_A <- 100 * qw$A / qw$total
   qw$share_B <- 100 * qw$B / qw$total
-  qw$share_E <- 100 * qw$E / qw$total
   qw <- qw[order(qw$month), ]
   qw$label <- format(qw$month, "%b %Y")
 
@@ -327,8 +321,7 @@ chart_spread <- function(prep) {
     e_charts(label) |>
     e_line(A, name = "Cat A", symbol = "none", lineStyle = list(width = 2)) |>
     e_line(B, name = "Cat B", symbol = "none", lineStyle = list(width = 2)) |>
-    e_line(E, name = "Cat E", symbol = "none", lineStyle = list(width = 1.8, type = "dashed")) |>
-    e_color(c("#ff5c1a", "#e4e4e7", "#fb7185")) |>
+    e_color(c("#ff5c1a", "#e4e4e7")) |>
     style_chart() |>
     e_datazoom(type = "inside")
 }
@@ -339,8 +332,7 @@ chart_volume_shares <- function(prep) {
     e_charts(label) |>
     e_area(share_A, name = "Cat A %", stack = "share", smooth = TRUE) |>
     e_area(share_B, name = "Cat B %", stack = "share", smooth = TRUE) |>
-    e_area(share_E, name = "Cat E %", stack = "share", smooth = TRUE) |>
-    e_color(c("#ff5c1a", "#a3a3a3", "#fb7185")) |>
+    e_color(c("#ff5c1a", "#a3a3a3")) |>
     style_chart() |>
     e_datazoom(type = "inside")
 }

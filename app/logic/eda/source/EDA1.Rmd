@@ -239,7 +239,7 @@ There are `r n0(aged_7_10)` cars aged 7 to 10. They will face the year-10 decisi
 
 **How to read the chart.** Each bar is one quota quarter. Grey is what LTA's 25% rule gives. Blue is extra COEs LTA chose to add, and red is COEs it held back. Purple marks the quarter the new rule started; yellow marks quarters when LTA added extra COEs.
 
-**What changed from the first version.** The title states the share of COEs from LTA's own decisions. The 10% Cat E assumption is stated, and a table shows the result holds at 5% and 15%.
+**What changed from the first version.** The title states the share of COEs from LTA's own decisions. The open-category reserve assumption (10% of the replacement base) is stated, and a table shows the result holds at 5% and 15%.
 
 ```{r quota-rule, fig.height = 8.5, fig.width = 12}
 actual <- coe |>
@@ -315,21 +315,21 @@ p_rule <- ggplot() +
   labs(title = paste0("Since 2023, ", pc(extra_ab_share), " of Cat A and B COEs came from LTA's decisions, not its formula"),
        subtitle = "Each bar is one quota quarter. Grey is what the 25% rule gives; blue is extra LTA added; red is COEs held back.",
        x = NULL, y = "COEs in the quarter", fill = NULL,
-       caption = src("LTA COE bidding results and deregistrations. Assumes 10% of deregistrations go to Cat E")) +
+       caption = src("LTA COE bidding results and deregistrations. Assumes a 10% open-category reserve on the replacement base")) +
   theme_coe +
   theme(strip.text = element_text(face = "bold", size = 13, hjust = 0),
         panel.grid.major.x = element_blank(), axis.text.x = element_text(size = 9))
 p_rule
 
-# Sensitivity: does the conclusion depend on the Cat E share?
+# Sensitivity: does the conclusion depend on the open-category reserve?
 sens <- lapply(c(0.05, 0.10, 0.15), function(s) {
   since2023 |>
     mutate(extra_s = actual - (1 - s) * 0.25 * last12) |>
-    summarise(`Cat E share assumed` = pc(s),
+    summarise(`Open-category reserve` = pc(s),
               `Extra COEs, Cat A + B` = n0(sum(extra_s)),
               `Share of all COEs offered` = pc(sum(extra_s) / sum(actual)))
 }) |> bind_rows()
-knitr::kable(sens, caption = "Sensitivity of LTA's extra COEs to the Cat E share")
+knitr::kable(sens, caption = "Sensitivity of LTA's extra COEs to the open-category reserve")
 ```
 
 Since February 2023, LTA has offered `r n0(sum(extra_tot$offered))` Cat A and B COEs, of which `r n0(sum(extra_tot$extra))` (`r pc(extra_ab_share)`) were above what its 25% rule gives. The extra comes in steps that line up with announced policies: cut-and-fill from May 2023, and the 20,000 additional COEs from February 2025.

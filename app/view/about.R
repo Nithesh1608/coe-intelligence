@@ -100,7 +100,7 @@ ui <- function(id) {
         ),
         tags$li(
           tags$strong("EDA. "),
-          "Cohort flow (registrations → year-10 exits), within-quarter premium swings, A/B/E spreads and volume shares, ",
+          "Cohort flow (registrations → year-10 exits), within-quarter premium swings, A/B spreads and volume shares, ",
           "and a renewal-feedback explorer — the storytelling layer behind the model."
         ),
         tags$li(
@@ -259,12 +259,11 @@ ui <- function(id) {
         ),
         tags$li(
           tags$strong("Quota mapping. "),
-          "Textbook LTA replacement is roughly a quarter of trailing 12-month deregistrations, with 10% of A/B ",
-          "base shared into Cat E. The desk does not publish that identity raw. Instead we calibrate a category-specific ",
-          "scale ",
+          "Textbook LTA replacement is roughly a quarter of trailing 12-month deregistrations. ",
+          "This desk covers Categories A and B only, and calibrates a category-specific scale ",
           tags$code("α"),
           " as the train-era median of ",
-          tags$em("published monthly quota / trailing-12m deregistrations"),
+          tags$em("published monthly A/B quota / trailing-12m deregistrations"),
           " (~0.082 for A, ~0.078 for B). Outlook quota = ",
           tags$code("α × D₁₂"),
           " where ",

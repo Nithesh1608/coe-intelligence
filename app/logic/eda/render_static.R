@@ -1,20 +1,32 @@
-# Render EDA 1 ggplot charts into app/static/eda/ (original light theme).
-setwd("C:/COE Intelligence")
+# Regenerate Cat A/B static EDA PNGs into app/static/eda/.
+# Source notebooks: app/logic/eda/source/EDA1.Rmd and EDA2.R
+# Run from repo root: source("app/logic/eda/render_static.R")
+
+root <- if (file.exists("rhino.yml")) {
+  normalizePath(".", winslash = "/", mustWork = TRUE)
+} else if (file.exists("../../rhino.yml")) {
+  normalizePath("../..", winslash = "/", mustWork = TRUE)
+} else {
+  normalizePath("C:/COE Intelligence", winslash = "/", mustWork = TRUE)
+}
+setwd(root)
+
 suppressPackageStartupMessages({
   library(dplyr); library(tidyr); library(lubridate); library(readr)
   library(ggplot2); library(scales)
 })
 
-out_dir <- "app/static/eda"
+out_dir <- file.path(root, "app/static/eda")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-data_dir <- "data/processed/"
+data_dir <- file.path(root, "data", "processed")
+rds <- function(name) read_rds(file.path(data_dir, name))
 
-coe      <- read_rds(paste0(data_dir, "coe_results.rds"))
-singstat <- read_rds(paste0(data_dir, "singstat_coe.rds"))
-dereg    <- read_rds(paste0(data_dir, "dereg_lta.rds"))
-reval    <- read_rds(paste0(data_dir, "revalidation.rds"))
-age      <- read_rds(paste0(data_dir, "pop_by_age.rds"))
-pqp      <- read_rds(paste0(data_dir, "pqp.rds"))
+coe      <- rds("coe_results.rds")
+singstat <- rds("singstat_coe.rds")
+dereg    <- rds("dereg_lta.rds")
+reval    <- rds("revalidation.rds")
+age      <- rds("pop_by_age.rds")
+pqp      <- rds("pqp.rds")
 
 cat_colours <- c(A = "#1f77b4", B = "#d6404e")
 cat_labels  <- c(A = "Cat A (smaller cars)", B = "Cat B (bigger cars)")
@@ -147,12 +159,13 @@ last12 <- dereg |>
   ungroup() |>
   mutate(q_start = month %m+% months(2)) |>
   select(q_start, category, last12)
-e_share <- 0.10
+# A/B formula share of the replacement base (open-category reserve kept implicit).
+ab_formula_share <- 0.90
 since2023 <- actual |>
   inner_join(last12, by = c("q_start", "category")) |>
   filter(q_start >= as.Date("2023-02-01")) |>
   mutate(
-    rule = (1 - e_share) * 0.25 * last12,
+    rule = ab_formula_share * 0.25 * last12,
     extra = actual - rule,
     q_label = ifelse(month(q_start) == 11,
                      paste0("Nov ", year(q_start), "-\nJan ", year(q_start) + 1),
@@ -343,3 +356,267 @@ p_supply <- ggplot(qd, aes(quota_change, premium_change, colour = category)) +
 save_p(p_supply, "e1_06_supply_price.png", 11, 6.5)
 
 cat("EDA1 PNGs done\n")
+
+# ---- EDA2 story panels (Cat A/B only) → numbered app assets ----------------
+
+theme_eda2 <- theme_minimal(base_size = 12, base_family = "sans") +
+  theme(
+    plot.background = element_rect(fill = "white", colour = NA),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(colour = "#E5EAF0", linewidth = 0.3),
+    plot.title = element_text(size = 20, face = "bold", colour = "#172B42"),
+    plot.subtitle = element_text(colour = "#52657A", margin = margin(b = 14)),
+    plot.title.position = "plot",
+    strip.background = element_rect(fill = "#F1F5F9", colour = NA),
+    strip.text = element_text(size = 11, face = "bold", colour = "#172B42", hjust = 0),
+    axis.text = element_text(size = 10, colour = "#52657A"),
+    axis.title = element_text(colour = "#52657A"),
+    panel.spacing = grid::unit(1.2, "lines"),
+    plot.caption = element_text(hjust = 0, size = 9, colour = "#52657A", margin = margin(t = 10)),
+    plot.margin = margin(16, 20, 14, 16)
+  )
+lab_ab <- c(A = "Category A", B = "Category B")
+
+coe_monthly <- coe |>
+  filter(category %in% c("A", "B")) |>
+  group_by(category, month) |>
+  summarise(
+    quota = if (n_distinct(bidding_no) == 2L && !anyNA(quota)) sum(quota) else NA_real_,
+    premium = if (n_distinct(bidding_no) == 2L && !anyNA(premium)) mean(premium) else NA_real_,
+    .groups = "drop"
+  ) |>
+  complete(category, month = seq(min(month), max(month), by = "month")) |>
+  arrange(category, month) |>
+  mutate(category = factor(category, levels = c("A", "B")))
+
+y_max <- ceiling(max(coe_monthly$quota, na.rm = TRUE) / 1000) * 1000
+year_breaks <- as.Date(paste0(
+  seq(as.integer(format(min(coe_monthly$month), "%Y")),
+      as.integer(format(max(coe_monthly$month), "%Y")), by = 2),
+  "-01-01"
+))
+
+p_supply_time <- ggplot(coe_monthly, aes(month, quota)) +
+  geom_line(colour = "#176B87", linewidth = 0.85, na.rm = TRUE) +
+  facet_wrap(~ category, ncol = 1, scales = "fixed", labeller = labeller(category = lab_ab)) +
+  scale_y_continuous(limits = c(0, y_max), labels = label_comma(), expand = expansion(mult = c(0, 0.03))) +
+  scale_x_date(breaks = year_breaks, date_labels = "%Y") +
+  labs(
+    title = "COE supply over time",
+    subtitle = "Monthly auction quotas for Categories A and B",
+    x = NULL, y = "Number of COEs"
+  ) + theme_eda2
+save_p(p_supply_time, "01_COE_supply_over_time.png", 12, 8)
+
+coe_vol <- coe_monthly |>
+  group_by(category) |>
+  mutate(
+    rolling_sd = vapply(seq_along(quota), function(i) {
+      if (i < 12L) return(NA_real_)
+      window <- quota[(i - 11L):i]
+      if (anyNA(window)) return(NA_real_)
+      stats::sd(window)
+    }, numeric(1))
+  ) |>
+  ungroup()
+sd_y_max <- max(100, ceiling(max(coe_vol$rolling_sd, na.rm = TRUE) / 100) * 100)
+p_vol <- ggplot(coe_vol, aes(month, rolling_sd)) +
+  geom_line(colour = "#176B87", linewidth = 0.85, na.rm = TRUE) +
+  facet_wrap(~ category, ncol = 1, scales = "fixed", labeller = labeller(category = lab_ab)) +
+  scale_y_continuous(limits = c(0, sd_y_max), labels = label_comma()) +
+  scale_x_date(breaks = year_breaks, date_labels = "%Y") +
+  labs(
+    title = "COE supply volatility over time",
+    subtitle = "Trailing 12-month standard deviation for Categories A and B",
+    x = NULL, y = "SD of monthly quota (COEs)"
+  ) + theme_eda2
+save_p(p_vol, "02_COE_supply_volatility.png", 12, 8)
+
+# Deregistrations → subsequent A/B quota
+rq2_monthly <- coe |>
+  filter(category %in% c("A", "B")) |>
+  group_by(category, month) |>
+  summarise(
+    quota = if (setequal(bidding_no, c(1, 2)) && !anyNA(quota)) sum(quota) else NA_real_,
+    .groups = "drop"
+  ) |>
+  complete(category, month = seq(min(month), max(month), by = "month")) |>
+  mutate(quota_start = floor_date(month %m-% months(1), "quarter") %m+% months(1))
+rq2_quota <- rq2_monthly |>
+  group_by(category, quota_start) |>
+  summarise(
+    quarterly_quota = if (n() == 3L && !anyNA(quota)) sum(quota) else NA_real_,
+    .groups = "drop"
+  ) |>
+  filter(quota_start >= as.Date("2023-02-01")) |>
+  mutate(window_end = quota_start %m-% months(2))
+rq2_drivers <- dereg |>
+  filter(category %in% c("A", "B")) |>
+  arrange(category, month) |>
+  group_by(category) |>
+  mutate(deregistrations_12m = as.numeric(stats::filter(deregistrations_lta, rep(1, 12), sides = 1))) |>
+  ungroup() |>
+  transmute(category, window_end = month, deregistrations_12m)
+rq2_data <- rq2_quota |>
+  inner_join(rq2_drivers, by = c("category", "window_end")) |>
+  filter(!is.na(quarterly_quota), !is.na(deregistrations_12m)) |>
+  mutate(category = factor(category, levels = c("A", "B")))
+rq2_long <- rq2_data |>
+  select(category, quota_start, deregistrations_12m, quarterly_quota) |>
+  pivot_longer(c(deregistrations_12m, quarterly_quota), names_to = "metric", values_to = "count") |>
+  mutate(
+    metric = factor(metric, levels = c("deregistrations_12m", "quarterly_quota")),
+    panel = factor(
+      paste(category, metric, sep = "_"),
+      levels = c(
+        "A_deregistrations_12m", "A_quarterly_quota",
+        "B_deregistrations_12m", "B_quarterly_quota"
+      )
+    )
+  )
+panel_lab <- c(
+  A_deregistrations_12m = "A | Historical deregistrations (12 months)",
+  A_quarterly_quota = "A | Subsequent COE quota (3 months)",
+  B_deregistrations_12m = "B | Historical deregistrations (12 months)",
+  B_quarterly_quota = "B | Subsequent COE quota (3 months)"
+)
+p_rq2 <- ggplot(rq2_long, aes(quota_start, count, colour = metric)) +
+  geom_line(linewidth = 0.85) + geom_point(size = 2) +
+  facet_wrap(~ panel, ncol = 2, scales = "free_y", labeller = labeller(panel = panel_lab)) +
+  scale_colour_manual(values = c(deregistrations_12m = "#D97706", quarterly_quota = "#176B87"), guide = "none") +
+  scale_y_continuous(limits = c(0, NA), labels = label_comma()) +
+  labs(
+    title = "Historical deregistrations and subsequent COE supply",
+    subtitle = "Preceding 12-month deregistrations and subsequent 3-month quotas — Categories A and B",
+    x = "Start of subsequent quota period", y = "Vehicles / COEs"
+  ) + theme_eda2
+save_p(p_rq2, "03_Deregistrations_and_supply.png", 13, 9)
+
+season_monthly <- coe_monthly |>
+  mutate(
+    year = as.integer(format(month, "%Y")),
+    calendar_month = factor(as.integer(format(month, "%m")), levels = 1:12, labels = month.abb)
+  )
+season_data <- season_monthly |>
+  group_by(year) |>
+  filter(n() == 24L, !anyNA(quota)) |>
+  ungroup() |>
+  group_by(category, year) |>
+  mutate(deviation = quota - mean(quota)) |>
+  ungroup()
+p_season <- ggplot(season_data, aes(calendar_month, deviation)) +
+  geom_hline(yintercept = 0, colour = "#52657A", linetype = "dashed", linewidth = 0.4) +
+  geom_boxplot(fill = "#DCECF0", colour = "#176B87", width = 0.6, outlier.shape = NA) +
+  geom_point(position = position_jitter(width = 0.12, height = 0, seed = 42),
+             colour = "#176B87", alpha = 0.4, size = 1.2) +
+  facet_wrap(~ category, ncol = 1, scales = "free_y", labeller = labeller(category = lab_ab)) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(
+    title = "Monthly patterns in COE supply",
+    subtitle = "Monthly quotas relative to each year's average; Categories A and B",
+    x = NULL, y = "COEs above / below the year's monthly average"
+  ) + theme_eda2
+save_p(p_season, "04_Monthly_patterns.png", 12, 8)
+
+complete_years <- season_monthly |>
+  group_by(year) |>
+  summarise(usable = n() == 24L && !anyNA(quota), .groups = "drop") |>
+  filter(usable) |>
+  pull(year)
+annual_supply <- season_monthly |>
+  group_by(category, year) |>
+  summarise(
+    average_monthly_quota = if (first(year) %in% complete_years) mean(quota) else NA_real_,
+    .groups = "drop"
+  )
+y_upper <- ceiling(max(annual_supply$average_monthly_quota, na.rm = TRUE) / 1000) * 1000
+p_long <- ggplot(annual_supply, aes(year, average_monthly_quota)) +
+  geom_line(colour = "#176B87", linewidth = 0.85, na.rm = TRUE) +
+  geom_point(colour = "#176B87", size = 2, na.rm = TRUE) +
+  facet_wrap(~ category, ncol = 1, scales = "fixed", labeller = labeller(category = lab_ab)) +
+  scale_y_continuous(limits = c(0, y_upper), labels = label_comma()) +
+  labs(
+    title = "Longer-term movements in COE supply",
+    subtitle = "Average monthly quota within each complete calendar year — A and B",
+    x = NULL, y = "Average COEs per month"
+  ) + theme_eda2
+save_p(p_long, "05_Long_term_movements.png", 12, 8)
+
+renewal_rate <- rds("renewal_rate.rds")
+renewal_plot <- renewal_rate |>
+  filter(category %in% c("A", "B")) |>
+  transmute(
+    month, category, revalidations, deregistrations_lta,
+    denominator = revalidations + deregistrations_lta,
+    renewal_share = if_else(denominator > 0, revalidations / denominator, NA_real_)
+  ) |>
+  complete(category, month = seq(min(month), max(month), by = "month")) |>
+  mutate(category = factor(category, levels = c("A", "B")))
+y_ren <- min(1, ceiling(max(renewal_plot$renewal_share, na.rm = TRUE) * 10) / 10)
+p_ren_act <- ggplot(renewal_plot, aes(month, renewal_share)) +
+  geom_line(colour = "#176B87", linewidth = 0.8, na.rm = TRUE) +
+  facet_wrap(~ category, ncol = 1, scales = "fixed", labeller = labeller(category = lab_ab)) +
+  scale_y_continuous(limits = c(0, y_ren), labels = label_percent(accuracy = 1)) +
+  scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+  labs(
+    title = "COE renewal activity over time",
+    subtitle = "Monthly renewal share proxy for Categories A and B",
+    x = NULL, y = "Renewal share proxy"
+  ) + theme_eda2
+save_p(p_ren_act, "06_Renewal_activity.png", 12, 7)
+
+market_long <- coe_monthly |>
+  pivot_longer(c(quota, premium), names_to = "metric", values_to = "value") |>
+  mutate(panel = factor(
+    paste(category, metric, sep = "_"),
+    levels = c("A_quota", "A_premium", "B_quota", "B_premium")
+  ))
+m_lab <- c(
+  A_quota = "Category A | Monthly quota (COEs)",
+  A_premium = "Category A | Average premium (S$)",
+  B_quota = "Category B | Monthly quota (COEs)",
+  B_premium = "Category B | Average premium (S$)"
+)
+p_mkt <- ggplot(market_long, aes(month, value, colour = metric)) +
+  geom_line(linewidth = 0.75, na.rm = TRUE) +
+  facet_wrap(~ panel, ncol = 2, scales = "free_y", labeller = labeller(panel = m_lab)) +
+  scale_colour_manual(values = c(quota = "#176B87", premium = "#D97706"), guide = "none") +
+  scale_y_continuous(limits = c(0, NA), labels = label_comma()) +
+  scale_x_date(date_breaks = "4 years", date_labels = "%Y") +
+  labs(
+    title = "COE supply and premiums over time",
+    subtitle = "Monthly quotas and average auction premiums for Categories A and B",
+    x = NULL, y = NULL
+  ) + theme_eda2
+save_p(p_mkt, "07_Supply_and_premiums.png", 13, 8)
+
+car_age <- age |> filter(vehicle_type == "Cars")
+snap <- car_age |>
+  group_by(month) |>
+  summarise(complete = n() == 21L && setequal(age_lower, 0:20) && !anyNA(population), .groups = "drop") |>
+  filter(complete)
+snapshot_date <- max(snap$month)
+car_age_latest <- car_age |>
+  filter(month == snapshot_date) |>
+  arrange(age_lower) |>
+  mutate(
+    age_label = if_else(age_lower == 20, "20+", paste0(age_lower, "-<", age_lower + 1)),
+    age_label = factor(age_label, levels = age_label),
+    cohort = if_else(age_lower %in% c(8, 9), "8 to under 10 years", "Other ages")
+  )
+p_age2 <- ggplot(car_age_latest, aes(age_label, population, fill = cohort)) +
+  geom_col(width = 0.75) +
+  scale_fill_manual(
+    name = NULL,
+    values = c("Other ages" = "#176B87", "8 to under 10 years" = "#D97706")
+  ) +
+  scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, 0.12))) +
+  labs(
+    title = "Car population by vehicle age",
+    subtitle = paste("Latest complete snapshot:", format(snapshot_date, "%B %Y"), "— A+B cars"),
+    x = "Vehicle age (years)", y = "Number of cars"
+  ) + theme_eda2 + theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "top")
+save_p(p_age2, "08_Vehicle_age_distribution.png", 12, 7)
+
+cat("All static EDA PNGs written to", out_dir, "\n")
