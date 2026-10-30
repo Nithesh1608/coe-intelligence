@@ -20,9 +20,15 @@ rhino::app()
 | COE bot | NVIDIA NIM assistant grounded on this project |
 | About | Cleaning, features, models, exposure |
 
-Local NIM (gitignored `.Renviron`): set `NVIDIA_API_KEY`, optionally `NVIDIA_NIM_MODEL`
-(default `deepseek-ai/deepseek-v4.1-flash`). Open that model on [build.nvidia.com](https://build.nvidia.com)
-once and accept / Get API Key so the account can call it.
+### COE bot / NVIDIA NIM
+
+- **Local:** gitignored `.Renviron` with `NVIDIA_API_KEY=`… and optional `NVIDIA_NIM_MODEL=`
+  (default `deepseek-ai/deepseek-v4.1-flash`). Enable that model once on
+  [build.nvidia.com](https://build.nvidia.com).
+- **Posit Connect Cloud:** do **not** commit the key. In the published content →
+  **Settings / Advanced → Variables** → add secret `NVIDIA_API_KEY` (same value as local).
+  Optionally add `NVIDIA_NIM_MODEL`. Republish or wait for the next GitHub push if auto-publish is on.
+  The app reads `Sys.getenv("NVIDIA_API_KEY")` the same way locally and on Posit.
 
 ## Data
 

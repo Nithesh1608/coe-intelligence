@@ -110,7 +110,8 @@ server <- function(id, store) {
       } else {
         tags$p(
           class = "coe-bot-status coe-bot-status--bad",
-          "NVIDIA_API_KEY missing. Add it to .Renviron in the project root and restart the app."
+          "NVIDIA_API_KEY missing. Local: put it in project .Renviron and restart. ",
+          "Posit Connect Cloud: content settings → Variables → add secret NVIDIA_API_KEY, then republish."
         )
       }
     })
@@ -138,7 +139,11 @@ server <- function(id, store) {
       if (!nvidia_key_ok()) {
         history(c(history(), list(list(
           role = "assistant",
-          content = "NVIDIA_API_KEY is not loaded. Save it in .Renviron and restart."
+          content = paste(
+            "NVIDIA_API_KEY is not loaded.",
+            "Local: save it in .Renviron and restart.",
+            "On Posit Connect Cloud: Advanced / Variables → secret NVIDIA_API_KEY → republish."
+          )
         ))))
         return()
       }

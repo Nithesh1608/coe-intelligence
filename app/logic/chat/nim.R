@@ -147,7 +147,8 @@ nim_chat <- function(messages, temperature = 0.25, max_tokens = 1200L) {
   key <- Sys.getenv("NVIDIA_API_KEY", "")
   if (!nzchar(key)) {
     stop(
-      "NVIDIA_API_KEY is missing. Add it to the project .Renviron and restart the app.",
+      "NVIDIA_API_KEY is missing. Local: add it to .Renviron and restart. ",
+      "Posit Connect Cloud: set secret variable NVIDIA_API_KEY on the content, then republish.",
       call. = FALSE
     )
   }
