@@ -39,6 +39,16 @@ HAZARD_COLS <- c(
 #' @export
 COHORT_COLS <- setdiff(BASE_COLS, c("recent12", "y_lag2"))
 
+#' Live desk recipe (best held-out quota accuracy): due-stock + short memory +
+#' revalidation lags + PQP / regime / seasonality. Matches the pre-realignment
+#' elastic net that beat the cohort-only / lambda.min experiment on MAPE.
+#' @export
+CORE_COLS <- c(
+  "due10", "due15", "due_near", "recent12", "y_lag12", "y_lag2",
+  "reval5_lag12", "reval5_lag24", "reval5_lag60", "lpqp",
+  "post_2022", "moy_sin", "moy_cos"
+)
+
 #' @export
 POST_2022_START <- as.Date("2022-05-01")
 

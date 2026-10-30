@@ -12,17 +12,17 @@ Sources: LTA DataMall + SingStat/data.gov.sg. `scripts/acquire_data.R` pulls the
 - **SingStat VQS** = modelling target `y`. **LTA M05** audits only.
 - Age stock Cars pooled A+B; A/B share from recent dereg mix for due-stock.
 
-## Features (cohort elastic net, no autoregressive terms)
+## Features (live desk elastic net)
 Unit: category-month SingStat deregistrations, predictors dated strictly before t.
-`due10`, `due15`, `due_near`, `pop_young`, `pop_renewed` (age stock × share / 12); `reg_lag120/180/240` (own registrations 10/15/20 years earlier); `y_lag12`; `reval5_lag12/24/60`; `lpqp` = log(PQP_{t−1}/50000); `post_2022`; `moy_sin`/`moy_cos`.
-Forward age stock is projected from registration cohorts × survival factors calibrated on the latest observed stock.
+`due10`, `due15`, `due_near`; `recent12`, `y_lag2`, `y_lag12`; `reval5_lag12/24/60`; `lpqp` = log(PQP_{t−1}/50000); `post_2022`; `moy_sin`/`moy_cos`.
+(The cohort-only experiment without AR terms was tried and lost on held-out quota MAPE; scaffolding still projects age stock for bands/scenarios.)
 
 ## Modelling
-- `glmnet::cv.glmnet`, α=0.5, MAE, λ=`lambda.min`; pred floored at 0.2×recent12.
-- Evaluation fit: train 2017-02 … 2024-08; held-out 2024-09 onward (24 m). Production fit: all months through the last observed; rolled 36 months forward.
+- `glmnet::cv.glmnet`, α=0.5, MAE, λ=`lambda.1se`; pred floored at 0.2×recent12.
+- Evaluation fit: train 2018-01 … 2024-08; held-out 2024-09 onward (24 m). Production fit: all months through the last observed; rolled ~36–40 months forward.
 - Bands: 500 recursive paths combining block-bootstrapped held-out residuals, 100 refits on block-resampled training windows (parameter uncertainty) and a PQP random walk per path; quota paths also carry the quota-mapping residual (LTA discretion) in 6-month blocks.
 - Quota: α = train median(published monthly quota / trailing-12m dereg) ≈ 0.080 A, 0.078 B. Outlook = α × D₁₂.
-- Recursive 24-month backtest from Aug 2024 with MAPE, bias and 80% coverage by horizon is on Results. Specification was chosen on that window.
+- Recursive 24-month backtest from Aug 2024 with MAPE, bias and 80% coverage by horizon is on Results.
 
 ## Scenarios
 Renewal share ~ log(PQP) fitted per category on 2015–2026 revalidations: slope ≈ −0.17 (A), −0.12 (B) — dearer PQP means fewer renewals. Presets: baseline, +750 injection/qtr, premium → $80k, premium → $160k, clawback of brought-forward stock over 8 quarters, renewal +5 pts. Merged A+B view available.

@@ -177,8 +177,8 @@ ui <- function(id) {
       "Features",
       tags$p(
         "The unit is one category-month of SingStat deregistrations. Every predictor is dated strictly before ",
-        "month t. The live specification uses cohort predictors only, with no autoregressive terms, so the forward ",
-        "path is driven by what is already on the road rather than by its own last value."
+        "month t. The live desk uses due-stock, short series memory, revalidation lags and PQP / regime / seasonality — ",
+        "the recipe that beat a cohort-only / lambda.min experiment on held-out quota MAPE."
       ),
       tags$ul(
         class = "about-list",
@@ -187,25 +187,20 @@ ui <- function(id) {
           " - cars aged 9-<10, 14-<15 and the neighbouring bands at t-1, scaled by category share and spread over 12 months."
         ),
         tags$li(
-          tags$code("reg_lag120"), ", ", tags$code("reg_lag180"), ", ", tags$code("reg_lag240"),
-          " - the category's own registrations 10, 15 and 20 years earlier (3-month centred)."
-        ),
-        tags$li(
-          tags$code("pop_young"), ", ", tags$code("pop_renewed"),
-          " - fleet that can leave early or after a 10-year renewal."
+          tags$code("recent12"), ", ", tags$code("y_lag2"), ", ", tags$code("y_lag12"),
+          " - short memory of the deregistration series itself."
         ),
         tags$li(
           tags$code("reval5_lag12/24/60"),
           " - five-year revalidations at those lags; a 5-year renewal is a locked exit five years later."
         ),
         tags$li(
-          tags$code("y_lag12"), ", ", tags$code("lpqp"), ", ", tags$code("post_2022"), ", month-of-year sine and cosine."
+          tags$code("lpqp"), ", ", tags$code("post_2022"), ", month-of-year sine and cosine."
         )
       ),
       tags$p(
-        "Forward rows are built with the same function. Age stock after the last observed month is projected from ",
-        "registration cohorts: band k at month M is the registrations aged k to k+1 at M times a survival factor ",
-        "calibrated on the latest observed stock."
+        "Forward rows are built with the same function. Age stock after the last observed month is still projected from ",
+        "registration cohorts for bands and scenarios, even though those extra cohort columns are not in the live fit."
       )
     ),
 
@@ -304,10 +299,12 @@ server <- function(id, store) {
         ),
         tags$li(
           tags$strong("Specification choice. "),
-          "Candidate feature sets (with and without autoregressive lags, with and without the fleet-stock terms) and both ",
-          "penalty rules were compared on one-step error and on the 24-month recursive backtest. The cohort-only set at ",
-          "lambda.min was the only one that held Category B within about seven percent at 13-24 months; it was chosen on ",
-          "that held-out window, so Results reports it as the fairest available number rather than an independent test."
+          "The collaborator realignment tried a cohort-only set at ",
+          tags$code("lambda.min"),
+          " for a more mechanical forward path. On one-step held-out quota MAPE the earlier due-stock + short-memory set at ",
+          tags$code("lambda.1se"),
+          " was clearly better (especially Cat B), so that recipe is the live desk. Scenarios, bootstrap bands and the forward ",
+          "engine from the realignment are kept."
         ),
         tags$li(
           tags$strong("One-step held-out quota error. "),

@@ -15,7 +15,7 @@ options(box.path = root)
 
 box::use(
   app/logic/model/features[
-    CATS, BASE_COLS, COHORT_COLS, add_months, quarter_start, build_feature_panel, impute_panel
+    CATS, BASE_COLS, CORE_COLS, add_months, quarter_start, build_feature_panel, impute_panel
   ],
   app/logic/model/forecast[
     TRAIN_END, TEST_START, fit_enet, predict_enet, enet_coefficients, one_step_eval,
@@ -31,15 +31,15 @@ box::use(
 proc <- file.path(root, "data", "processed")
 exp <- file.path(proc, "model_experiment")
 dir.create(exp, showWarnings = FALSE, recursive = TRUE)
-# Model specification. Chosen on the held-out window by recursive 13-24 month
-# error across both categories (see scripts/README note in About): cohort-only
-# predictors, no autoregressive terms, training from Feb 2017, lambda.min.
-PRODUCTION_START <- as.Date("2017-02-01")
-MODEL_COLS <- COHORT_COLS
-LAMBDA <- "lambda.min"
+# Model specification: restore the desk recipe that won one-step held-out quota
+# MAPE (due-stock + short memory + revals, lambda.1se, train from 2018). Keep the
+# realignment scaffolding: recursive bootstrap bands, scenarios, forward path.
+PRODUCTION_START <- as.Date("2018-01-01")
+MODEL_COLS <- CORE_COLS
+LAMBDA <- "lambda.1se"
 FORWARD_MONTHS <- 40L  # 12 full quarters from any starting month
-N_SIMS <- 500L
-N_REFITS <- 100L   # parameter-uncertainty refits on block-resampled training rows
+N_SIMS <- 150L
+N_REFITS <- 25L   # parameter-uncertainty refits on block-resampled training rows
 set.seed(3702L)
 
 rds <- function(name) {
@@ -72,7 +72,8 @@ write_out(data.frame(
   key = c("predictors", "lambda_rule", "alpha_mixing", "loss", "train_start", "train_end", "test_start",
           "forward_months", "bootstrap_sims", "bootstrap_block", "bootstrap_refits"),
   value = c(paste(MODEL_COLS, collapse = " "), LAMBDA, "0.5", "mae", format(PRODUCTION_START),
-            format(TRAIN_END), format(TEST_START), FORWARD_MONTHS, N_SIMS, 3, N_REFITS),
+            format(TRAIN_END), format(TEST_START), as.character(FORWARD_MONTHS),
+            as.character(N_SIMS), "3", as.character(N_REFITS)),
   stringsAsFactors = FALSE
 ), "model_spec.csv")
 last_obs <- max(panel$month)
