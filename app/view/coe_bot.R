@@ -185,16 +185,18 @@ ui <- function(id) {
     tags$h1("Ask the desk"),
     tags$p(
       class = "lede lede--wide",
-      "Instant answers on the forward quota path and held-out scores. Open-ended phrasing uses NIM when a key is set."
+      "Ask anything about the supply desk. Chips and free-form questions both go through NIM when a key is set; otherwise they answer from the live artefacts."
     ),
     uiOutput(ns("status")),
     div(
       class = "coe-bot-chips",
-      lapply(seq_along(chips), function(i) {
-        actionButton(
-          ns(paste0("chip_", i)),
-          chips[[i]],
-          class = "coe-bot-chip"
+      # Plain buttons (not actionButton) so only our JS send path fires.
+      lapply(chips, function(label) {
+        tags$button(
+          type = "button",
+          class = "coe-bot-chip",
+          `data-q` = label,
+          label
         )
       })
     ),
@@ -219,18 +221,26 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "Forecast chips answer from live artefacts (no wait). NIM is optional for freer wording. Not financial advice. Enter to send · Shift+Enter for a new line."
+      "NIM answers chips and typed questions when NVIDIA_API_KEY is set; otherwise desk artefacts answer. Not financial advice. Enter to send · Shift+Enter for a new line."
     ),
     tags$script(HTML(sprintf(
       "(function(){
         var ns='%s';
         var gate=false;
+        function threadHost(){ return document.getElementById(ns+'thread'); }
         function scrollThread(){
           var el=document.getElementById(ns+'thread_scroll');
           if(el) el.scrollTop=el.scrollHeight;
         }
+        function hasPending(){
+          var host=threadHost();
+          return !!(host && host.querySelector('.coe-bot-bubble--pending'));
+        }
+        function unlockIfIdle(){
+          if(!hasPending()) gate=false;
+        }
         function paintPending(q){
-          var host=document.getElementById(ns+'thread');
+          var host=threadHost();
           if(!host || !q) return;
           var empty=host.querySelector('.coe-bot-empty');
           if(empty) empty.remove();
@@ -259,12 +269,13 @@ ui <- function(id) {
           Shiny.setInputValue(ns+'ask', {q:q, nonce: Date.now()}, {priority:'event'});
           if(ta) ta.value='';
         }
+        // Shiny replaces the thread after every answer; unlock once pending is gone.
         $(document).on('shiny:value', function(e){
           if(e.name!==ns+'thread') return;
-          setTimeout(scrollThread, 40);
-          var pending=document.querySelector('#'+ns+'thread .coe-bot-bubble--pending');
-          if(!pending) gate=false;
+          setTimeout(function(){ scrollThread(); unlockIfIdle(); }, 50);
+          setTimeout(unlockIfIdle, 250);
         });
+        $(document).on('shiny:idle', unlockIfIdle);
         $(document).on('click', '#'+ns+'send', function(ev){
           ev.preventDefault();
           ev.stopImmediatePropagation();
@@ -273,8 +284,11 @@ ui <- function(id) {
         });
         $(document).on('click', '.coe-bot-chip', function(ev){
           ev.preventDefault();
-          var t=(ev.currentTarget && ev.currentTarget.innerText) || '';
+          ev.stopImmediatePropagation();
+          var btn=ev.currentTarget;
+          var t=(btn && (btn.getAttribute('data-q') || btn.innerText)) || '';
           if(t) sendOnce(t.trim());
+          return false;
         });
         $(document).on('keydown', '#'+ns+'prompt', function(ev){
           if(ev.key!=='Enter' || ev.shiftKey) return;
@@ -301,6 +315,16 @@ finish_turn <- function(history, busy, session, out) {
   updateActionButton(session, "send", label = "Send")
 }
 
+local_or_help <- function(q, store) {
+  local <- tryCatch(try_desk_answer(q, store), error = function(e) NULL)
+  if (!is.null(local) && nzchar(local)) return(local)
+  paste(
+    "I can answer forecasts, accuracy, model setup, and Your risk from the live artefacts — try those chips.",
+    "For NIM phrasing on every question, set NVIDIA_API_KEY in .Renviron (local) or Posit Connect Cloud Variables.",
+    sep = "\n\n"
+  )
+}
+
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
@@ -316,12 +340,12 @@ server <- function(id, store) {
       if (nvidia_key_ok()) {
         tags$p(
           class = "coe-bot-status coe-bot-status--ok",
-          paste("Desk answers +", nim_model_label())
+          paste("NIM ready:", nim_model_label(), "· chips and free-form")
         )
       } else {
         tags$p(
           class = "coe-bot-status coe-bot-status--ok",
-          "Desk answers ready (forecasts, accuracy, model). Set NVIDIA_API_KEY for freer open-ended phrasing."
+          "Desk artefact answers ready. Set NVIDIA_API_KEY for NIM on every question."
         )
       }
     })
@@ -351,31 +375,14 @@ server <- function(id, store) {
       q <- if (is.list(ask)) trimws(ask$q %||% "") else trimws(ask %||% "")
       if (!nzchar(q)) return()
 
-      # 1) Instant local answer from artefacts (forecasts, scores, product FAQ).
-      local <- tryCatch(try_desk_answer(q, store), error = function(e) NULL)
-      if (!is.null(local) && nzchar(local)) {
+      # Prefer NIM for chips and free-form alike; fall back to local artefacts.
+      if (!nvidia_key_ok()) {
         history(c(
           history(),
           list(list(role = "user", content = q)),
-          list(list(role = "assistant", content = local))
+          list(list(role = "assistant", content = local_or_help(q, store)))
         ))
         updateTextAreaInput(session, "prompt", value = "")
-        return()
-      }
-
-      # 2) Open-ended: NIM when available; otherwise a helpful desk fallback.
-      if (!nvidia_key_ok()) {
-        history(c(history(), list(
-          list(role = "user", content = q),
-          list(
-            role = "assistant",
-            content = paste(
-              "I can answer forecasts, accuracy, model setup, and Your risk from the live artefacts — try those chips.",
-              "For freer open-ended phrasing, set NVIDIA_API_KEY in .Renviron (local) or Posit Connect Cloud Variables.",
-              sep = "\n\n"
-            )
-          )
-        )))
         return()
       }
 
@@ -402,12 +409,9 @@ server <- function(id, store) {
           nim_chat(api_msgs, max_tokens = 1800L),
           error = function(e) list(ok = FALSE, error = conditionMessage(e))
         )
-        # If NIM fails, still try a soft desk fallback for near-miss questions.
         if (!isTRUE(out$ok)) {
-          soft <- tryCatch(try_desk_answer(paste("help", q), store), error = function(e) NULL)
-          if (!is.null(soft) && nzchar(soft)) {
-            out <- list(ok = TRUE, text = soft)
-          }
+          soft <- local_or_help(q, store)
+          out <- list(ok = TRUE, text = soft)
         }
         finish_turn(history, busy, session, out)
       }, once = TRUE)
