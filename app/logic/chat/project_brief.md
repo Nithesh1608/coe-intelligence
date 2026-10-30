@@ -19,10 +19,11 @@ Unit: category-month SingStat deregistrations, predictors dated strictly before 
 
 ## Modelling
 - `glmnet::cv.glmnet`, α=0.5, MAE, λ=`lambda.1se`; pred floored at 0.2×recent12.
-- Evaluation fit: train 2018-01 … 2024-08; held-out 2024-09 onward (24 m). Production fit: all months through the last observed; rolled ~36–40 months forward.
-- Bands: 500 recursive paths combining block-bootstrapped held-out residuals, 100 refits on block-resampled training windows (parameter uncertainty) and a PQP random walk per path; quota paths also carry the quota-mapping residual (LTA discretion) in 6-month blocks.
-- Quota: α = train median(published monthly quota / trailing-12m dereg) ≈ 0.080 A, 0.078 B. Outlook = α × D₁₂.
-- Recursive 24-month backtest from Aug 2024 with MAPE, bias and 80% coverage by horizon is on Results.
+- **Held-out scores are the shipped artefacts** from the pre-realignment panel (`feature_panel.csv` + `two_models_*.csv`): quota MAPE ≈ **11.9% A / 11.6% B**. Do not overwrite those CSVs when refreshing forward bands.
+- Evaluation window: train 2018-01 … 2024-08; held-out 2024-09 onward (24 m). Production fit on the shipped panel rolls ~36–40 months forward (`scripts/rebuild_forward_from_shipped.R`).
+- Bands: recursive residual bootstrap + refits + PQP walk + quota-mapping residual.
+- Quota: α = train median(published monthly quota / trailing-12m dereg). Outlook = α × D₁₂.
+- Recursive backtest with MAPE / bias / 80% coverage is on Results.
 
 ## Scenarios
 Renewal share ~ log(PQP) fitted per category on 2015–2026 revalidations: slope ≈ −0.17 (A), −0.12 (B) — dearer PQP means fewer renewals. Presets: baseline, +750 injection/qtr, premium → $80k, premium → $160k, clawback of brought-forward stock over 8 quarters, renewal +5 pts. Merged A+B view available.

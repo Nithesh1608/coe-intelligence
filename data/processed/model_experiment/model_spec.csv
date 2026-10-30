@@ -10,6 +10,7 @@
 "bootstrap_sims","150"
 "bootstrap_block","3"
 "bootstrap_refits","25"
+"eval_source","shipped_artefacts_9d13593"
 "brought_forward_since_2023","13791"
 "last_observed_month","2026-08-01"
 "mapping_resid_sd_A","0.153"

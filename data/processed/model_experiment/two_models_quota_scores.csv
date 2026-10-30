@@ -1,5 +1,5 @@
 "model","label","category","MAE","MAPE"
-"core_forecast","Elastic net","A",333.177213757315,0.13906997651523
-"simple_average","Simple 12-month average","A",520.344738876008,0.213738952839273
-"core_forecast","Elastic net","B",245.262962349106,0.160499386790042
-"simple_average","Simple 12-month average","B",257.148435126101,0.170046415864612
+"core_forecast","Elastic net","A","284.124707408635","0.119143918178571"
+"core_forecast","Elastic net","B","173.391612110163","0.116475433664118"
+"simple_average","Simple 12-month average","A","520.344738876009","0.213738952839274"
+"simple_average","Simple 12-month average","B","257.148435126102","0.170046415864612"

@@ -1,5 +1,5 @@
 "model","label","category","months","within_10pct","within_15pct"
-"core_forecast","Elastic net","A",24,0.666666666666667,0.666666666666667
-"simple_average","Simple average of the last 12 months","A",24,0.416666666666667,0.541666666666667
-"core_forecast","Elastic net","B",24,0.0416666666666667,0.333333333333333
-"simple_average","Simple average of the last 12 months","B",24,0.125,0.291666666666667
+"core_forecast","Elastic net","A","24","0.583333333333333","0.791666666666667"
+"core_forecast","Elastic net","B","24","0.416666666666667","0.666666666666667"
+"simple_average","Simple average of the last 12 months","A","24","0.416666666666667","0.541666666666667"
+"simple_average","Simple average of the last 12 months","B","24","0.125","0.291666666666667"

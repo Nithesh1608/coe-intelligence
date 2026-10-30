@@ -301,10 +301,13 @@ server <- function(id, store) {
           tags$strong("Specification choice. "),
           "The collaborator realignment tried a cohort-only set at ",
           tags$code("lambda.min"),
-          " for a more mechanical forward path. On one-step held-out quota MAPE the earlier due-stock + short-memory set at ",
+          " for a more mechanical forward path. The live desk keeps the shipped held-out artefacts from the earlier due-stock + ",
+          "short-memory fit at ",
           tags$code("lambda.1se"),
-          " was clearly better (especially Cat B), so that recipe is the live desk. Scenarios, bootstrap bands and the forward ",
-          "engine from the realignment are kept."
+          " (quota MAPE about 12% on A and B). Scenarios, bootstrap bands and the forward engine from the realignment are kept; ",
+          "refresh them with ",
+          tags$code("scripts/rebuild_forward_from_shipped.R"),
+          " without overwriting those scores."
         ),
         tags$li(
           tags$strong("One-step held-out quota error. "),

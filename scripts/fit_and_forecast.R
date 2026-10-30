@@ -1,10 +1,8 @@
-# Rebuild every model artefact the app reads, end to end:
-#   1. feature panel from the processed RDS tables
-#   2. evaluation fit (train <= 2024-08) scored one-step on 2024-09 onward
-#   3. calibrated alpha and the held-out quota outlook
-#   4. recursive 24-month backtest from the training end with bootstrap bands
-#   5. production fit on all observed months, rolled 36 months forward
-#   6. renewal response and the scenario presets
+# Full rebuild of every model artefact (rebuilds the feature panel from RDS).
+# WARNING: this overwrites held-out score CSVs. For the shipped desk numbers
+# (quota MAPE ~11.9% A / 11.6% B), keep the archived feature_panel.csv +
+# two_models_*.csv / quota_outlook_*.csv and run instead:
+#   scripts/rebuild_forward_from_shipped.R
 #
 # Run from the repo root:  Rscript scripts/fit_and_forecast.R
 # Needs: glmnet, box (everything else is base R).
