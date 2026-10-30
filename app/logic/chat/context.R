@@ -4,7 +4,7 @@
   if (is.null(a) || (length(a) == 1L && is.na(a))) b else a
 }
 
-clip <- function(x, n = 9000L) {
+clip <- function(x, n = 7000L) {
   x <- paste(x, collapse = "\n")
   if (nchar(x) <= n) return(x)
   paste0(substr(x, 1L, n), "\n\n[…truncated…]")

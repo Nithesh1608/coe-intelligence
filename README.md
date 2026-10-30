@@ -23,11 +23,12 @@ rhino::app()
 ### COE bot / NVIDIA NIM
 
 Free-form chat via NVIDIA NIM (`deepseek-ai/deepseek-v4.1-flash` by default). Each turn
-sends a slim system pack: `project_brief.md` + live quota/hit-rate scores. HTTP is async
-so the UI stays responsive.
+sends a slim system pack: `project_brief.md` + live quota/hit-rate scores. Calls go through
+system `curl` (R/libcurl often stalls on this host).
 
 - **Local:** gitignored `.Renviron` with `NVIDIA_API_KEY=`… and optional `NVIDIA_NIM_MODEL=`.
 - **Posit Connect Cloud:** content **Variables** → secret `NVIDIA_API_KEY` (do not commit the key).
+- If NIM is unreachable, the bot posts the error in the thread instead of hanging silently.
 
 ## Data
 

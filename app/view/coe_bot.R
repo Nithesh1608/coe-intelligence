@@ -5,12 +5,9 @@ box::use(
     reactiveVal, renderUI, uiOutput,
     updateTextAreaInput, updateActionButton
   ],
-  promises[then, finally, promise_resolve],
 )
 box::use(
-  app/logic/chat/nim[
-    nim_chat_async, nvidia_key_ok, ensure_nvidia_env, nim_model_label
-  ],
+  app/logic/chat/nim[nim_chat, nvidia_key_ok, ensure_nvidia_env, nim_model_label],
   app/logic/chat/context[system_prompt, build_project_context],
 )
 
@@ -220,7 +217,7 @@ ui <- function(id) {
           var el=document.getElementById(ns+'thread_scroll');
           if(el) el.scrollTop=el.scrollHeight;
         }
-        function paintLocal(q){
+        function paintPending(q){
           var host=document.getElementById(ns+'thread');
           if(!host || !q) return;
           var empty=host.querySelector('.coe-bot-empty');
@@ -246,12 +243,9 @@ ui <- function(id) {
           var q=ta ? (ta.value||'').trim() : '';
           if(!q) return;
           gate=true;
-          paintLocal(q);
-          // Ship the question separately — textarea is cleared for UX before Shiny reads it.
-          Shiny.setInputValue(ns+'prompt_shot', q, {priority:'event'});
-          var id=ns+'send';
-          var v=(window.Shiny && Shiny.shinyapp && Shiny.shinyapp.$inputValues[id]) || 0;
-          Shiny.setInputValue(id, Number(v)+1, {priority:'event'});
+          paintPending(q);
+          // One payload with the question — never clear before this is set.
+          Shiny.setInputValue(ns+'ask', {q:q, nonce: Date.now()}, {priority:'event'});
           if(ta) ta.value='';
         }
         $(document).on('shiny:value', function(e){
@@ -275,6 +269,20 @@ ui <- function(id) {
       ns("")
     )))
   )
+}
+
+finish_turn <- function(history, busy, session, out) {
+  done <- Filter(function(m) !isTRUE(m$pending), history())
+  if (isTRUE(out$ok)) {
+    history(c(done, list(list(role = "assistant", content = as.character(out$text)))))
+  } else {
+    history(c(done, list(list(
+      role = "assistant",
+      content = paste0("Request failed: ", out$error %||% "unknown error")
+    ))))
+  }
+  busy(FALSE)
+  updateActionButton(session, "send", label = "Send")
 }
 
 #' @export
@@ -321,10 +329,11 @@ server <- function(id, store) {
       updateTextAreaInput(session, "prompt", value = "")
     })
 
-    observeEvent(input$send, {
+    # Single ask payload from JS: list(q=, nonce=). Avoids empty-prompt races.
+    observeEvent(input$ask, {
       if (isTRUE(busy())) return()
-      # prompt_shot is set by JS so we still get the text after the box is cleared.
-      q <- trimws(input$prompt_shot %||% input$prompt %||% "")
+      ask <- input$ask
+      q <- if (is.list(ask)) trimws(ask$q %||% "") else trimws(ask %||% "")
       if (!nzchar(q)) return()
 
       if (!nvidia_key_ok()) {
@@ -335,7 +344,6 @@ server <- function(id, store) {
             content = "API key missing — set NVIDIA_API_KEY locally (.Renviron) or as a Posit Connect Cloud variable, then restart/republish."
           )
         )))
-        updateTextAreaInput(session, "prompt", value = "")
         return()
       }
 
@@ -357,41 +365,15 @@ server <- function(id, store) {
         turns
       )
 
-      # CRITICAL: do not return this promise from the observer. If Shiny sees it
-      # as the observer result, it delays ALL output flush until NIM finishes —
-      # so the user bubble / "Writing…" never appear (promises + Shiny flush).
-      p <- tryCatch(
-        nim_chat_async(api_msgs, max_tokens = 1800L),
-        error = function(e) promise_resolve(list(ok = FALSE, error = conditionMessage(e)))
-      )
-
-      then(
-        p,
-        onFulfilled = function(out) {
-          done <- Filter(function(m) !isTRUE(m$pending), history())
-          if (isTRUE(out$ok)) {
-            history(c(done, list(list(role = "assistant", content = out$text))))
-          } else {
-            history(c(done, list(list(
-              role = "assistant",
-              content = paste0("Request failed: ", out$error %||% "unknown error")
-            ))))
-          }
-        },
-        onRejected = function(err) {
-          done <- Filter(function(m) !isTRUE(m$pending), history())
-          history(c(done, list(list(
-            role = "assistant",
-            content = paste0("Request failed: ", conditionMessage(err))
-          ))))
-        }
-      )
-      finally(p, function() {
-        busy(FALSE)
-        updateActionButton(session, "send", label = "Send")
-      })
-
-      invisible(NULL)
-    }, ignoreInit = TRUE)
+      # Paint pending first; then call NIM synchronously. Promises on Connect were
+      # either delaying the flush or never writing the final bubble back.
+      session$onFlushed(function() {
+        out <- tryCatch(
+          nim_chat(api_msgs, max_tokens = 1800L),
+          error = function(e) list(ok = FALSE, error = conditionMessage(e))
+        )
+        finish_turn(history, busy, session, out)
+      }, once = TRUE)
+    }, ignoreInit = TRUE, ignoreNULL = TRUE)
   })
 }
