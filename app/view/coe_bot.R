@@ -156,7 +156,11 @@ bubble <- function(role, text, pending = FALSE) {
   }
   who <- if (identical(role, "user")) "You" else "COE bot"
   body <- if (isTRUE(pending)) {
-    tags$div(class = "coe-bot-pending", tags$span("Writing"), tags$span(class = "coe-bot-dots", "…"))
+    tags$div(
+      class = "coe-bot-pending",
+      tags$span(class = "coe-bot-pulse", `aria-hidden` = "true"),
+      tags$span("Writing a reply…")
+    )
   } else {
     tags$div(class = "coe-bot-text", HTML(format_bot_text(text)))
   }
@@ -201,17 +205,62 @@ ui <- function(id) {
     tags$script(HTML(sprintf(
       "(function(){
         var ns='%s';
+        var optPending=false;
         function scrollThread(){
           var el=document.getElementById(ns+'thread_scroll');
           if(el) el.scrollTop=el.scrollHeight;
         }
+        function setBusy(on){
+          var btn=document.getElementById(ns+'send');
+          var shell=document.querySelector('.coe-bot-shell');
+          if(btn){
+            btn.disabled=!!on;
+            btn.textContent=on ? 'Writing…' : 'Send';
+          }
+          if(shell) shell.classList.toggle('coe-bot-shell--busy', !!on);
+        }
+        function showOptimistic(q){
+          if(optPending || !q) return;
+          optPending=true;
+          setBusy(true);
+          var thread=document.getElementById(ns+'thread_scroll');
+          if(!thread) return;
+          var empty=thread.querySelector('.coe-bot-empty');
+          if(empty) empty.remove();
+          function bubble(who, cls, html){
+            var d=document.createElement('div');
+            d.className='coe-bot-bubble '+cls;
+            d.setAttribute('data-optimistic','1');
+            d.innerHTML='<span class=\"coe-bot-who\">'+who+'</span>'+html;
+            thread.appendChild(d);
+          }
+          var esc=document.createElement('div');
+          esc.textContent=q;
+          bubble('You','coe-bot-bubble--user','<div class=\"coe-bot-text\"><p>'+esc.innerHTML+'</p></div>');
+          bubble('COE bot','coe-bot-bubble--bot coe-bot-bubble--pending',
+            '<div class=\"coe-bot-pending\"><span class=\"coe-bot-pulse\"></span><span>Writing a reply…</span></div>');
+          scrollThread();
+        }
         $(document).on('shiny:value', function(e){
-          if(e.name===ns+'thread') setTimeout(scrollThread, 30);
+          if(e.name===ns+'thread'){
+            optPending=false;
+            setTimeout(scrollThread, 30);
+            var hasPending=document.querySelector('#'+ns+'thread_scroll .coe-bot-bubble--pending');
+            if(!hasPending) setBusy(false);
+          }
+        });
+        $(document).on('click', '#'+ns+'send', function(){
+          var ta=document.getElementById(ns+'prompt');
+          var q=ta ? (ta.value||'').trim() : '';
+          showOptimistic(q);
         });
         $(document).on('keydown', '#'+ns+'prompt', function(ev){
           if(ev.key==='Enter' && !ev.shiftKey){
             ev.preventDefault();
-            $('#'+ns+'send').click();
+            var ta=ev.target;
+            var q=(ta.value||'').trim();
+            showOptimistic(q);
+            document.getElementById(ns+'send').click();
           }
         });
       })();",
@@ -296,22 +345,25 @@ server <- function(id, store) {
         turns
       )
 
-      out <- tryCatch(
-        nim_chat(api_msgs, max_tokens = 4096L),
-        error = function(e) list(ok = FALSE, error = conditionMessage(e))
-      )
-
-      done <- Filter(function(m) !isTRUE(m$pending), history())
-      if (isTRUE(out$ok)) {
-        history(c(done, list(list(role = "assistant", content = out$text))))
-      } else {
-        history(c(done, list(list(
-          role = "assistant",
-          content = paste0("Request failed: ", out$error %||% "unknown error")
-        ))))
-      }
-      busy(FALSE)
-      updateActionButton(session, "send", label = "Send")
+      # Flush user bubble + "Writing…" to the browser first; NIM call blocks
+      # the session, so doing it inside this observer hid the send until done.
+      session$onFlushed(function() {
+        out <- tryCatch(
+          nim_chat(api_msgs, max_tokens = 4096L),
+          error = function(e) list(ok = FALSE, error = conditionMessage(e))
+        )
+        done <- Filter(function(m) !isTRUE(m$pending), history())
+        if (isTRUE(out$ok)) {
+          history(c(done, list(list(role = "assistant", content = out$text))))
+        } else {
+          history(c(done, list(list(
+            role = "assistant",
+            content = paste0("Request failed: ", out$error %||% "unknown error")
+          ))))
+        }
+        busy(FALSE)
+        updateActionButton(session, "send", label = "Send")
+      }, once = TRUE)
     })
   })
 }
