@@ -14,23 +14,38 @@ box::use(
 )
 
 read_asset <- function(rel) {
-  paste(readLines(file.path(project_root(), rel), warn = FALSE), collapse = "\n")
+  root <- tryCatch(project_root(), error = function(e) getwd())
+  path <- file.path(root, rel)
+  if (!file.exists(path)) return("")
+  paste(readLines(path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
 }
 
-theme <- bs_theme(
-  version = 5,
-  bg = "#050505",
-  fg = "#fafafa",
-  primary = "#ff5c1a",
-  secondary = "#a3a3a3",
-  success = "#c8f542",
-  base_font = font_google("IBM Plex Sans"),
-  heading_font = font_google("Syne"),
-  code_font = font_google("IBM Plex Mono"),
-  "card-bg" = "#0a0a0a",
-  "border-color" = "rgba(255,255,255,0.08)"
-) |>
-  bs_add_rules(read_asset("app/styles/main.scss"))
+safe_font <- function(family, fallback = NULL) {
+  tryCatch(
+    font_google(family),
+    error = function(e) fallback
+  )
+}
+
+theme <- tryCatch({
+  bs_theme(
+    version = 5,
+    bg = "#050505",
+    fg = "#fafafa",
+    primary = "#ff5c1a",
+    secondary = "#a3a3a3",
+    success = "#c8f542",
+    base_font = safe_font("IBM Plex Sans"),
+    heading_font = safe_font("Syne"),
+    code_font = safe_font("IBM Plex Mono"),
+    "card-bg" = "#0a0a0a",
+    "border-color" = "rgba(255,255,255,0.08)"
+  ) |>
+    bs_add_rules(read_asset("app/styles/main.scss"))
+}, error = function(e) {
+  warning("Theme/SCSS failed, using minimal dark theme: ", conditionMessage(e))
+  bs_theme(version = 5, bg = "#050505", fg = "#fafafa", primary = "#ff5c1a")
+})
 
 #' @export
 inline_assets <- function() {
@@ -63,8 +78,13 @@ ui <- function(id) {
 #' @export
 server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    ensure_nvidia_env(project_root())
-    store <- load_store()
+    tryCatch(ensure_nvidia_env(project_root()), error = function(e) {
+      warning("NVIDIA env load skipped: ", conditionMessage(e))
+    })
+    store <- tryCatch(load_store(), error = function(e) {
+      warning("Data load failed: ", conditionMessage(e))
+      stop(e)
+    })
     dashboard$server("dashboard", store)
     eda$server("eda", store)
     forecast$server("forecast", store)

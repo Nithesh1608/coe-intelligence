@@ -2,7 +2,7 @@
 
 box::use(
   echarts4r[
-    e_charts, e_line, e_bar, e_area, e_band2, e_tooltip, e_legend,
+    e_charts, e_line, e_bar, e_area, e_tooltip, e_legend,
     e_grid, e_color, e_datazoom, e_x_axis, e_y_axis, e_mark_line, e_labels
   ],
   app/logic/viewdata/charts[style_chart],
@@ -86,15 +86,19 @@ prep_quota_fan <- function(store, category = "A", horizon_months = 24L) {
 #' @export
 chart_quota_fan <- function(prep) {
   d <- prep$df
+  if (is.null(d) || !nrow(d)) return(NULL)
+  # Lo/hi envelope lines - portable across echarts4r versions (no e_band2).
   d |>
     e_charts(label) |>
-    e_band2(lo, hi, name = "Prediction interval",
-            itemStyle = list(color = "rgba(255,92,26,0.22)", borderWidth = 0)) |>
+    e_line(lo, name = "Low", symbol = "none",
+           lineStyle = list(width = 1.2, opacity = 0.4, color = "#ff5c1a")) |>
+    e_line(hi, name = "High", symbol = "none",
+           lineStyle = list(width = 1.2, opacity = 0.4, color = "#ff5c1a")) |>
     e_line(actual, name = "Certificates released", symbol = "circle", symbolSize = 5,
            lineStyle = list(width = 2.4, color = "#fafafa")) |>
     e_line(mid, name = "Central supply path", symbol = "none",
            lineStyle = list(width = 2.2, color = "#ff5c1a")) |>
-    e_color(c("#fafafa", "#ff5c1a")) |>
+    e_color(c("#ff5c1a", "#ff5c1a", "#fafafa", "#ff5c1a")) |>
     style_chart() |>
     e_datazoom(type = "inside")
 }

@@ -256,16 +256,24 @@ body {
 
 .chart-frame {
   height: 340px;
+  min-height: 340px;
   width: 100%;
   position: relative;
+  overflow: visible;
 }
 
 .chart-frame--tall {
   height: 400px;
+  min-height: 400px;
 }
 
-.chart-frame .html-widget {
+.chart-frame .html-widget,
+.chart-frame > div,
+.chart-frame [_echarts_instance_],
+.chart-frame canvas {
   width: 100% !important;
+  height: 100% !important;
+  min-height: inherit;
 }
 
 .bslib-value-box .value-box-title,

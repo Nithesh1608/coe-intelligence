@@ -423,7 +423,51 @@ server <- function(id, store) {
 
     dl_res <- reactiveVal(NULL)
 
-    run_dealer <- function(nsim_override = NULL, quiet = FALSE) {
+    price_book_once <- function(b, nsim, use_progress = TRUE) {
+      cats <- unique(as.character(b$category))
+      sims <- list()
+      for (i in seq_along(cats)) {
+        cat_code <- as.character(cats[[i]])
+        if (isTRUE(use_progress)) {
+          incProgress(1 / (length(cats) + 1), detail = paste("Cat", cat_code))
+        }
+        dlog <- dlog_for(cat_code)
+        if (!length(dlog)) stop("No historical premium moves for category ", cat_code)
+        p0 <- last_premium(store$bidding, cat_code)
+        pqp0 <- last_pqp(root, cat_code, p0)
+        q_path <- if (isTRUE(input$tilt)) quota_path_for(cat_code) else NULL
+        if (isTRUE(input$tilt) && is.null(q_path)) {
+          stop(
+            "Tilt is on but no predicted quota path for Cat ", cat_code,
+            ". Check quota_outlook_calibrated / core_forecast outlook."
+          )
+        }
+        sims[[cat_code]] <- funs$simulate_premiums(
+          dlog_hist = dlog,
+          p0 = p0,
+          pqp0 = pqp0,
+          start_month = store$latest_bid_month,
+          elasticity = elasticity_for(cat_code),
+          n_sims = nsim,
+          vol_mult = as.numeric(input$vol %||% 1),
+          supply_tilt = isTRUE(input$tilt),
+          quota_path = q_path
+        )
+      }
+      if (isTRUE(use_progress)) {
+        incProgress(1 / (length(cats) + 1), detail = "Pricing book")
+      }
+      base <- funs$dealer_exposure(b, sims, p_success = as.numeric(input$psucc %||% 0.7))
+      shifts <- funs$timing_shift(
+        b, sims,
+        shifts = c(0, 6, 12),
+        p_success = as.numeric(input$psucc %||% 0.7)
+      )
+      dl_res(list(base = base, shifts = shifts, nsim = nsim, n_orders = nrow(b)))
+      invisible(TRUE)
+    }
+
+    run_dealer <- function(nsim_override = NULL, quiet = FALSE, use_progress = TRUE) {
       if (is.null(funs) || is.null(exp_data)) {
         if (!quiet) showNotification("Exposure engine is not available.", type = "error")
         return(invisible(FALSE))
@@ -437,47 +481,18 @@ server <- function(id, store) {
         if (!quiet) showNotification("Order book is empty.", type = "error")
         return(invisible(FALSE))
       }
-      cats <- unique(as.character(b$category))
       nsim_raw <- if (!is.null(nsim_override)) nsim_override else as.integer(input$nsim)
       nsim <- max(100L, min(1500L, as.integer(nsim_raw %||% 500L)))
       tryCatch({
-        withProgress(message = "Simulating premium paths", value = 0, {
-          sims <- list()
-          for (i in seq_along(cats)) {
-            cat <- cats[[i]]
-            incProgress(1 / (length(cats) + 1), detail = paste("Cat", cat))
-            dlog <- dlog_for(cat)
-            if (!length(dlog)) stop("No historical premium moves for category ", cat)
-            p0 <- last_premium(store$bidding, cat)
-            pqp0 <- last_pqp(root, cat, p0)
-            q_path <- if (isTRUE(input$tilt)) quota_path_for(cat) else NULL
-            if (isTRUE(input$tilt) && is.null(q_path)) {
-              stop(
-                "Tilt is on but no predicted quota path for Cat ", cat,
-                ". Check quota_outlook_calibrated / core_forecast outlook."
-              )
-            }
-            sims[[cat]] <- funs$simulate_premiums(
-              dlog_hist = dlog,
-              p0 = p0,
-              pqp0 = pqp0,
-              start_month = store$latest_bid_month,
-              elasticity = elasticity_for(cat),
-              n_sims = nsim,
-              vol_mult = as.numeric(input$vol %||% 1),
-              supply_tilt = isTRUE(input$tilt),
-              quota_path = q_path
-            )
-          }
-          incProgress(1 / (length(cats) + 1), detail = "Pricing book")
-          base <- funs$dealer_exposure(b, sims, p_success = as.numeric(input$psucc %||% 0.7))
-          shifts <- funs$timing_shift(
-            b, sims,
-            shifts = c(0, 6, 12),
-            p_success = as.numeric(input$psucc %||% 0.7)
+        if (isTRUE(use_progress)) {
+          withProgress(
+            message = "Simulating premium paths",
+            value = 0,
+            price_book_once(b, nsim, use_progress = TRUE)
           )
-          dl_res(list(base = base, shifts = shifts, nsim = nsim, n_orders = nrow(b)))
-        })
+        } else {
+          price_book_once(b, nsim, use_progress = FALSE)
+        }
         invisible(TRUE)
       }, error = function(e) {
         dl_res(NULL)
@@ -489,13 +504,22 @@ server <- function(id, store) {
     }
 
     observeEvent(input$run, {
-      run_dealer()
+      run_dealer(use_progress = TRUE)
     })
 
-    # First paint: price the default / example book so charts are not empty.
-    session$onFlushed(function() {
-      if (is.null(dl_res())) run_dealer(nsim_override = 300L, quiet = TRUE)
-    }, once = TRUE)
+    # Deferred light auto-price so Your risk is not empty; never blocks Home on Posit.
+    auto_priced <- reactiveVal(FALSE)
+    auto_tries <- reactiveVal(0L)
+    observe({
+      if (isTRUE(auto_priced()) || !is.null(dl_res())) return()
+      tries <- as.integer(auto_tries())
+      if (tries >= 5L) return()
+      shiny::invalidateLater(900, session)
+      auto_tries(tries + 1L)
+      if (is.null(funs) || is.null(exp_data)) return()
+      auto_priced(TRUE)
+      run_dealer(nsim_override = 150L, quiet = TRUE, use_progress = FALSE)
+    })
 
     output$dl_lead <- renderUI({
       r <- dl_res()

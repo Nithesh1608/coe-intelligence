@@ -63,8 +63,18 @@ viz_block <- function(num, kicker, title, body, bullets, controls = NULL, charts
 #' @export
 ui <- function(id) {
   ns <- NS(id)
-  addResourcePath("eda-assets", file.path(project_root(), "app", "static", "eda"))
-  cy <- cohort_year_choices(project_root())
+  root <- tryCatch(project_root(), error = function(e) getwd())
+  tryCatch(
+    addResourcePath("eda-assets", file.path(root, "app", "static", "eda")),
+    error = function(e) NULL
+  )
+  cy <- tryCatch(
+    cohort_year_choices(root),
+    error = function(e) list(choices = stats::setNames(2024L, "2024"), selected = 2024L)
+  )
+  if (is.null(cy$choices) || !length(cy$choices)) {
+    cy <- list(choices = stats::setNames(2024L, "2024"), selected = 2024L)
+  }
 
   div(
     class = "page-stack desk eda-page",
