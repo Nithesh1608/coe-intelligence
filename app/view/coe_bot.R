@@ -9,6 +9,7 @@ box::use(
 box::use(
   app/logic/chat/nim[nim_chat, nvidia_key_ok, ensure_nvidia_env, nim_model_label],
   app/logic/chat/context[system_prompt, build_project_context],
+  app/logic/chat/desk_answers[try_desk_answer, suggestion_chips],
 )
 
 `%||%` <- function(a, b) {
@@ -177,15 +178,26 @@ bubble <- function(role, text, pending = FALSE) {
 #' @export
 ui <- function(id) {
   ns <- NS(id)
+  chips <- suggestion_chips()
   div(
     class = "page-stack desk coe-bot-page",
     tags$p(class = "eyebrow", "COE bot"),
     tags$h1("Ask the desk"),
     tags$p(
       class = "lede lede--wide",
-      "Free-form Q&A grounded on this project's brief, elastic-net setup, and held-out scores."
+      "Instant answers on the forward quota path and held-out scores. Open-ended phrasing uses NIM when a key is set."
     ),
     uiOutput(ns("status")),
+    div(
+      class = "coe-bot-chips",
+      lapply(seq_along(chips), function(i) {
+        actionButton(
+          ns(paste0("chip_", i)),
+          chips[[i]],
+          class = "coe-bot-chip"
+        )
+      })
+    ),
     div(
       class = "coe-bot-shell",
       div(class = "coe-bot-thread", id = ns("thread_scroll"), uiOutput(ns("thread"))),
@@ -196,7 +208,7 @@ ui <- function(id) {
           label = NULL,
           rows = 2,
           width = "100%",
-          placeholder = "Ask anything about the desk — supply model, features, scores, quota, Your risk…"
+          placeholder = "e.g. What is the Cat A quota forecast? How accurate is the model?"
         ),
         div(
           class = "coe-bot-actions",
@@ -207,7 +219,7 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "Answers from the project context pack + model. Not financial advice. Enter to send · Shift+Enter for a new line."
+      "Forecast chips answer from live artefacts (no wait). NIM is optional for freer wording. Not financial advice. Enter to send · Shift+Enter for a new line."
     ),
     tags$script(HTML(sprintf(
       "(function(){
@@ -237,14 +249,13 @@ ui <- function(id) {
             '<div class=\"coe-bot-pending\"><span class=\"coe-bot-pulse\"></span><span>Writing a reply…</span></div>');
           scrollThread();
         }
-        function sendOnce(){
+        function sendOnce(forced){
           if(gate) return;
           var ta=document.getElementById(ns+'prompt');
-          var q=ta ? (ta.value||'').trim() : '';
+          var q=forced || (ta ? (ta.value||'').trim() : '');
           if(!q) return;
           gate=true;
           paintPending(q);
-          // One payload with the question — never clear before this is set.
           Shiny.setInputValue(ns+'ask', {q:q, nonce: Date.now()}, {priority:'event'});
           if(ta) ta.value='';
         }
@@ -259,6 +270,11 @@ ui <- function(id) {
           ev.stopImmediatePropagation();
           sendOnce();
           return false;
+        });
+        $(document).on('click', '.coe-bot-chip', function(ev){
+          ev.preventDefault();
+          var t=(ev.currentTarget && ev.currentTarget.innerText) || '';
+          if(t) sendOnce(t.trim());
         });
         $(document).on('keydown', '#'+ns+'prompt', function(ev){
           if(ev.key!=='Enter' || ev.shiftKey) return;
@@ -300,12 +316,12 @@ server <- function(id, store) {
       if (nvidia_key_ok()) {
         tags$p(
           class = "coe-bot-status coe-bot-status--ok",
-          paste("Model:", nim_model_label())
+          paste("Desk answers +", nim_model_label())
         )
       } else {
         tags$p(
-          class = "coe-bot-status coe-bot-status--bad",
-          "API key missing — set NVIDIA_API_KEY in .Renviron (local) or Posit Connect Cloud Variables."
+          class = "coe-bot-status coe-bot-status--ok",
+          "Desk answers ready (forecasts, accuracy, model). Set NVIDIA_API_KEY for freer open-ended phrasing."
         )
       }
     })
@@ -315,7 +331,7 @@ server <- function(id, store) {
       if (!length(msgs)) {
         return(div(
           class = "coe-bot-empty",
-          tags$p("Ask how supply is forecast, what features mean, or how exposure uses predicted quota.")
+          tags$p("Tap a chip above, or ask for the Cat A / B quota outlook, MAPE, or how Your risk works.")
         ))
       }
       do.call(tagList, lapply(msgs, function(m) {
@@ -329,19 +345,35 @@ server <- function(id, store) {
       updateTextAreaInput(session, "prompt", value = "")
     })
 
-    # Single ask payload from JS: list(q=, nonce=). Avoids empty-prompt races.
     observeEvent(input$ask, {
       if (isTRUE(busy())) return()
       ask <- input$ask
       q <- if (is.list(ask)) trimws(ask$q %||% "") else trimws(ask %||% "")
       if (!nzchar(q)) return()
 
+      # 1) Instant local answer from artefacts (forecasts, scores, product FAQ).
+      local <- tryCatch(try_desk_answer(q, store), error = function(e) NULL)
+      if (!is.null(local) && nzchar(local)) {
+        history(c(
+          history(),
+          list(list(role = "user", content = q)),
+          list(list(role = "assistant", content = local))
+        ))
+        updateTextAreaInput(session, "prompt", value = "")
+        return()
+      }
+
+      # 2) Open-ended: NIM when available; otherwise a helpful desk fallback.
       if (!nvidia_key_ok()) {
         history(c(history(), list(
           list(role = "user", content = q),
           list(
             role = "assistant",
-            content = "API key missing — set NVIDIA_API_KEY locally (.Renviron) or as a Posit Connect Cloud variable, then restart/republish."
+            content = paste(
+              "I can answer forecasts, accuracy, model setup, and Your risk from the live artefacts — try those chips.",
+              "For freer open-ended phrasing, set NVIDIA_API_KEY in .Renviron (local) or Posit Connect Cloud Variables.",
+              sep = "\n\n"
+            )
           )
         )))
         return()
@@ -365,13 +397,18 @@ server <- function(id, store) {
         turns
       )
 
-      # Paint pending first; then call NIM synchronously. Promises on Connect were
-      # either delaying the flush or never writing the final bubble back.
       session$onFlushed(function() {
         out <- tryCatch(
           nim_chat(api_msgs, max_tokens = 1800L),
           error = function(e) list(ok = FALSE, error = conditionMessage(e))
         )
+        # If NIM fails, still try a soft desk fallback for near-miss questions.
+        if (!isTRUE(out$ok)) {
+          soft <- tryCatch(try_desk_answer(paste("help", q), store), error = function(e) NULL)
+          if (!is.null(soft) && nzchar(soft)) {
+            out <- list(ok = TRUE, text = soft)
+          }
+        }
         finish_turn(history, busy, session, out)
       }, once = TRUE)
     }, ignoreInit = TRUE, ignoreNULL = TRUE)

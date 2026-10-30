@@ -38,7 +38,7 @@ ui <- function(id) {
         class = "lede lede--wide",
         "A Category A/B supply desk for dealers, parallel importers, and fleets that buy certificates ",
         "continuously, not once a decade. We project deregistrations and the quota they imply twelve ",
-        "quarters ahead with a bootstrap band, let you move that path with renewal, premium and policy ",
+        "quarters ahead with bootstrap bands, let you move that path with renewal, premium and policy ",
         "scenarios, and translate it into cost exposure on a locked order book. We do not forecast premiums."
       )
     ),
@@ -47,8 +47,8 @@ ui <- function(id) {
       class = "about-stats",
       stat("Horizon", "12 quarters"),
       stat("Categories", "A and B"),
-      stat("Live model", "Cohort elastic net"),
-      stat("Band", "500-path bootstrap")
+      stat("Live model", "Elastic net"),
+      stat("Band", "Bootstrap paths")
     ),
 
     section(
@@ -89,32 +89,37 @@ ui <- function(id) {
     ),
 
     section(
-      "The four views",
+      "The views",
       tags$ul(
         class = "about-list",
         tags$li(
-          tags$strong("Home - supply pipeline. "),
-          "Released certificates against the held-out model, then the production model rolled 36 months ",
+          tags$strong("Home — supply pipeline. "),
+          "Released certificates against the held-out model, then the production model rolled ~36 months ",
           "forward with 50% and 80% bootstrap bands and a quarterly table."
         ),
         tags$li(
-          tags$strong("Scenarios - feedback and policy. "),
+          tags$strong("Scenarios — feedback and policy. "),
           "Renewal share as a fitted function of PQP, a direct renewal lever, premium glide paths, ",
           "LTA injections or clawbacks, and a merged A+B view."
         ),
         tags$li(
-          tags$strong("Market - category dynamics. "),
+          tags$strong("Market — category dynamics. "),
           "Cohort flow, within-quarter premium swings, the A/B spread and volume shares, plus the supporting EDA."
         ),
         tags$li(
-          tags$strong("Your risk - exposure calculator. "),
+          tags$strong("Results — calibration. "),
+          "One-step held-out scores, period totals where the model missed, and a 24-month recursive backtest ",
+          "with coverage of the 80% band."
+        ),
+        tags$li(
+          tags$strong("Your risk — exposure calculator. "),
           "Upload or edit a dealer book / fleet schedule and settle it against block-bootstrap premium paths, ",
           "optionally tilted by the forward quota path under a chosen scenario."
         ),
         tags$li(
-          tags$strong("Results - calibration. "),
-          "One-step held-out scores, period totals where the model missed, and a 24-month recursive backtest ",
-          "with coverage of the 80% band."
+          tags$strong("COE bot — desk Q&A. "),
+          "Instant answers on the forward quota path, held-out accuracy, and how the desk works, grounded on ",
+          "the live artefacts (optional NVIDIA NIM for freer phrasing)."
         )
       )
     ),
@@ -406,8 +411,9 @@ server <- function(id, store) {
         tags$li(
           tags$strong("Reproducible. "),
           tags$code("Rscript scripts/run_data_cleaning.R"), " then ", tags$code("Rscript scripts/fit_and_forecast.R"),
-          " rebuild every artefact the app reads, including the feature panel, the backtest, the forward path and the scenarios. ",
-          "The app itself only loads artefacts; it does not refit."
+          " rebuild modelling artefacts. To refresh forward bands without overwriting the shipped held-out scores, use ",
+          tags$code("scripts/rebuild_forward_from_shipped.R"),
+          ". The app only loads artefacts; it does not refit."
         )
       )
     })

@@ -1,10 +1,10 @@
-# Build grounded context for COE bot from brief + live score artefacts.
+# Build grounded context for COE bot from brief + live score / forecast artefacts.
 
 `%||%` <- function(a, b) {
   if (is.null(a) || (length(a) == 1L && is.na(a))) b else a
 }
 
-clip <- function(x, n = 7000L) {
+clip <- function(x, n = 9000L) {
   x <- paste(x, collapse = "\n")
   if (nchar(x) <= n) return(x)
   paste0(substr(x, 1L, n), "\n\n[…truncated…]")
@@ -33,6 +33,8 @@ system_prompt <- function() {
     "If something is not in context, say you do not have it — do not invent metrics, dates, or APIs.",
     "Prefer deregistration / quota / elastic net / exposure terminology used by the product.",
     "Never ask for or reveal API keys. Never claim you forecast premiums as the core product.",
+    "When asked for forecasts or outlook, quote the Forward quota numbers from context exactly",
+    "(mid / lo80 / hi80 by quarter). Prefer short tables.",
     "FORMAT: Use GitHub-flavoured markdown. For multi-part questions, answer every part in order",
     "with ## headings. Use short paragraphs, bullet lists, and markdown tables for score grids.",
     "Free-form answers are fine — paraphrase and structure for clarity; do not invent facts.",
@@ -44,7 +46,10 @@ system_prompt <- function() {
 
 #' @export
 build_project_context <- function(store = NULL, root = NULL) {
-  box::use(app/logic/viewdata/store[project_root])
+  box::use(
+    app/logic/viewdata/store[project_root],
+    app/logic/chat/desk_answers[forecast_context_block]
+  )
   if (is.null(root)) root <- project_root()
 
   brief_path <- file.path(root, "app", "logic", "chat", "project_brief.md")
@@ -61,16 +66,17 @@ build_project_context <- function(store = NULL, root = NULL) {
       fmt_scores(store$two_hits, "Deregistration hit rates (held-out)"),
       if (!is.null(store$meta$train_end)) {
         sprintf(
-          "## Fit window\ntrain_end=%s | test_start=%s | live_model=%s",
+          "## Fit window\ntrain_end=%s | test_start=%s | live_model=%s | lambda=%s",
           as.character(store$meta$train_end),
           as.character(store$meta$test_start),
-          store$meta$live_model %||% "core_forecast"
+          store$meta$live_model %||% "core_forecast",
+          store$meta$spec$lambda_rule %||% "lambda.1se"
         )
-      }
+      },
+      forecast_context_block(store)
     )
   }
 
-  # Brief + live scores only — large README/proposal payloads slowed every turn.
   clip(paste(
     c(
       "# PROJECT CONTEXT",

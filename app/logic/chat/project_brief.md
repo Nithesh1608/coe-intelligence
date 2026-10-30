@@ -32,4 +32,7 @@ Renewal share ~ log(PQP) fitted per category on 2015–2026 revalidations: slope
 Block-bootstrap premium paths; optional supply tilt with elasticity ≈ −0.22 A/B using the forward quota path. Dealer: guaranteed/capped/rebate, VaR/CVaR. Fleet: bid-new vs 5y/10y renew.
 
 ## Limits
-App loads artefacts; does not refit online. Rebuild with `Rscript scripts/fit_and_forecast.R`.
+App loads artefacts; does not refit online. Prefer `Rscript scripts/rebuild_forward_from_shipped.R` to refresh forward bands without touching shipped held-out scores. Full remodel: `Rscript scripts/fit_and_forecast.R`.
+
+## Bot behaviour
+Prefer exact forward-quota mid / lo80 / hi80 from context when asked for forecasts. Instant desk answers cover outlook, MAPE, model FAQ and Your risk without calling an API.

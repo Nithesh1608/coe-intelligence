@@ -18,19 +18,20 @@ rhino::app()
 | Market | Category dynamics | Cohort flow, within-quarter premium swings, A/B spread and volume shares, supporting EDA |
 | Results | Calibration | One-step held-out scores, period totals where the model missed, 24-month recursive backtest with 80% coverage |
 | Your risk | Exposure calculator | Dealer book and fleet schedule priced on simulated premium paths, optionally tilted by the forward quota path |
-| COE bot | | Free-form Q&A via NVIDIA NIM, grounded on the project brief + live scores |
+| COE bot | | Instant desk answers on forward quota / accuracy; optional NIM for open phrasing |
 | About | | Data, cleaning, features, model, scenarios, exposure, limits |
 
 ## Rebuild everything
 
 ```r
-Rscript scripts/acquire_data.R        # data.gov.sg tables via httr2; prints the manual DataMall / SingStat steps
-Rscript scripts/run_data_cleaning.R   # knits data/data_cleaning.Rmd -> data/processed/*.rds
-Rscript scripts/fit_and_forecast.R    # feature panel, evaluation + production fits, backtest, forward path, scenarios
-Rscript scripts/verify_exposure.R     # multi-case check of the exposure engine
+Rscript scripts/acquire_data.R                  # data.gov.sg tables via httr2; prints the manual DataMall / SingStat steps
+Rscript scripts/run_data_cleaning.R             # knits data/data_cleaning.Rmd -> data/processed/*.rds
+Rscript scripts/fit_and_forecast.R              # full rebuild of model artefacts (overwrites held-out scores)
+Rscript scripts/rebuild_forward_from_shipped.R  # refresh forward bands / scenarios without overwriting shipped scores
+Rscript scripts/verify_exposure.R               # multi-case check of the exposure engine
 ```
 
-`fit_and_forecast.R` writes every CSV under `data/processed/model_experiment/` that the app reads, including `feature_panel.csv`, `forward_quota.csv`, `forward_dereg.csv`, `forward_scenarios.csv`, `backtest_recursive.csv`, `backtest_calibration.csv`, `renewal_response.csv` and `model_spec.csv`. The app only loads artefacts; it never refits.
+Shipped held-out scores live under `data/processed/model_experiment/` (`two_models_*.csv`, `feature_panel.csv`). Prefer `rebuild_forward_from_shipped.R` for day-to-day forward refreshes. The app only loads artefacts; it never refits.
 
 ## Tests
 
