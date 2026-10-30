@@ -1,8 +1,8 @@
-# Proposal visualisations — fan, cohort, swing, spread/shares, feedback, waterfall.
+# Proposal visualisations: fan, cohort, swing, spread/shares, feedback, waterfall.
 
 box::use(
   echarts4r[
-    e_charts, e_line, e_bar, e_area, e_band2, e_sankey, e_tooltip, e_legend,
+    e_charts, e_line, e_bar, e_area, e_band2, e_tooltip, e_legend,
     e_grid, e_color, e_datazoom, e_x_axis, e_y_axis, e_mark_line, e_labels
   ],
   app/logic/viewdata/charts[style_chart],
@@ -99,7 +99,7 @@ chart_quota_fan <- function(prep) {
     e_datazoom(type = "inside")
 }
 
-# ---- 2 Cohort flow (sankey) -------------------------------------------------
+# ---- 2 Cohort flow ----------------------------------------------------------
 
 #' Trace one registration cohort into renewals, deregistrations, and quota.
 #' @export
@@ -179,13 +179,62 @@ prep_cohort_flow <- function(store, exit_year = NULL) {
   )
 }
 
+#' Available exit years for the cohort control (no full store required).
+#' @export
+cohort_year_choices <- function(root) {
+  p <- file.path(root, "data", "processed", "renewal_rate.rds")
+  fallback <- list(choices = stats::setNames(2024L, "2024"), selected = 2024L)
+  if (!file.exists(p)) return(fallback)
+  rr <- tryCatch(readRDS(p), error = function(e) NULL)
+  if (is.null(rr) || !nrow(rr)) return(fallback)
+  rr$category <- as.character(rr$category)
+  rr$month <- if (inherits(rr$month, "Date")) rr$month else as.Date(rr$month)
+  rr <- rr[rr$category %in% c("A", "B"), , drop = FALSE]
+  if (!nrow(rr)) return(fallback)
+  rr$year <- as.integer(format(rr$month, "%Y"))
+  n_mo <- stats::aggregate(month ~ year, rr, function(z) length(unique(z)))
+  full <- n_mo$year[n_mo$month >= 12]
+  years <- sort(unique(rr$year))
+  if (!length(years)) return(fallback)
+  selected <- if (length(full)) max(as.integer(full)) else max(years)
+  list(
+    choices = stats::setNames(as.integer(years), as.character(years)),
+    selected = as.integer(selected)
+  )
+}
+
 #' @export
 chart_cohort_flow <- function(prep) {
-  prep$links |>
-    e_charts() |>
-    e_sankey(source, target, value) |>
-    e_tooltip() |>
-    e_color(c("#ff5c1a", "#e4e4e7", "#c8f542", "#737373", "#fb7185", "#3b82f6"))
+  # Stage bars render reliably on first paint; sankey often stays blank until resize.
+  stages <- data.frame(
+    stage = c(
+      sprintf("Registered %s", prep$reg_year),
+      sprintf("Due in %s", prep$exit_year),
+      "Renewed (PQP)",
+      "Deregistered",
+      "Into Cat A/B quota",
+      "Into Cat E pool"
+    ),
+    value = c(
+      prep$due + max(0, sum(prep$links$value[prep$links$target == "Left earlier / other"], na.rm = TRUE)),
+      prep$due,
+      prep$renewed,
+      prep$dereg,
+      sum(prep$links$value[prep$links$target == "Cat A/B quota"], na.rm = TRUE),
+      sum(prep$links$value[prep$links$target == "Cat E pool"], na.rm = TRUE)
+    ),
+    stringsAsFactors = FALSE
+  )
+  # Prefer exact registered total from links when present.
+  reg_v <- sum(prep$links$value[grepl("^Registered", prep$links$source)], na.rm = TRUE)
+  if (is.finite(reg_v) && reg_v > 0) stages$value[1] <- reg_v
+  stages$stage <- factor(stages$stage, levels = stages$stage)
+  stages |>
+    e_charts(stage) |>
+    e_bar(value, name = "Vehicles / certificates", itemStyle = list(color = "#ff5c1a")) |>
+    e_tooltip(trigger = "axis") |>
+    e_legend(show = FALSE) |>
+    style_chart()
 }
 
 # ---- 3 Within-quarter volatility --------------------------------------------
@@ -303,7 +352,7 @@ chart_volume_shares <- function(prep) {
 
 # ---- 5 Feedback loop explorer -----------------------------------------------
 
-#' Renewal shift → deregistration path → replacement quota path.
+#' Renewal shift ? deregistration path ? replacement quota path.
 #' @export
 prep_feedback_scenario <- function(store, renewal_shift = 0, category = "A", horizon_months = 36L) {
   cats <- c("A", "B", "C", "D")
@@ -330,7 +379,7 @@ prep_feedback_scenario <- function(store, renewal_shift = 0, category = "A", hor
 }
 
 # Baseline (shift = 0) cached per session via enclosing env would be nicer;
-# compute inline when shift != 0 by calling again — keep simple helper:
+# compute inline when shift != 0 by calling again  keep simple helper:
 prep_feedback_scenario_base_cache <- function(store, category, horizon_months) {
   cats <- c("A", "B", "C", "D")
   naive_list <- lapply(cats, function(cat) {
@@ -389,7 +438,7 @@ prep_exposure_waterfall <- function(base_summary, shifts, quoted_total) {
 
   shift1 <- sh[as.numeric(sh$shift_quarters) == 1, , drop = FALSE]
   shift2 <- sh[as.numeric(sh$shift_quarters) == 2, , drop = FALSE]
-  # timing_shift uses exercise shifts 0,6,12 → 0,1,2 quarters when EX_PER_QTR=6
+  # timing_shift uses exercise shifts 0,6,12 ? 0,1,2 quarters when EX_PER_QTR=6
   if (!nrow(shift1) && "shift" %in% names(sh)) {
     shift1 <- sh[as.numeric(sh$shift) == 6, , drop = FALSE]
     shift2 <- sh[as.numeric(sh$shift) == 12, , drop = FALSE]

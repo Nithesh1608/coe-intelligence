@@ -1,7 +1,7 @@
 box::use(
   shiny[
     NS, moduleServer, div, tags, addResourcePath, selectInput, sliderInput,
-    reactive
+    reactive, outputOptions
   ],
   bslib[card, card_header, card_body],
   echarts4r[renderEcharts4r, echarts4rOutput],
@@ -9,12 +9,16 @@ box::use(
 box::use(
   app/logic/viewdata/store[project_root],
   app/logic/viewdata/proposal_viz[
-    load_premium_moves, prep_cohort_flow, chart_cohort_flow,
+    load_premium_moves, prep_cohort_flow, chart_cohort_flow, cohort_year_choices,
     prep_within_quarter_swing, chart_within_quarter_swing,
     prep_spread_and_shares, chart_spread, chart_volume_shares,
     prep_feedback_scenario, chart_feedback_scenario
   ],
 )
+
+`%||%` <- function(a, b) {
+  if (is.null(a) || !length(a) || (length(a) == 1L && is.na(a))) b else a
+}
 
 eda_fig <- function(file, alt = "") {
   tags$figure(
@@ -39,7 +43,7 @@ eda_section <- function(n, kicker, title, body, files, aside = NULL) {
   )
 }
 
-viz_block <- function(ns, num, kicker, title, body, bullets, controls = NULL, charts) {
+viz_block <- function(num, kicker, title, body, bullets, controls = NULL, charts) {
   div(
     class = "eda-beat eda-beat--full viz-proposal",
     div(
@@ -55,57 +59,58 @@ viz_block <- function(ns, num, kicker, title, body, bullets, controls = NULL, ch
   )
 }
 
-#' EDA — proposal visuals first, then notebook story
+#' Market context and supply mechanics
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   addResourcePath("eda-assets", file.path(project_root(), "app", "static", "eda"))
+  cy <- cohort_year_choices(project_root())
+
   div(
     class = "page-stack desk eda-page",
-    tags$p(class = "eyebrow", "EDA"),
-    tags$h2("Supply mechanics and category dynamics"),
+    tags$p(class = "eyebrow", "Market context"),
+    tags$h2("See the supply pipeline before you price the book"),
     tags$p(
       class = "lede lede--wide",
-      "Interactive charts from the project proposal — cohort flow, within-quarter swings, A/B/E spreads, ",
-      "and the renewal feedback loop — each with a plain-language explanation. Scroll further for the full notebook story."
+      "Cohort timing, within-quarter premium swings, A/B/E substitution, and the renewal feedback loop - ",
+      "the views a dealer or fleet desk needs before locking packages or planning replacements."
     ),
 
-    tags$p(class = "nx-kicker", style = "margin-top:1.5rem;", "Proposal visuals"),
-
     viz_block(
-      ns, 2, "Proposal · 2 of 6",
-      "Cohort flow — why the next few years are partly knowable",
+      1, "Pipeline",
+      "Cohort flow - why the next few years are partly knowable",
       paste(
-        "Every COE runs about ten years. Registrations in year t become the stock that decides to renew or scrap in year t+10.",
-        "Scrapping feeds deregistrations, and deregistrations feed the replacement quota. This diagram makes that pipeline legible."
+        "Every COE runs about ten years. Registrations in year t become the stock that renews or scraps in year t+10.",
+        "Scrapping feeds deregistrations; deregistrations feed replacement quota. Use this to see how much of the pipeline is already in the data."
       ),
       list(
-        tags$span(tags$strong("Left → right — "), "one registration cohort moving through survival, renewal, scrap, and quota."),
-        tags$span(tags$strong("Renewed (PQP) — "), "owners who pay the Prevailing Quota Premium and keep the car off the scrap heap."),
-        tags$span(tags$strong("Cat A/B quota / E pool — "), "how deregistrations are split under the replacement rule.")
+        tags$span(tags$strong("Registered to due - "), "the cohort that reaches the year-10 decision."),
+        tags$span(tags$strong("Renewed (PQP) - "), "owners who pay to keep the car; that suppresses near-term scrap."),
+        tags$span(tags$strong("Into quota - "), "how deregistrations feed Categories A/B and the open E pool.")
       ),
       controls = selectInput(
         ns("cohort_year"), "Exit year (year-10 decision)",
-        choices = c("Loading…" = ""),
+        choices = cy$choices,
+        selected = cy$selected,
         width = "220px"
       ),
       charts = card(
         class = "desk-card",
-        card_header("Registration → renewal / deregistration → quota"),
+        card_header("Registration -> renewal / deregistration -> quota"),
         card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("cohort"), height = "440px"))
       )
     ),
 
     viz_block(
-      ns, 3, "Proposal · 3 of 6",
-      "Within-quarter volatility — the dealer’s fortnight problem",
+      2, "Dealer risk",
+      "Within-quarter swings - what a locked package is short",
       paste(
-        "Dealers guarantee package prices, then bid twice a month. Premiums can move thousands of dollars inside a single quarter.",
-        "This chart is the historical size of that swing — the exposure problem in dollars, before any model."
+        "You guarantee a package price, then bid twice a month. Premiums can move thousands of dollars inside one quarter.",
+        "This is that swing in dollars - the exposure problem before any model."
       ),
       list(
-        tags$span(tags$strong("Bar height — "), "maximum premium swing across exercises inside that quarter ($ thousands)."),
-        tags$span(tags$strong("Why it matters — "), "a locked order book is short that swing until every order clears.")
+        tags$span(tags$strong("Bar height - "), "maximum premium move across exercises in that quarter ($ thousands)."),
+        tags$span(tags$strong("Why it matters - "), "every open order is short that move until it clears.")
       ),
       controls = selectInput(
         ns("swing_cat"), "Category",
@@ -123,23 +128,23 @@ ui <- function(id) {
     ),
 
     viz_block(
-      ns, 4, "Proposal · 4 of 6",
-      "A / B / E spread and volume shares — substitution in view",
+      3, "Category mix",
+      "A / B / E spread and volume shares",
       paste(
-        "Dealers allocate inventory across Categories A, B and E. When the A–B gap narrows, demand can migrate.",
-        "Premiums show the spread; certificate volume shares show whether the mix of supply moved with it. Policy events are marked."
+        "Inventory is allocated across A, B and E. When the A-B gap narrows, demand can migrate.",
+        "Premiums show the spread; certificate shares show whether the supply mix moved with it."
       ),
       list(
-        tags$span(tags$strong("Premium lines — "), "Cat A, B, and open Cat E clearing prices."),
-        tags$span(tags$strong("Dashed markers — "), "COVID bidding suspension (2020) and the May 2022 A/B redefinition."),
-        tags$span(tags$strong("Share areas — "), "how A/B/E split monthly certificate volume (substitution / mix).")
+        tags$span(tags$strong("Premium lines - "), "Cat A, B, and open Cat E clearing prices."),
+        tags$span(tags$strong("Markers - "), "COVID bidding pause (2020) and the May 2022 A/B redefinition."),
+        tags$span(tags$strong("Share areas - "), "monthly mix of certificate volume across A/B/E.")
       ),
       charts = div(
         class = "timing-compare",
         style = "grid-template-columns: 1fr;",
         card(
           class = "desk-card",
-          card_header("Premiums — Cat A vs B vs E"),
+          card_header("Premiums - Cat A vs B vs E"),
           card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("spread"), height = "360px"))
         ),
         card(
@@ -151,16 +156,16 @@ ui <- function(id) {
     ),
 
     viz_block(
-      ns, 5, "Proposal · 5 of 6",
-      "Feedback loop explorer — renewals suppress future supply",
+      4, "Feedback",
+      "Renewals that tighten future supply",
       paste(
-        "When premiums (and PQP) are high, more owners renew instead of scrapping. That cuts near-term deregistrations,",
-        "which cuts future quota. Move the renewal shift to see how supply two to three years out responds."
+        "When PQP is expensive, more owners renew instead of scrapping. That cuts near-term deregistrations and future quota.",
+        "Move the renewal lever to see how supply two to three years out responds."
       ),
       list(
-        tags$span(tags$strong("Baseline (dashed) — "), "seasonal-naive deregistrations mapped through the replacement quota identity."),
-        tags$span(tags$strong("Orange — "), "same pipeline after your renewal-rate shift (positive = more renewals = less scrap = less future quota)."),
-        tags$span(tags$strong("Honesty — "), "this is a scenario lever on the mechanical pipeline, not a fitted premium forecast.")
+        tags$span(tags$strong("Dashed - "), "baseline renewal behaviour through the replacement quota identity."),
+        tags$span(tags$strong("Orange - "), "same pipeline after your renewal shift (higher = more renewals = tighter future quota)."),
+        tags$span(tags$strong("Scope - "), "a supply scenario lever, not a premium forecast.")
       ),
       controls = list(
         selectInput(
@@ -184,90 +189,90 @@ ui <- function(id) {
     ),
 
     tags$hr(class = "eda-divider"),
-    tags$p(class = "nx-kicker", "Notebook story"),
+    tags$p(class = "nx-kicker", "Deeper context"),
     tags$p(
       class = "lede lede--wide",
-      "All charts from our EDA notebooks, in reading order. Light figures keep the original ggplot look."
+      "Supporting views of supply shape, age structure, renewals, and the quota formula - the background behind the desk tools above."
     ),
     div(
       class = "eda-spine",
       tags$span("Supply shape"),
-      tags$span(class = "eda-spine__dot", "→"),
+      tags$span(class = "eda-spine__dot", "->"),
       tags$span("Season & cycles"),
-      tags$span(class = "eda-spine__dot", "→"),
-      tags$span("Deregistrations → quota"),
-      tags$span(class = "eda-spine__dot", "→"),
+      tags$span(class = "eda-spine__dot", "->"),
+      tags$span("Deregistrations -> quota"),
+      tags$span(class = "eda-spine__dot", "->"),
       tags$span("Age & lock-in"),
-      tags$span(class = "eda-spine__dot", "→"),
+      tags$span(class = "eda-spine__dot", "->"),
       tags$span("Renewals"),
-      tags$span(class = "eda-spine__dot", "→"),
+      tags$span(class = "eda-spine__dot", "->"),
       tags$span("Formula & price")
     ),
 
     eda_section(
       1, "How much supply is there?",
-      "Certificate quotas swing for years — they are not a smooth line",
+      "Certificate quotas swing for years - they are not a smooth line",
       paste(
         "Monthly auction quotas for Categories A, B and E show long waves and deep troughs.",
-        "A dealer pricing packages against “average supply” is pricing against a fiction."
+        "Pricing packages against average supply is pricing against a fiction."
       ),
       c("01_COE_supply_over_time.png", "02_COE_supply_volatility.png"),
-      "EDA 2 · RQ1 — level and rolling volatility."
+      "Level and rolling volatility of released certificates."
     ),
 
     eda_section(
       2, "Within the year and across years",
       "Seasonality is mild; the multi-year cycle is the real story",
       paste(
-        "Month-of-year patterns exist but are secondary. Calendar-year averages show the longer boom–bust",
+        "Month-of-year patterns exist but are secondary. Calendar-year averages show the longer boom-bust",
         "that matters for fleet replacement windows."
       ),
       c("04_Monthly_patterns.png", "05_Long_term_movements.png"),
-      "EDA 2 · RQ3 — monthly patterns and annual averages."
+      "Monthly patterns and annual averages."
     ),
 
     eda_section(
       3, "The mechanical link",
       "Deregistrations set up the next certificates",
       paste(
-        "LTA’s replacement rule looks back at recent deregistrations. When deregistrations rise, the next quota quarter",
-        "usually follows — that is the lever our elastic-net models learn."
+        "LTA's replacement rule looks back at recent deregistrations. When deregistrations rise, the next quota quarter",
+        "usually follows - that is the lever our supply models learn."
       ),
       "03_Deregistrations_and_supply.png",
-      "EDA 2 · RQ2 — prior 12-month deregistrations vs subsequent quarterly quota."
+      "Prior 12-month deregistrations vs subsequent quarterly quota."
     ),
 
     eda_section(
       4, "What is already on the road",
       "A large age cliff is due by ~2029; a thin cohort follows",
       paste(
-        "Age structure is the slow clock. Cars aged 7–9 hit the year-10 decision soon; ages 2–4 were bought",
+        "Age structure is the slow clock. Cars aged 7-9 hit the year-10 decision soon; ages 2-4 were bought",
         "in the tight-quota years and leave a thinner pipeline behind."
       ),
       c("e1_02_age_profile.png", "08_Vehicle_age_distribution.png"),
-      "EDA 1 chart 2 and EDA 2 · RQ5 — two views of the same age snapshot."
+      "Two views of the same age snapshot."
     ),
 
     eda_section(
       5, "Some deregistrations are already booked",
       "Five-year renewals lock scrap dates five years ahead",
       paste(
-        "Those cars cannot renew again. The locked-in deregistration cushion was thicker in 2021–24 than in 2026–28 —",
+        "Those cars cannot renew again. The locked-in deregistration cushion was thicker in 2021-24 than in 2026-28 - ",
         "knowable today, before any model."
       ),
       "e1_04_locked_exits.png",
-      "EDA 1 chart 4 — deregistrations implied by completed 5-year revalidations."
+      "Deregistrations implied by completed 5-year revalidations."
     ),
 
     eda_section(
       6, "Renewal is a price decision",
       "When renewing gets expensive, more owners scrap instead",
       paste(
-        "Renewal activity over time, and the yearly renewal–PQP scatter, both show behaviour on top of the cohort.",
-        "Expensive PQP lines up with lower renewal shares — freeing certificates rather than holding them back."
+        "Renewal activity over time, and the yearly renewal-PQP scatter, both show behaviour on top of the cohort.",
+        "Expensive PQP lines up with lower renewal shares - freeing certificates rather than holding them back."
       ),
       c("06_Renewal_activity.png", "e1_05_renewal_pqp.png"),
-      "EDA 2 · RQ4 and EDA 1 chart 5."
+      "Renewal activity and renewal share vs PQP."
     ),
 
     eda_section(
@@ -275,26 +280,26 @@ ui <- function(id) {
       "Since 2023 a large share of A/B certificates sat off the pure 25% rule",
       paste(
         "Grey is what the replacement rule gives; blue is extra LTA added; red is held back.",
-        "Supply is partly mechanical — and partly discretionary."
+        "Supply is partly mechanical - and partly discretionary."
       ),
       "e1_03_quota_rule.png",
-      "EDA 1 chart 3 — quarterly stacked bars from Feb 2023."
+      "Quarterly stacked bars from Feb 2023."
     ),
 
     eda_section(
-      8, "Premiums in context — not our forecast target",
+      8, "Premiums in context - not our forecast target",
       "Supply timing still shows up in clearing prices",
       paste(
-        "Long premium history with regime shading, monthly supply vs premium, and YoY quota–premium scatters",
+        "Long premium history, monthly supply vs premium, and YoY quota-premium scatters",
         "explain why a locked order book cares about supply. We still do not forecast the next premium."
       ),
       c("e1_01_premiums.png", "07_Supply_and_premiums.png", "e1_06_supply_price.png"),
-      "EDA 1 charts 1 & 6 and EDA 2 · RQ5."
+      "Premium history and supply-price relationships."
     ),
 
     tags$p(
       class = "footnote eda-close",
-      "Fan chart lives on Home. Exposure waterfall lives on Your risk after you price a book. Results shows held-out elastic-net forecasts."
+      "Home shows the live quota fan. Your risk prices a locked book. Results shows model track record."
     )
   )
 }
@@ -306,16 +311,6 @@ server <- function(id, store) {
     root <- project_root()
     pm <- load_premium_moves(root)
 
-    # Cohort year choices
-    cohort0 <- prep_cohort_flow(store)
-    if (!is.null(cohort0) && length(cohort0$years)) {
-      shiny::updateSelectInput(
-        session, "cohort_year",
-        choices = as.character(cohort0$years),
-        selected = as.character(cohort0$exit_year)
-      )
-    }
-
     output$cohort <- renderEcharts4r({
       yr <- suppressWarnings(as.integer(input$cohort_year))
       prep <- prep_cohort_flow(store, exit_year = if (is.finite(yr)) yr else NULL)
@@ -324,7 +319,7 @@ server <- function(id, store) {
     })
 
     swing_prep <- reactive({
-      prep_within_quarter_swing(pm, category = input$swing_cat)
+      prep_within_quarter_swing(pm, category = input$swing_cat %||% "A")
     })
 
     output$swing <- renderEcharts4r({
@@ -336,11 +331,11 @@ server <- function(id, store) {
     output$swing_note <- shiny::renderText({
       prep <- swing_prep()
       if (is.null(prep) || is.null(prep$summary) || !nrow(prep$summary)) {
-        return("Within-quarter swing table missing.")
+        return("Within-quarter swing data unavailable.")
       }
       s <- prep$summary[1, ]
       sprintf(
-        "Cat %s · median quarterly swing ≈ $%s (p90 ≈ $%s). Across %s quarters with exercise-level premiums.",
+        "Cat %s | median quarterly swing ~ $%s (p90 ~ $%s) across %s quarters.",
         prep$category,
         format(round(s$median_swing), big.mark = ",", trim = TRUE),
         format(round(s$p90_swing), big.mark = ",", trim = TRUE),
@@ -367,8 +362,8 @@ server <- function(id, store) {
     fb_prep <- reactive({
       prep_feedback_scenario(
         store,
-        renewal_shift = as.numeric(input$fb_shift),
-        category = input$fb_cat,
+        renewal_shift = as.numeric(input$fb_shift %||% 0.1),
+        category = input$fb_cat %||% "A",
         horizon_months = 36L
       )
     })
@@ -383,13 +378,19 @@ server <- function(id, store) {
       prep <- fb_prep()
       if (is.null(prep)) return("")
       shift <- prep$renewal_shift
-      direction <- if (shift > 0) "more renewals → less scrap → tighter future quota"
-      else if (shift < 0) "fewer renewals → more scrap → looser future quota"
-      else "no shift (scenario = baseline)"
+      direction <- if (shift > 0) "more renewals -> tighter future quota"
+      else if (shift < 0) "fewer renewals -> looser future quota"
+      else "no shift (matches baseline)"
       sprintf(
-        "Cat %s · renewal shift %+.0f%% · %s. Horizon 12 quarters via seasonal-naive deregistrations → replacement quota.",
+        "Cat %s | renewal shift %+.0f%% | %s | 12-quarter horizon.",
         prep$category, 100 * shift, direction
       )
     })
+
+    outputOptions(output, "cohort", suspendWhenHidden = FALSE)
+    outputOptions(output, "swing", suspendWhenHidden = FALSE)
+    outputOptions(output, "spread", suspendWhenHidden = FALSE)
+    outputOptions(output, "shares", suspendWhenHidden = FALSE)
+    outputOptions(output, "feedback", suspendWhenHidden = FALSE)
   })
 }

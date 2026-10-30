@@ -66,8 +66,8 @@ ui <- function(id) {
     tags$h2("Exposure calculator"),
     tags$p(
       class = "lede",
-      "Prices a locked dealer book (or fleet schedule) with simulated premium paths. ",
-      "Optionally tilt those paths with the supply forecast. We do not forecast the next premium."
+      "Turn a locked order book or fleet schedule into expected COE cost, a loss range, and timing options. ",
+      "Premium paths are simulated; optionally tilted by the supply forecast. We do not forecast the next premium."
     ),
 
     navset_card_underline(
@@ -140,20 +140,21 @@ ui <- function(id) {
         ),
         div(
           class = "calc-section viz-explain",
-          tags$span(class = "nx-kicker", "Proposal · 6 of 6"),
-          tags$h3("Exposure waterfall — your book in cost steps"),
+          tags$span(class = "nx-kicker", "Cost build-up"),
+          tags$h3("Exposure waterfall — quote to clearing to timing"),
           tags$p(
             paste(
-              "Starts from the quoted package total, steps to expected clearing cost under simulated paths,",
-              "shows the p10–p90 confidence range, then the cost change if you delay the whole book by one or two quarters."
+              "From the package total you quoted, to expected clearing under simulated paths,",
+              "the p10–p90 range, and what happens if you delay the whole book by one or two quarters.",
+              "Runs automatically on an example book; re-run after you change inputs."
             )
           ),
           tags$ul(
             class = "viz-explain__list",
-            tags$li(tags$strong("Quoted book — "), "sum of locked package premiums you promised."),
-            tags$li(tags$strong("Clearing gap — "), "difference between that quote and expected realised COE cost."),
-            tags$li(tags$strong("Upside / downside — "), "distance from expected cost to the p10 and p90 of the cost distribution."),
-            tags$li(tags$strong("Delay +1Q / +2Q — "), "change in expected cost if every order’s target exercise shifts later.")
+            tags$li(tags$strong("Quoted book — "), "sum of locked package premiums."),
+            tags$li(tags$strong("Clearing gap — "), "quoted total versus expected realised COE cost."),
+            tags$li(tags$strong("Upside / downside — "), "distance from expected cost to p10 and p90."),
+            tags$li(tags$strong("Delay +1Q / +2Q — "), "change in expected cost if every order shifts later.")
           ),
           card(
             class = "desk-card",
@@ -422,22 +423,23 @@ server <- function(id, store) {
 
     dl_res <- reactiveVal(NULL)
 
-    observeEvent(input$run, {
+    run_dealer <- function(nsim_override = NULL, quiet = FALSE) {
       if (is.null(funs) || is.null(exp_data)) {
-        showNotification("Exposure engine is not available.", type = "error")
-        return()
+        if (!quiet) showNotification("Exposure engine is not available.", type = "error")
+        return(invisible(FALSE))
       }
       if (is.null(exp_data$premium_moves) || is.null(exp_data$price_sensitivity)) {
-        showNotification("Missing premium-move or sensitivity tables.", type = "error")
-        return()
+        if (!quiet) showNotification("Missing premium-move or sensitivity tables.", type = "error")
+        return(invisible(FALSE))
       }
-      b <- book()
+      b <- tryCatch(book(), error = function(e) NULL)
       if (is.null(b) || !nrow(b)) {
-        showNotification("Order book is empty.", type = "error")
-        return()
+        if (!quiet) showNotification("Order book is empty.", type = "error")
+        return(invisible(FALSE))
       }
       cats <- unique(as.character(b$category))
-      nsim <- max(100L, min(1500L, as.integer(input$nsim)))
+      nsim_raw <- if (!is.null(nsim_override)) nsim_override else as.integer(input$nsim)
+      nsim <- max(100L, min(1500L, as.integer(nsim_raw %||% 500L)))
       tryCatch({
         withProgress(message = "Simulating premium paths", value = 0, {
           sims <- list()
@@ -462,30 +464,43 @@ server <- function(id, store) {
               start_month = store$latest_bid_month,
               elasticity = elasticity_for(cat),
               n_sims = nsim,
-              vol_mult = as.numeric(input$vol),
+              vol_mult = as.numeric(input$vol %||% 1),
               supply_tilt = isTRUE(input$tilt),
               quota_path = q_path
             )
           }
           incProgress(1 / (length(cats) + 1), detail = "Pricing book")
-          base <- funs$dealer_exposure(b, sims, p_success = as.numeric(input$psucc))
+          base <- funs$dealer_exposure(b, sims, p_success = as.numeric(input$psucc %||% 0.7))
           shifts <- funs$timing_shift(
             b, sims,
             shifts = c(0, 6, 12),
-            p_success = as.numeric(input$psucc)
+            p_success = as.numeric(input$psucc %||% 0.7)
           )
           dl_res(list(base = base, shifts = shifts, nsim = nsim, n_orders = nrow(b)))
         })
+        invisible(TRUE)
       }, error = function(e) {
         dl_res(NULL)
-        showNotification(paste("Could not price book:", conditionMessage(e)), type = "error", duration = 12)
+        if (!quiet) {
+          showNotification(paste("Could not price book:", conditionMessage(e)), type = "error", duration = 12)
+        }
+        invisible(FALSE)
       })
+    }
+
+    observeEvent(input$run, {
+      run_dealer()
     })
+
+    # First paint: price the default / example book so charts are not empty.
+    session$onFlushed(function() {
+      if (is.null(dl_res())) run_dealer(nsim_override = 300L, quiet = TRUE)
+    }, once = TRUE)
 
     output$dl_lead <- renderUI({
       r <- dl_res()
       if (is.null(r)) {
-        return(tags$p(class = "footnote", "Click “Price the book” to run the exposure engine."))
+        return(tags$p(class = "footnote", "Pricing the book… or click “Price the book” to re-run."))
       }
       s <- r$base$summary
       div(
@@ -559,13 +574,17 @@ server <- function(id, store) {
 
     output$dl_waterfall_note <- renderText({
       r <- dl_res()
-      if (is.null(r)) return("Price the book to build the waterfall.")
+      if (is.null(r)) return("Building waterfall from the active book…")
       s <- r$base$summary
       sprintf(
-        "Expected COE cost %s · p10 %s · p90 %s · VaR95 loss %s. Timing bars use the same simulated paths as the delay chart.",
+        "Expected COE cost %s · p10 %s · p90 %s · VaR95 loss %s. Timing uses the same paths as the delay chart.",
         fmt_sgd(s$expected_cost), fmt_sgd(s$cost_p10), fmt_sgd(s$cost_p90), fmt_sgd(s$var95_loss)
       )
     })
+
+    shiny::outputOptions(output, "dl_hist", suspendWhenHidden = FALSE)
+    shiny::outputOptions(output, "dl_shift", suspendWhenHidden = FALSE)
+    shiny::outputOptions(output, "dl_waterfall", suspendWhenHidden = FALSE)
 
     output$dl_note <- renderText({
       r <- dl_res()

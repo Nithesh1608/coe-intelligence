@@ -10,7 +10,7 @@ box::use(
 
 LIVE_MODEL <- "core_forecast"
 
-#' Home — supply forecast vs released quota (+ fan chart)
+#' Home - supply forecast vs released quota (+ fan chart)
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -24,8 +24,8 @@ ui <- function(id) {
         tags$h1("Forecast COE supply. Price the risk."),
         tags$p(
           class = "lede lede--wide",
-          "Dealers and fleets buy certificates every month. We project Category A and Category B quota ",
-          "so they can time purchases and size exposure — not guess the next premium."
+          "Built for dealers and fleets that buy certificates every month. We project Category A and B quota ",
+          "so you can time purchases and size exposure - instead of guessing the next premium."
         )
       ),
       div(
@@ -50,7 +50,7 @@ ui <- function(id) {
         class = "nx-metric",
         tags$span(class = "nx-kicker", "Typical miss versus released quota"),
         div(class = "nx-num", shiny::textOutput(ns("kpi_mape"), inline = TRUE)),
-        tags$span(class = "nx-hint", "Held-out months · elastic net")
+        tags$span(class = "nx-hint", "Out-of-sample months | elastic net")
       ),
       div(
         class = "nx-metric nx-metric--accent",
@@ -62,7 +62,7 @@ ui <- function(id) {
         class = "nx-metric",
         tags$span(class = "nx-kicker", "What we do not forecast"),
         div(class = "nx-num nx-num--sm", "Premiums"),
-        tags$span(class = "nx-hint", "Use Your risk to stress the book")
+        tags$span(class = "nx-hint", "Stress them in Your risk")
       )
     ),
     card(
@@ -81,18 +81,18 @@ ui <- function(id) {
 
     tags$section(
       class = "viz-explain",
-      tags$span(class = "nx-kicker", "Proposal · 1 of 6"),
-      tags$h2("Fan chart — projected quota with honest uncertainty"),
+      tags$span(class = "nx-kicker", "Supply outlook"),
+      tags$h2("Quota path with a real uncertainty band"),
       tags$p(
         class = "lede lede--wide",
-        "A single forecast line hides the downside. The fan shows the central supply path from our elastic net, ",
-        "with bands that widen further out — so a dealer or fleet can plan against a range, not a point."
+        "A single number is not enough to price a forward book. The fan shows our central supply path ",
+        "and a band that widens further out - so you can plan against a range."
       ),
       tags$ul(
         class = "viz-explain__list",
-        tags$li(tags$strong("White line — "), "certificates actually released (history)."),
-        tags$li(tags$strong("Orange line — "), "central projected quota from the live supply model."),
-        tags$li(tags$strong("Shaded band — "), "prediction interval that grows with horizon, scaled from held-out MAPE.")
+        tags$li(tags$strong("White - "), "certificates actually released."),
+        tags$li(tags$strong("Orange - "), "central projected quota from the live supply model."),
+        tags$li(tags$strong("Band - "), "interval that grows with horizon, scaled from out-of-sample error.")
       )
     ),
     card(
@@ -116,9 +116,9 @@ server <- function(id, store) {
 
     output$kpi_mape <- renderText({
       sc <- store$two_quota_scores
-      if (is.null(sc)) return("—")
+      if (is.null(sc)) return("-")
       row <- sc[sc$model == LIVE_MODEL & sc$category == input$cat, ]
-      if (!nrow(row)) return("—")
+      if (!nrow(row)) return("-")
       sprintf("%.0f%%", 100 * row$MAPE[[1]])
     })
 
@@ -150,11 +150,14 @@ server <- function(id, store) {
 
     output$fan_note <- renderText({
       prep <- fan_prep()
-      if (is.null(prep)) return("Fan chart unavailable — missing quota outlook.")
+      if (is.null(prep)) return("Fan chart unavailable - missing quota outlook.")
       sprintf(
-        "Category %s · bands use held-out MAPE ≈ %.0f%% × 1.96 × √(horizon/12). As of %s. We forecast supply, not premiums.",
+        "Category %s | band uses out-of-sample MAPE ~ %.0f%%. As of %s. We forecast supply, not premiums.",
         prep$category, 100 * prep$mape, format(prep$as_of, "%b %Y")
       )
     })
+
+    shiny::outputOptions(output, "quota", suspendWhenHidden = FALSE)
+    shiny::outputOptions(output, "fan", suspendWhenHidden = FALSE)
   })
 }
