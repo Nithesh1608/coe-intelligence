@@ -185,8 +185,11 @@ ui <- function(id) {
           tags$strong("Supply tilt. "),
           "When enabled, each path gets a drift ",
           tags$code("elasticity × Δlog(Q) / 6"),
-          " per exercise, using estimated quota→premium elasticities (about −0.22 for A/B) and a baseline ",
-          "multi-quarter quota path. Tighter forecast supply → positive premium drift; looser supply → the opposite. ",
+          " per exercise, using estimated quota→premium elasticities (about −0.22 for A/B) and the ",
+          tags$strong("same elastic-net predicted quota"),
+          " as Results (calibrated ",
+          tags$code("outlook_from_forecast"),
+          ", rolled up to quarters). Tighter forecast supply → positive premium drift; looser supply → the opposite. ",
           "That is how predicted supply enters pricing — as a directional stress on simulated premiums, ",
           "not as a point forecast of the clearing price."
         ),

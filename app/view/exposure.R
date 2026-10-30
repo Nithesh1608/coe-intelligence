@@ -16,6 +16,10 @@ box::use(
   app/logic/viewdata/store[project_root],
 )
 
+`%||%` <- function(a, b) {
+  if (is.null(a) || !length(a) || (length(a) == 1L && is.na(a))) b else a
+}
+
 fmt_sgd <- function(x) {
   paste0("$", format(round(as.numeric(x)[[1]]), big.mark = ",", scientific = FALSE, trim = TRUE))
 }
@@ -88,7 +92,8 @@ ui <- function(id) {
           tags$p(
             class = "footnote",
             "Pooled guaranteed orders by default. “A + B example book” loads the 50-order template. ",
-            "Keep simulations modest on Posit; 300–800 is usually enough."
+            "With tilt on, premium paths use the same elastic-net predicted quota as Results ",
+            "(calibrated outlook_from_forecast, rolled to quarters). Keep sims modest on Posit; 300–800 is usually enough."
           )
         ),
         uiOutput(ns("dl_lead")),
@@ -180,7 +185,40 @@ server <- function(id, store) {
       make_pooled_book(input$n_cars, cat, input$quoted)
     })
 
+    # Live predicted quota from the elastic-net desk (same series as Results).
+    # simulate_premiums expects a quarterly path: monthly outlook is summed by quarter.
     quota_path_for <- function(cat) {
+      path_from_monthly <- function(month, value) {
+        ok <- is.finite(value) & !is.na(month)
+        if (sum(ok) < 2L) return(NULL)
+        month <- as.Date(month[ok])
+        value <- as.numeric(value[ok])
+        ord <- order(month)
+        month <- month[ord]
+        value <- value[ord]
+        value <- pmax(value, 1e-6)
+        qtr <- as.character(cut(month, breaks = "quarter"))
+        agg <- tapply(value, qtr, sum, na.rm = TRUE)
+        path <- as.numeric(agg)
+        if (length(path) >= 2L && all(is.finite(path)) && all(path > 0)) path else NULL
+      }
+
+      q <- store$quota_outlook
+      if (!is.null(q) && nrow(q) && all(c("month", "category", "outlook_from_forecast") %in% names(q))) {
+        d <- q[as.character(q$category) == cat, , drop = FALSE]
+        path <- path_from_monthly(d$month, d$outlook_from_forecast)
+        if (!is.null(path)) return(path)
+      }
+
+      tq <- store$two_quota
+      if (!is.null(tq) && nrow(tq) && all(c("month", "category", "model", "outlook") %in% names(tq))) {
+        live <- store$meta$live_model %||% "core_forecast"
+        d <- tq[as.character(tq$category) == cat & as.character(tq$model) == live, , drop = FALSE]
+        path <- path_from_monthly(d$month, d$outlook)
+        if (!is.null(path)) return(path)
+      }
+
+      # Last resort only if live outlook artefacts are missing.
       scen <- exp_data$scenario_examples
       if (is.null(scen) || !("total_median" %in% names(scen))) return(NULL)
       s <- scen[grepl("^Baseline", as.character(scen$scenario)) & scen$category == cat, ]
@@ -233,6 +271,13 @@ server <- function(id, store) {
             if (!length(dlog)) stop("No historical premium moves for category ", cat)
             p0 <- last_premium(store$bidding, cat)
             pqp0 <- last_pqp(root, cat, p0)
+            q_path <- if (isTRUE(input$tilt)) quota_path_for(cat) else NULL
+            if (isTRUE(input$tilt) && is.null(q_path)) {
+              stop(
+                "Tilt is on but no predicted quota path for Cat ", cat,
+                ". Check quota_outlook_calibrated / core_forecast outlook."
+              )
+            }
             sims[[cat]] <- funs$simulate_premiums(
               dlog_hist = dlog,
               p0 = p0,
@@ -242,7 +287,7 @@ server <- function(id, store) {
               n_sims = nsim,
               vol_mult = as.numeric(input$vol),
               supply_tilt = isTRUE(input$tilt),
-              quota_path = if (isTRUE(input$tilt)) quota_path_for(cat) else NULL
+              quota_path = q_path
             )
           }
           incProgress(1 / (length(cats) + 1), detail = "Pricing book")
@@ -329,10 +374,16 @@ server <- function(id, store) {
     output$dl_note <- renderText({
       r <- dl_res()
       if (is.null(r)) return("")
-      sprintf(
-        "Supply tilt %s. Paths from historical exercise moves; quota path tilts drift when enabled.",
-        if (isTRUE(input$tilt)) "on" else "off"
-      )
+      if (isTRUE(input$tilt)) {
+        cats <- unique(as.character(book()$category))
+        n_q <- sum(vapply(cats, function(c) length(quota_path_for(c) %||% numeric()), integer(1)))
+        sprintf(
+          "Supply tilt ON — drift from elastic-net predicted quota (Results outlook), %s quarterly points across categories. Paths still resample historical premium moves.",
+          n_q
+        )
+      } else {
+        "Supply tilt OFF — premium paths are historical moves only; predicted quota is not applied."
+      }
     })
 
     fl_res <- reactiveVal(NULL)
