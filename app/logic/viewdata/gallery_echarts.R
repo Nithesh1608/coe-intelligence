@@ -395,14 +395,40 @@ chart_g1_topup <- function(prep, category = "A") {
     group_by(label, q_start) |>
     summarise(rule = sum(rule), topup = sum(topup), .groups = "drop") |>
     arrange(q_start)
-  q |>
+  # Same cut lines as render_gallery: Cut and fill / Extra COEs
+  policy_dates <- as.Date(c("2023-05-01", "2025-02-01"))
+  policy_labs <- c("Cut and fill", "Extra COEs")
+  snap_q <- function(dt) {
+    i <- which.min(abs(as.numeric(q$q_start - dt)))
+    q$label[[i]]
+  }
+  p <- q |>
     e_charts(label) |>
     e_area(rule, name = "From the 25% rule", stack = "q") |>
     e_area(topup, name = "LTA top-up", stack = "q") |>
     e_color(c(pal[["rule"]], pal[["topup"]])) |>
-    gallery_grid() |>
+    gallery_grid(top = 44) |>
     axis_named("Quota quarter", "COEs per quarter") |>
     e_datazoom(type = "inside")
+  series <- p$x$opts$series
+  if (length(series)) {
+    series[[1]]$markLine <- list(
+      symbol = "none",
+      lineStyle = list(type = "dotted", color = "rgba(255,255,255,0.55)", width = 1.5),
+      label = list(
+        color = "#fafafa",
+        fontSize = 11,
+        fontWeight = "bold",
+        formatter = "{b}",
+        position = "insideEndTop"
+      ),
+      data = lapply(seq_along(policy_dates), function(i) {
+        list(xAxis = snap_q(policy_dates[[i]]), name = policy_labs[[i]])
+      })
+    )
+    p$x$opts$series <- series
+  }
+  p
 }
 
 #' @export
@@ -418,6 +444,22 @@ chart_g2_heatmap <- function(prep) {
     arrange(month_ord, age_n)
   ages <- as.character(0:15)
   d$age <- factor(d$age, levels = ages)
+  month_labs <- unique(d$month_lab)
+  snap_m <- function(ym) {
+    target <- as.Date(paste0(ym, "-01"))
+    dates <- as.Date(paste0(month_labs, "-01"))
+    month_labs[[which.min(abs(as.numeric(dates - target)))]]
+  }
+  lab_big <- paste0(
+    "Bought 2017-19: ",
+    format(round(prep$aged_7_10), big.mark = ",", trim = TRUE),
+    " cars"
+  )
+  lab_small <- paste0(
+    "Bought 2022-24: ",
+    format(round(prep$aged_2_5), big.mark = ",", trim = TRUE),
+    " cars"
+  )
   p <- d |>
     e_charts(month_lab) |>
     e_heatmap(age, value, name = "Cars (thousands)") |>
@@ -450,20 +492,78 @@ chart_g2_heatmap <- function(prep) {
       axisLabel = list(color = "#a3a3a3")
     ) |>
     e_datazoom(type = "inside", x_index = 0)
-  # Year-10 expiry line (same as white heatmap annotation)
+  # Year-10 line + diagonal cohort arrows + labels (same as ggplot annotate)
   series <- p$x$opts$series
   if (length(series)) {
     series[[1]]$markLine <- list(
+      animation = FALSE,
+      data = list(
+        list(
+          yAxis = "10",
+          label = list(
+            formatter = "Year 10: COE expires",
+            color = "#fafafa",
+            fontWeight = "bold",
+            fontSize = 12,
+            position = "insideStartTop"
+          ),
+          lineStyle = list(color = "#fafafa", width = 2, type = "solid"),
+          symbol = "none"
+        ),
+        # Big 2017-19 cohort arrow (2018 age~1 -> 2026 age~9)
+        list(
+          list(coord = list(snap_m("2018-01"), "1"), symbol = "none"),
+          list(
+            coord = list(snap_m("2026-04"), "9"),
+            symbol = "arrow",
+            symbolSize = 10
+          ),
+          lineStyle = list(color = "#fafafa", width = 2)
+        ),
+        # Thin 2022-24 cohort arrow
+        list(
+          list(coord = list(snap_m("2023-01"), "1"), symbol = "none"),
+          list(
+            coord = list(snap_m("2026-04"), "4"),
+            symbol = "arrow",
+            symbolSize = 10
+          ),
+          lineStyle = list(color = "#fafafa", width = 2)
+        )
+      )
+    )
+    series[[1]]$markPoint <- list(
       symbol = "none",
-      label = list(
-        formatter = "Year 10: COE expires",
-        color = "#fafafa",
-        fontWeight = "bold",
-        fontSize = 11,
-        position = "insideEndTop"
-      ),
-      lineStyle = list(color = "#fafafa", width = 2),
-      data = list(list(yAxis = "10"))
+      data = list(
+        list(
+          coord = list(snap_m("2021-09"), "6"),
+          name = lab_big,
+          label = list(
+            show = TRUE,
+            formatter = lab_big,
+            color = "#fafafa",
+            fontWeight = "bold",
+            fontSize = 13,
+            backgroundColor = "rgba(0,0,0,0.45)",
+            padding = c(3, 6),
+            rotate = 21
+          )
+        ),
+        list(
+          coord = list(snap_m("2024-02"), "3"),
+          name = lab_small,
+          label = list(
+            show = TRUE,
+            formatter = lab_small,
+            color = "#fafafa",
+            fontWeight = "bold",
+            fontSize = 12,
+            backgroundColor = "rgba(0,0,0,0.45)",
+            padding = c(3, 6),
+            rotate = 21
+          )
+        )
+      )
     )
     p$x$opts$series <- series
   }
@@ -553,6 +653,20 @@ chart_g7_supply_price <- function(prep) {
   p
 }
 
+# Density violin polygon around a band centre (same points as ggplot violin).
+violin_poly <- function(vals, center, width = 0.38) {
+  vals <- vals[is.finite(vals)]
+  if (length(vals) < 3L) return(NULL)
+  d <- stats::density(vals, n = 80)
+  xs <- d$y / max(d$y) * width
+  ys <- d$x
+  # right edge up, left edge down — closed shape
+  data.frame(
+    x = c(center + xs, rev(center - xs), center + xs[[1]]),
+    y = c(ys, rev(ys), ys[[1]])
+  )
+}
+
 #' @export
 chart_g5_bids <- function(prep) {
   levels_b <- c("Under S$50k", "S$50k to 100k", "Over S$100k")
@@ -567,19 +681,12 @@ chart_g5_bids <- function(prep) {
     mutate(
       band = as.character(band),
       band_i = as.numeric(factor(band, levels = levels_b)),
-      label = paste0("median ", sprintf("%.2f", med), " (n=", n, ")")
+      label = paste0("median ", sprintf("%.2f", med), "\n(", n, " quarters)")
     )
-  # Orange range shading: p10–p90 per band (violin stand-in)
-  rng <- d |>
-    group_by(band, band_i) |>
-    summarise(
-      lo = as.numeric(stats::quantile(bids_per_coe, 0.10, na.rm = TRUE)),
-      hi = as.numeric(stats::quantile(bids_per_coe, 0.90, na.rm = TRUE)),
-      .groups = "drop"
-    )
+  # Seed chart with scatter, then inject true violin polygons as line+area series
   p <- d |>
     e_charts(x) |>
-    e_scatter(bids_per_coe, symbolSize = 8, name = "Quarter") |>
+    e_scatter(bids_per_coe, symbolSize = 7, name = "Quarter") |>
     e_color(pal[["A"]]) |>
     gallery_grid(top = 36, bottom = 64) |>
     e_x_axis(
@@ -607,42 +714,57 @@ chart_g5_bids <- function(prep) {
       axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
       splitLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.06)"))
     )
+  violins <- lapply(seq_along(levels_b), function(i) {
+    vals <- d$bids_per_coe[d$band_i == i]
+    poly <- violin_poly(vals, center = i, width = 0.4)
+    if (is.null(poly)) return(NULL)
+    list(
+      type = "line",
+      name = paste0("Range · ", levels_b[[i]]),
+      data = Map(function(xx, yy) c(xx, yy), poly$x, poly$y),
+      showSymbol = FALSE,
+      smooth = TRUE,
+      lineStyle = list(width = 1.2, color = "rgba(255,92,26,0.85)"),
+      areaStyle = list(color = "rgba(255,92,26,0.22)"),
+      z = 1,
+      tooltip = list(show = FALSE),
+      legendHoverLink = FALSE
+    )
+  })
+  violins <- Filter(Negate(is.null), violins)
   series <- p$x$opts$series
-  if (length(series)) {
-    series[[1]]$markArea <- list(
-      silent = TRUE,
-      itemStyle = list(color = "rgba(255, 92, 26, 0.18)"),
-      data = lapply(seq_len(nrow(rng)), function(i) {
-        list(
-          list(xAxis = rng$band_i[[i]] - 0.28, yAxis = rng$lo[[i]]),
-          list(xAxis = rng$band_i[[i]] + 0.28, yAxis = rng$hi[[i]])
-        )
-      })
-    )
-    series[[1]]$markLine <- list(
-      symbol = "none",
-      data = list(list(yAxis = 1.5, name = "1.5")),
-      lineStyle = list(type = "dashed", color = "rgba(255,255,255,0.45)"),
-      label = list(color = "#d4d4d4", formatter = "1.5")
-    )
-    series[[1]]$markPoint <- list(
-      data = lapply(seq_len(nrow(med)), function(i) {
-        list(
-          coord = c(med$band_i[[i]], med$med[[i]]),
-          value = med$label[[i]],
-          name = med$label[[i]]
-        )
-      }),
-      symbol = "rect",
-      symbolSize = c(36, 5),
-      itemStyle = list(color = "#fafafa"),
-      label = list(
-        show = TRUE, formatter = "{b}", color = "#fafafa",
-        fontSize = 11, position = "right", distance = 8
+  # Put violins under the scatter
+  series[[1]]$z <- 3
+  series[[1]]$markLine <- list(
+    symbol = "none",
+    data = list(list(yAxis = 1.5, name = "1.5")),
+    lineStyle = list(type = "dashed", color = "rgba(255,255,255,0.45)"),
+    label = list(color = "#d4d4d4", formatter = "1.5")
+  )
+  series[[1]]$markPoint <- list(
+    data = lapply(seq_len(nrow(med)), function(i) {
+      list(
+        coord = c(med$band_i[[i]], med$med[[i]]),
+        value = med$label[[i]],
+        name = med$label[[i]]
       )
+    }),
+    symbol = "rect",
+    symbolSize = c(40, 5),
+    itemStyle = list(color = "#fafafa"),
+    label = list(
+      show = TRUE, formatter = "{b}", color = "#fafafa",
+      fontSize = 11, position = "right", distance = 8,
+      lineHeight = 14
     )
-    p$x$opts$series <- series
-  }
+  )
+  p$x$opts$series <- c(violins, series)
+  # Hide violin entries in legend (keep Cat scatter only)
+  p$x$opts$legend <- list(
+    right = 8, top = 4,
+    textStyle = list(color = "#a3a3a3", fontSize = 11),
+    data = list("Quarter")
+  )
   p
 }
 
