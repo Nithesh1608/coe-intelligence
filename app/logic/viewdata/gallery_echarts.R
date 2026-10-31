@@ -468,26 +468,6 @@ chart_g2_heatmap <- function(prep) {
   vmax <- max(d$value, na.rm = TRUE)
   vmin <- max(0, as.numeric(stats::quantile(d$value, 0.02, na.rm = TRUE)))
 
-  # Line series on the same category axes — arrows stay in the plot (no onRender)
-  cohort_line <- function(a, name) {
-    list(
-      type = "line",
-      name = name,
-      clip = TRUE,
-      z = 10,
-      silent = TRUE,
-      tooltip = list(show = FALSE),
-      legendHoverLink = FALSE,
-      data = list(
-        list(value = c(a$x, a$y), symbol = "none", symbolSize = 0),
-        list(value = c(a$x2, a$y2), symbol = "arrow", symbolSize = 12)
-      ),
-      lineStyle = list(color = "#fafafa", width = 2.4),
-      itemStyle = list(color = "#fafafa"),
-      emphasis = list(disabled = TRUE)
-    )
-  }
-
   p <- d |>
     e_charts(month_lab) |>
     e_heatmap(age, value, name = "Cars (thousands)") |>
@@ -505,7 +485,7 @@ chart_g2_heatmap <- function(prep) {
       text = list("Cars", "(thousands)"),
       textStyle = list(color = "#a3a3a3")
     ) |>
-    e_grid(left = 72, right = 96, top = 28, bottom = 48, containLabel = TRUE) |>
+    e_grid(left = 72, right = 96, top = 28, bottom = 56, containLabel = TRUE) |>
     e_tooltip() |>
     e_x_axis(
       type = "category",
@@ -513,6 +493,7 @@ chart_g2_heatmap <- function(prep) {
       axisLabel = list(
         color = "#a3a3a3",
         fontFamily = "IBM Plex Mono",
+        fontSize = 12,
         formatter = htmlwidgets::JS(
           "function(v){return (v&&v.slice(5)==='01') ? v.slice(0,4) : '';}"
         ),
@@ -538,72 +519,95 @@ chart_g2_heatmap <- function(prep) {
   series <- p$x$opts$series
   if (!length(series)) return(p)
 
-  # Red Year-10 COE line (user request)
+  # Red Year-10 line + two cohort arrows with heads (markLine pair form)
   series[[1]]$markLine <- list(
     silent = TRUE,
-    symbol = "none",
     animation = FALSE,
-    data = list(list(
-      yAxis = "10",
-      label = list(
-        formatter = "Year 10: COE expires",
-        color = "#ef4444",
-        fontWeight = "bold",
-        fontSize = 12,
-        position = "insideStartTop"
-      ),
-      lineStyle = list(color = "#ef4444", width = 2.6, type = "solid")
-    ))
-  )
-
-  # Rotated cohort labels beside the arrows (same positions as ggplot annotate)
-  series[[1]]$markPoint <- list(
-    silent = TRUE,
-    animation = FALSE,
+    symbol = list("none", "arrow"),
+    symbolSize = 16,
     data = list(
       list(
-        coord = c(t1$x, t1$y),
+        yAxis = "10",
         symbol = "none",
         label = list(
-          show = TRUE,
-          formatter = lab_big,
-          color = "#fafafa",
+          formatter = "Year 10: COE expires",
+          color = "#ef4444",
           fontWeight = "bold",
           fontSize = 13,
-          rotate = 21,
-          backgroundColor = "rgba(0,0,0,0.35)",
-          padding = c(3, 6),
-          align = "left",
-          verticalAlign = "middle"
+          position = "insideStartTop"
+        ),
+        lineStyle = list(color = "#ef4444", width = 3, type = "solid")
+      ),
+      # Big 2017-19 cohort arrow
+      list(
+        list(coord = list(a1$x, a1$y), symbol = "none"),
+        list(
+          coord = list(a1$x2, a1$y2),
+          symbol = "arrow",
+          symbolSize = 16,
+          lineStyle = list(color = "#fafafa", width = 2.6)
         )
       ),
+      # Thin 2022-24 cohort arrow
       list(
-        coord = c(t2$x, t2$y),
-        symbol = "none",
-        label = list(
-          show = TRUE,
-          formatter = lab_small,
-          color = "#fafafa",
-          fontWeight = "bold",
-          fontSize = 12,
-          rotate = 21,
-          backgroundColor = "rgba(0,0,0,0.35)",
-          padding = c(3, 6),
-          align = "left",
-          verticalAlign = "middle"
+        list(coord = list(a2$x, a2$y), symbol = "none"),
+        list(
+          coord = list(a2$x2, a2$y2),
+          symbol = "arrow",
+          symbolSize = 14,
+          lineStyle = list(color = "#fafafa", width = 2.4)
         )
       )
     )
   )
 
-  # Append diagonal cohort arrows as line series on the same axes
-  p$x$opts$series <- c(
-    series,
-    list(
-      cohort_line(a1, "cohort_2017_19"),
-      cohort_line(a2, "cohort_2022_24")
+  # Rotated labels as a scatter overlay (markPoint symbol=none often drops labels)
+  label_series <- list(
+    type = "scatter",
+    name = "cohort_labels",
+    z = 20,
+    silent = TRUE,
+    tooltip = list(show = FALSE),
+    legendHoverLink = FALSE,
+    data = list(
+      list(
+        value = list(t1$x, t1$y),
+        symbolSize = 1,
+        itemStyle = list(color = "rgba(0,0,0,0)"),
+        label = list(
+          show = TRUE,
+          formatter = lab_big,
+          color = "#fafafa",
+          fontWeight = "bold",
+          fontSize = 14,
+          rotate = 21,
+          backgroundColor = "rgba(0,0,0,0.4)",
+          padding = c(4, 6),
+          position = "top",
+          distance = 2
+        )
+      ),
+      list(
+        value = list(t2$x, t2$y),
+        symbolSize = 1,
+        itemStyle = list(color = "rgba(0,0,0,0)"),
+        label = list(
+          show = TRUE,
+          formatter = lab_small,
+          color = "#fafafa",
+          fontWeight = "bold",
+          fontSize = 13,
+          rotate = 21,
+          backgroundColor = "rgba(0,0,0,0.4)",
+          padding = c(4, 6),
+          position = "top",
+          distance = 2
+        )
+      )
     )
   )
+
+  p$x$opts$series <- c(series, list(label_series))
   p$x$opts$legend <- list(
     show = TRUE,
     right = 8,
@@ -698,10 +702,10 @@ chart_g7_supply_price <- function(prep) {
 }
 
 # Density violin polygon around a band centre (same points as ggplot violin).
-violin_poly <- function(vals, center, width = 0.38) {
+violin_poly <- function(vals, center, width = 0.22) {
   vals <- vals[is.finite(vals)]
   if (length(vals) < 3L) return(NULL)
-  d <- stats::density(vals, n = 80)
+  d <- stats::density(vals, n = 100)
   xs <- d$y / max(d$y) * width
   ys <- d$x
   # right edge up, left edge down — closed shape
@@ -720,7 +724,7 @@ chart_g5_bids <- function(prep) {
     mutate(
       band = as.character(band),
       band_i = as.numeric(factor(band, levels = levels_b)),
-      x = band_i + stats::runif(n(), -0.12, 0.12)
+      x = band_i + stats::runif(n(), -0.08, 0.08)
     )
   med <- prep$band_med |>
     mutate(
@@ -729,25 +733,26 @@ chart_g5_bids <- function(prep) {
       label = paste0("median ", sprintf("%.2f", med), "\n(", n, " quarters)")
     )
   spikes <- d |> filter(bids_per_coe > 2.2)
+  ymin <- max(0.95, min(d$bids_per_coe, na.rm = TRUE) - 0.05)
   ymax <- max(d$bids_per_coe, na.rm = TRUE) * 1.08
-  # Seed chart with scatter, then inject true violin polygons as line+area series
+  # Tall/narrow plot area so violins read vertically (not flat)
   p <- d |>
     e_charts(x) |>
-    e_scatter(bids_per_coe, symbolSize = 7, name = "Quarter") |>
+    e_scatter(bids_per_coe, symbolSize = 8, name = "Quarter") |>
     e_color(pal[["A"]]) |>
-    gallery_grid(top = 28, bottom = 72, left = 20, right = 28) |>
+    e_grid(left = "18%", right = "18%", top = 36, bottom = 80, containLabel = TRUE) |>
+    e_tooltip(trigger = "item") |>
     e_x_axis(
       type = "value",
-      min = 0.5, max = 3.5,
+      min = 0.55, max = 3.45,
       interval = 1,
       name = "Average premium in the quarter",
       nameLocation = "middle",
-      nameGap = 36,
+      nameGap = 40,
       nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
       axisLabel = list(
         color = "#a3a3a3",
         fontSize = 12,
-        # Only exact band centres — stops duplicate labels from fractional ticks
         formatter = htmlwidgets::JS(
           "function(v){var m={'1':'Under S$50k','2':'S$50k to 100k','3':'Over S$100k'}; return m[String(v)] || '';}"
         )
@@ -756,11 +761,11 @@ chart_g5_bids <- function(prep) {
       splitLine = list(show = FALSE)
     ) |>
     e_y_axis(
-      min = 0,
+      min = ymin,
       max = ymax,
       name = "Bids per COE",
       nameLocation = "middle",
-      nameGap = 44,
+      nameGap = 48,
       nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
       axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono"),
       axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
@@ -768,7 +773,7 @@ chart_g5_bids <- function(prep) {
     )
   violins <- lapply(seq_along(levels_b), function(i) {
     vals <- d$bids_per_coe[d$band_i == i]
-    poly <- violin_poly(vals, center = i, width = 0.4)
+    poly <- violin_poly(vals, center = i, width = 0.22)
     if (is.null(poly)) return(NULL)
     list(
       type = "line",
@@ -776,8 +781,8 @@ chart_g5_bids <- function(prep) {
       data = Map(function(xx, yy) c(xx, yy), poly$x, poly$y),
       showSymbol = FALSE,
       smooth = TRUE,
-      lineStyle = list(width = 1.2, color = "rgba(255,92,26,0.85)"),
-      areaStyle = list(color = "rgba(255,92,26,0.22)"),
+      lineStyle = list(width = 1.4, color = "rgba(255,92,26,0.9)"),
+      areaStyle = list(color = "rgba(255,92,26,0.28)"),
       z = 1,
       tooltip = list(show = FALSE),
       legendHoverLink = FALSE
