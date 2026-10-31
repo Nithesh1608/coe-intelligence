@@ -238,13 +238,6 @@ held_back <- rule |> filter(quota < rule) |> nrow()
 heat <- age |>
   filter(vehicle_type == "Cars", age_lower <= 15)
 
-# ---- Chart 3: guaranteed exits by the year they fall due ----
-exits <- r5 |>
-  transmute(due = year + 5, cars = n) |>
-  mutate(when = ifelse(due <= year(latest_month) - 1, "Already happened", "Still to come"))
-due_peak   <- exits |> filter(due %in% 2021:2024) |> summarise(m = mean(cars)) |> pull(m)
-due_trough <- exits |> filter(due %in% 2026:2028) |> summarise(m = mean(cars)) |> pull(m)
-
 # ---- Chart 4: owners' scrapping decisions vs price (years to August) ----
 prem_sa <- coe |>
   filter(category %in% c("A", "B"), !is.na(premium)) |>
@@ -308,7 +301,6 @@ moves_plot <- moves_all |>
 
 - **The next supply wave is already on the road.** `r n0(aged_7_10)` cars reach their 10-year COE expiry by 2029, against only `r n0(aged_2_5)` in the group behind them. Expect more COEs to 2029 and a squeeze in the early 2030s.
 - **LTA's top-ups are fading.** `r pc(extra_share_all)` of Cat A and B COEs since 2023 came on top of LTA's own 25% rule. The share peaked at `r pc(peak_extra$extra_share)` and is now `r pc(last_extra$extra_share)`.
-- **Guaranteed exits have dried up.** Cars forced off the road by 5-year renewals fall from about `r n0(round(due_peak, -2))` a year (2021–24) to about `r n0(round(due_trough, -2))` (2026–28).
 - **The price feedback runs through early scrapping.** When COEs are cheap, owners scrap young cars; when they are dear, they hold on (`r fmt_r(ct_early)`). That keeps supply low when prices are high.
 - **Dealer risk is large and cannot be timed.** Bids per COE stays near `r round(median(quarters$bids_per_coe), 1)` at every price level. At today's prices, 1 in 10 Cat A orders held 3 months costs `r dk(rq("A", "3 months", "p90"))` or more per car.
 
@@ -434,39 +426,6 @@ p2
 - **For dealers.** Supply should rise to 2029, then tighten from about 2031 as the thinner band arrives. Fleets should avoid a large replacement in the early 2030s.
 - **Caveat.** The data does not split Cat A from Cat B, and not every car reaching year 10 is scrapped.
 
-# 3. Guaranteed exits by the year they fall due (lollipop chart)
-
-`r how("each stem is the number of cars on a 5-year COE renewal whose COE runs out that year. These cars cannot renew again, so their exit is known years in advance.")`
-
-```{r chart3, fig.height = 4.8}
-cut_x <- which(sort(exits$due) == year(latest_month)) - 0.5
-p3 <- ggplot(exits, aes(factor(due), cars, colour = when)) +
-  annotate("rect", xmin = cut_x, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "#fff1e6") +
-  geom_segment(aes(xend = factor(due), y = 0, yend = cars), linewidth = 1.3) +
-  geom_point(size = 5) +
-  geom_text(aes(label = comma(round(cars, -2))), vjust = -1.2, size = 3.3, colour = "grey20") +
-  geom_vline(xintercept = cut_x, linetype = "dashed", colour = "grey40") +
-  annotate("text", x = cut_x - 0.15, y = max(exits$cars) * 1.17, label = "Already happened",
-           hjust = 1, size = 3.8, colour = "grey45", fontface = "bold") +
-  annotate("text", x = cut_x + 0.15, y = max(exits$cars) * 1.17, label = "Still to come, but already fixed",
-           hjust = 0, size = 3.8, colour = "#a63603", fontface = "bold") +
-  scale_x_discrete() +
-  scale_colour_manual(values = c("Already happened" = "grey65", "Still to come" = "#e6550d"), guide = "none") +
-  scale_y_continuous(labels = comma, limits = c(0, max(exits$cars) * 1.22)) +
-  labs(title = paste0("Guaranteed exits fall from ~", n0(round(due_peak, -2)), " a year to ~",
-                      n0(round(due_trough, -2)), " in 2026-28"),
-       subtitle = "Cars on a 5-year COE renewal, by the year their COE runs out (renewal year + 5), Cat A + B",
-       x = "Year the 5-year renewal runs out", y = "Cars",
-       caption = src("LTA COE revalidations")) +
-  theme_coe + theme(panel.grid.major.x = element_blank())
-p3
-```
-
-- **Finding.** The guaranteed exits that propped up supply in 2021–24 have almost vanished for 2026–28, before recovering slightly from 2029.
-- **Why.** Few cars reached year 10 in 2021–23 (the dark gap in chart 2), so few could take a 5-year renewal. Cohort size, not owner behaviour, emptied the pipeline.
-- **For dealers.** Supply in 2026–28 rests on the year-10 choices of the big wave in chart 2, so plan with scenarios, not one number.
-- **Caveat.** Some 5-year renewers scrap early, and LTA's cut-and-fill may already have released some of these COEs.
-
 # 4. How owners react to price (scatterplots)
 
 `r how("each dot is one year (September to August). The line is the average trend. Left: the share of cars aged 1 to 9 that were scrapped, against the COE price. Right: the share of cars scrapped at year 10, against the price to renew.")`
@@ -501,60 +460,43 @@ p4b <- ggplot(drivers, aes(pqp / 1000, y10)) +
 - **For dealers.** High prices stop early scrapping, which cuts supply and keeps prices high. This loop is the stronger of the two, so price swings tend to last rather than correct quickly.
 - **Caveat.** Ten yearly points only, and both measures trend over time. Treat these as directions to test.
 
-# 5b. Supply and clearing prices (scatter by regime)
+# 5b. Supply and clearing prices (% YoY scatter)
 
-`r how("each point compares one quota quarter with the same quarter a year earlier. Facets are the three Cat A definition regimes.")`
+`r how("each point is one quarter versus the same quarter a year earlier. Axes are percent changes in quota and premium.")`
 
-```{r chart7, fig.height = 6.2}
-qd <- coe |>
-  filter(category %in% c("A", "B"), !is.na(premium)) |>
-  mutate(q_start = quota_quarter(month)) |>
-  group_by(category, q_start) |>
-  summarise(quota = sum(quota, na.rm = TRUE), premium = mean(premium, na.rm = TRUE), .groups = "drop") |>
+```{r chart7, fig.height = 5.5}
+changes <- quarters |>
+  arrange(category, q_start) |>
   group_by(category) |>
   mutate(
-    quota_change = quota - lag(quota, 4),
-    premium_change = premium - lag(premium, 4),
-    regime = case_when(
-      q_start < as.Date("2014-02-01") ~ "R1",
-      q_start < as.Date("2022-05-01") ~ "R2",
-      TRUE ~ "R3"
-    )
+    q_lag = lag(q_start, 4),
+    quota_change = quota / lag(quota, 4) - 1,
+    premium_change = premium / lag(premium, 4) - 1
   ) |>
   ungroup() |>
-  filter(is.finite(quota_change), is.finite(premium_change))
-fit_sp <- function(df) {
-  m <- lm(premium_change ~ quota_change, data = df)
-  tibble(r2 = summary(m)$r.squared, n = nrow(df))
-}
-by_regime <- qd |> group_by(category, regime) |> group_modify(~ fit_sp(.x)) |> ungroup()
-rg <- function(cat, reg, col) {
-  v <- by_regime[[col]][by_regime$category == cat & by_regime$regime == reg]
-  if (!length(v) || is.na(v[[1]])) NA_real_ else v[[1]]
-}
-strip_lab <- c(
-  R1 = paste0("R1  (A R²=", percent(rg("A", "R1", "r2"), 1), ", B R²=", percent(rg("B", "R1", "r2"), 1), ")"),
-  R2 = paste0("R2  (A R²=", percent(rg("A", "R2", "r2"), 1), ", B R²=", percent(rg("B", "R2", "r2"), 1), ")"),
-  R3 = paste0("R3  (A R²=", percent(rg("A", "R3", "r2"), 1), ", B R²=", percent(rg("B", "R3", "r2"), 1), ")")
-)
-p7 <- ggplot(qd, aes(quota_change, premium_change, colour = category)) +
+  filter(!is.na(premium_change), q_lag == q_start %m-% months(12))
+p7 <- ggplot(changes, aes(x = quota_change, y = premium_change, colour = category)) +
   geom_hline(yintercept = 0, colour = "grey60") +
   geom_vline(xintercept = 0, colour = "grey60") +
-  geom_point(alpha = 0.7, size = 2) +
-  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, alpha = 0.15) +
-  facet_wrap(~ regime, scales = "free_x", labeller = labeller(regime = strip_lab)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, formula = y ~ x) +
+  scale_x_continuous(labels = percent) +
+  scale_y_continuous(labels = percent) +
   scale_colour_manual(values = cat_colours, labels = cat_labels) +
-  labs(title = paste0("Since May 2022, quota changes explain ", pc(rg("A", "R3", "r2")),
-                      " of Cat A premium changes and ", pc(rg("B", "R3", "r2")), " of Cat B"),
-       subtitle = "Each dot is one quota quarter vs the same quarter a year earlier",
-       x = "Change in quarterly quota", y = "Change in average premium", colour = NULL,
-       caption = src("LTA COE results")) +
+  labs(
+    title = "When the quota rises, do premiums fall? Only partly",
+    subtitle = "Each point is one quarter compared with the same quarter a year earlier. 2015 to 2026.",
+    x = "Change in number of COEs vs a year earlier",
+    y = "Change in COE price vs a year earlier",
+    colour = NULL,
+    caption = src("LTA DataMall (M11). Quarters with suspended bidding excluded")
+  ) +
   theme_coe
 p7
 ```
 
-- **Finding.** Supply timing shows up in prices, especially in the current regime, but not one-for-one.
-- **For dealers.** Certificate timing matters for a locked book; it is not a full price forecast.
+- **Finding.** More certificates often go with softer premiums, but only partly — demand and policy still matter.
+- **For dealers.** Certificate timing shows up in prices; it is not a full price forecast.
 - **PNG.** `g7_supply_price.png`
 
 # 5. Bidding pressure does not follow the price (violin plot)

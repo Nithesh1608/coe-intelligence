@@ -26,7 +26,6 @@ rds <- function(name) read_rds(file.path(data_dir, name))
 coe      <- rds("coe_results.rds")
 singstat <- rds("singstat_coe.rds")
 dereg    <- rds("dereg_lta.rds")
-reval    <- rds("revalidation.rds")
 age      <- rds("pop_by_age.rds")
 pqp      <- rds("pqp.rds")
 
@@ -151,13 +150,6 @@ aug <- age |>
   transmute(year = year(month), a = pmin(age_lower, 20), population) |>
   group_by(year, a) |> summarise(pop = sum(population), .groups = "drop")
 
-renew_type <- reval |>
-  filter(category %in% c("A", "B")) |>
-  group_by(year = year(month), tenure_years) |>
-  summarise(n = sum(revalidations), months = n_distinct(month), .groups = "drop") |>
-  filter(months == 12)
-r5 <- renew_type |> filter(tenure_years == 5)
-
 last_share <- rule |>
   group_by(category) |>
   slice_max(q_start, n = 1) |>
@@ -225,34 +217,6 @@ p2 <- ggplot(heat, aes(month, age_lower + 0.5, fill = population / 1000)) +
   ) + theme_coe + theme(legend.position = "right", panel.grid = element_blank())
 save_p(p2, "g2_age_heatmap.png", 11, 5.8)
 
-# ---- 3 guaranteed exits lollipop ----
-exits <- r5 |>
-  transmute(due = year + 5, cars = n) |>
-  mutate(when = ifelse(due <= year(latest_month) - 1, "Already happened", "Still to come"))
-due_peak   <- exits |> filter(due %in% 2021:2024) |> summarise(m = mean(cars)) |> pull(m)
-due_trough <- exits |> filter(due %in% 2026:2028) |> summarise(m = mean(cars)) |> pull(m)
-cut_x <- which(sort(exits$due) == year(latest_month)) - 0.5
-p3 <- ggplot(exits, aes(factor(due), cars, colour = when)) +
-  annotate("rect", xmin = cut_x, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "#fff1e6") +
-  geom_segment(aes(xend = factor(due), y = 0, yend = cars), linewidth = 1.3) +
-  geom_point(size = 5) +
-  geom_text(aes(label = comma(round(cars, -2))), vjust = -1.2, size = 3.3, colour = "grey20") +
-  geom_vline(xintercept = cut_x, linetype = "dashed", colour = "grey40") +
-  annotate("text", x = cut_x - 0.15, y = max(exits$cars) * 1.17, label = "Already happened",
-           hjust = 1, size = 3.8, colour = "grey45", fontface = "bold") +
-  annotate("text", x = cut_x + 0.15, y = max(exits$cars) * 1.17, label = "Still to come, but already fixed",
-           hjust = 0, size = 3.8, colour = "#a63603", fontface = "bold") +
-  scale_colour_manual(values = c("Already happened" = "grey65", "Still to come" = "#e6550d"), guide = "none") +
-  scale_y_continuous(labels = comma, limits = c(0, max(exits$cars) * 1.22)) +
-  labs(
-    title = paste0("Guaranteed exits fall from ~", n0(round(due_peak, -2)), " a year to ~",
-                   n0(round(due_trough, -2)), " in 2026-28"),
-    subtitle = "Cars on a 5-year COE renewal, by the year their COE runs out (renewal year + 5), Cat A + B",
-    x = "Year the 5-year renewal runs out", y = "Cars",
-    caption = src("LTA COE revalidations")
-  ) + theme_coe + theme(panel.grid.major.x = element_blank())
-save_p(p3, "g3_locked_exits_lollipop.png", 11, 5.2)
-
 # ---- 4 owner reaction scatter ----
 prem_sa <- coe |>
   filter(category %in% c("A", "B"), !is.na(premium)) |>
@@ -300,55 +264,35 @@ p4 <- (p4a | p4b) + plot_annotation(
 )
 save_p(p4, "g4_owner_price_response.png", 11, 5.4)
 
-# ---- 7 supply vs price (restored into gallery; numbered to match Market story) ----
-qd <- coe |>
-  filter(category %in% c("A", "B"), !is.na(premium)) |>
-  mutate(q_start = quota_quarter(month)) |>
-  group_by(category, q_start) |>
-  summarise(quota = sum(quota, na.rm = TRUE), premium = mean(premium, na.rm = TRUE), .groups = "drop") |>
+# ---- 7 supply vs price (% YoY) — from Downloads/EDA.Rmd Q4 chart 1 ----
+changes <- quarters |>
+  arrange(category, q_start) |>
   group_by(category) |>
   mutate(
-    quota_change = quota - lag(quota, 4),
-    premium_change = premium - lag(premium, 4),
-    regime = case_when(
-      q_start < as.Date("2014-02-01") ~ "R1",
-      q_start < as.Date("2022-05-01") ~ "R2",
-      TRUE ~ "R3"
-    )
+    q_lag = lag(q_start, 4),
+    quota_change = quota / lag(quota, 4) - 1,
+    premium_change = premium / lag(premium, 4) - 1
   ) |>
   ungroup() |>
-  filter(is.finite(quota_change), is.finite(premium_change))
-fit_sp <- function(df) {
-  m <- lm(premium_change ~ quota_change, data = df)
-  tibble(r2 = summary(m)$r.squared, n = nrow(df))
-}
-by_regime <- qd |> group_by(category, regime) |> group_modify(~ fit_sp(.x)) |> ungroup()
-rg <- function(cat, reg, col) {
-  v <- by_regime[[col]][by_regime$category == cat & by_regime$regime == reg]
-  if (!length(v) || is.na(v[[1]])) NA_real_ else v[[1]]
-}
-strip_lab <- c(
-  R1 = paste0("R1  (A R²=", percent(rg("A", "R1", "r2"), 1), ", B R²=", percent(rg("B", "R1", "r2"), 1), ")"),
-  R2 = paste0("R2  (A R²=", percent(rg("A", "R2", "r2"), 1), ", B R²=", percent(rg("B", "R2", "r2"), 1), ")"),
-  R3 = paste0("R3  (A R²=", percent(rg("A", "R3", "r2"), 1), ", B R²=", percent(rg("B", "R3", "r2"), 1), ")")
-)
-p7 <- ggplot(qd, aes(quota_change, premium_change, colour = category)) +
+  filter(!is.na(premium_change), q_lag == q_start %m-% months(12))
+p7 <- ggplot(changes, aes(x = quota_change, y = premium_change, colour = category)) +
   geom_hline(yintercept = 0, colour = "grey60") +
   geom_vline(xintercept = 0, colour = "grey60") +
-  geom_point(alpha = 0.7, size = 2) +
-  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, alpha = 0.15) +
-  facet_wrap(~ regime, scales = "free_x", labeller = labeller(regime = strip_lab)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, formula = y ~ x) +
+  scale_x_continuous(labels = percent) +
+  scale_y_continuous(labels = percent) +
   scale_colour_manual(values = cat_colours, labels = cat_labels) +
   labs(
-    title = paste0(
-      "Since May 2022, quota changes explain ", pc(rg("A", "R3", "r2")),
-      " of Cat A premium changes and ", pc(rg("B", "R3", "r2")), " of Cat B"
-    ),
-    subtitle = "Each dot is one quota quarter vs the same quarter a year earlier",
-    x = "Change in quarterly quota", y = "Change in average premium", colour = NULL,
-    caption = src("LTA COE results")
-  ) + theme_coe
-save_p(p7, "g7_supply_price.png", 11, 6.5)
+    title = "When the quota rises, do premiums fall? Only partly",
+    subtitle = "Each point is one quarter compared with the same quarter a year earlier. 2015 to 2026.",
+    x = "Change in number of COEs vs a year earlier",
+    y = "Change in COE price vs a year earlier",
+    colour = NULL,
+    caption = src("LTA DataMall (M11). Quarters with suspended bidding excluded")
+  ) +
+  theme_coe
+save_p(p7, "g7_supply_price.png", 10, 5.5)
 
 # ---- 5 bids per COE violin ----
 bands <- quarters |>

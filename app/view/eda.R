@@ -155,7 +155,7 @@ ui <- function(id) {
     tags$p(
       class = "lede lede--wide",
       "Long premium history and the supply-price link, then the gallery: formula top-ups, the age wave, ",
-      "locked exits, owner response, bidding pressure, and dealer timing risk."
+      "owner response, bidding pressure, and dealer timing risk."
     ),
     div(
       class = "eda-spine",
@@ -164,8 +164,6 @@ ui <- function(id) {
       tags$span("Formula vs top-up"),
       tags$span(class = "eda-spine__dot", "->"),
       tags$span("Age wave"),
-      tags$span(class = "eda-spine__dot", "->"),
-      tags$span("Locked exits"),
       tags$span(class = "eda-spine__dot", "->"),
       tags$span("Owner response"),
       tags$span(class = "eda-spine__dot", "->"),
@@ -210,17 +208,7 @@ ui <- function(id) {
     ),
 
     eda_section(
-      4, "Some exits are already booked",
-      "Five-year renewals lock scrap dates years ahead",
-      paste(
-        "Those cars cannot renew again. The locked cushion that propped supply in 2021-24 is much thinner in 2026-28."
-      ),
-      "g3_locked_exits_lollipop.png",
-      "Lollipop of exits by the year the 5-year renewal runs out."
-    ),
-
-    eda_section(
-      5, "How owners react to price",
+      4, "How owners react to price",
       "Dear COEs slow early scrapping; dear PQP pushes more year-10 exits",
       paste(
         "Left: share of cars aged 1-9 scrapped vs premium. Right: share scrapped at year 10 vs renewal price.",
@@ -231,18 +219,18 @@ ui <- function(id) {
     ),
 
     eda_section(
-      6, "Supply and clearing prices",
-      "When quota loosens year-on-year, premiums often ease - but not one-for-one",
+      5, "Supply and clearing prices",
+      "When the quota rises, do premiums fall? Only partly",
       paste(
-        "Each point compares a quota quarter with the same quarter a year earlier.",
-        "Supply timing shows up in prices; it does not fully explain them. Price a locked book in Your risk."
+        "Each point is one quarter versus the same quarter a year earlier (percent changes).",
+        "More certificates often go with softer premiums, but only partly. Price a locked book in Your risk."
       ),
       "g7_supply_price.png",
-      "Year-on-year quota change vs premium change, by category regime."
+      "Year-on-year % change in quota vs premium, Cat A and B."
     ),
 
     eda_section(
-      7, "Bidding pressure vs price",
+      6, "Bidding pressure vs price",
       "Bids per COE sits near the same level whether premiums are cheap or dear",
       paste(
         "Pressure does not warn you about the next price move. Watch supply and the price level instead."
@@ -252,7 +240,7 @@ ui <- function(id) {
     ),
 
     eda_section(
-      8, "Dealer risk between order and COE",
+      7, "Dealer risk between order and COE",
       "The longer the wait, the larger the 1-in-10 bad case",
       paste(
         "Hills show how often the premium moved by each amount since May 2022, scaled to today's price.",
