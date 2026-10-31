@@ -72,12 +72,17 @@ viz_block <- function(num, kicker, title, body, bullets, controls = NULL, charts
   )
 }
 
-echart_card <- function(outputId, height = "360px", title = NULL, note = NULL) {
+echart_card <- function(outputId, height = "520px", title = NULL, note = NULL) {
   card(
-    class = "desk-card",
+    class = "desk-card eda-compare__card",
     if (!is.null(title)) card_header(class = "eda-compare__chart-title", title),
     if (!is.null(note)) tags$p(class = "eda-compare__chart-note", note),
-    card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(outputId, height = height))
+    # Do not use chart-frame--tall: it hard-caps height at 400px and flattens every twin.
+    card_body(
+      class = "chart-frame eda-compare__frame",
+      style = sprintf("height:%s;min-height:%s;", height, height),
+      echarts4rOutput(outputId, height = height, width = "100%")
+    )
   )
 }
 
@@ -211,7 +216,7 @@ ui <- function(id) {
       "g0_premium_history.png",
       list(
         uiOutput(ns("g0_title")),
-        echart_card(ns("g0"), height = "560px")
+        echart_card(ns("g0"), height = "620px")
       ),
       "SingStat (to 2009) and LTA (2010 onwards)."
     ),
@@ -231,7 +236,7 @@ ui <- function(id) {
           choices = c("Category A" = "A", "Category B" = "B"),
           selected = "A", width = "180px"
         ),
-        echart_card(ns("g1"), height = "480px")
+        echart_card(ns("g1"), height = "560px")
       ),
       "Stacked area by category and quota quarter."
     ),
@@ -247,7 +252,7 @@ ui <- function(id) {
       list(
         uiOutput(ns("g2_title")),
         uiOutput(ns("g2_note")),
-        echart_card(ns("g2"), height = "820px")
+        echart_card(ns("g2"), height = "640px")
       ),
       "Cars on the road by age, monthly, ages 0-15."
     ),
@@ -264,8 +269,8 @@ ui <- function(id) {
         uiOutput(ns("g4_title")),
         div(
           class = "eda-compare__pair",
-          div(uiOutput(ns("g4a_title")), echart_card(ns("g4a"), height = "440px")),
-          div(uiOutput(ns("g4b_title")), echart_card(ns("g4b"), height = "440px"))
+          div(uiOutput(ns("g4a_title")), echart_card(ns("g4a"), height = "480px")),
+          div(uiOutput(ns("g4b_title")), echart_card(ns("g4b"), height = "480px"))
         )
       ),
       "Two yearly scatterplots with trend lines."
@@ -281,7 +286,7 @@ ui <- function(id) {
       "g7_supply_price.png",
       list(
         uiOutput(ns("g7_title")),
-        echart_card(ns("g7"), height = "520px")
+        echart_card(ns("g7"), height = "540px")
       ),
       "Year-on-year % change in quota vs premium, Cat A and B."
     ),
@@ -296,7 +301,7 @@ ui <- function(id) {
       "g5_bids_per_coe_violin.png",
       list(
         uiOutput(ns("g5_title")),
-        echart_card(ns("g5"), height = "900px")
+        echart_card(ns("g5"), height = "580px")
       ),
       "Violin of bids per COE by premium band."
     ),
@@ -316,7 +321,7 @@ ui <- function(id) {
           choices = c("Category A" = "A", "Category B" = "B"),
           selected = "A", width = "180px"
         ),
-        echart_card(ns("g6"), height = "520px")
+        echart_card(ns("g6"), height = "560px")
       ),
       "Ridgeline distributions at 1, 3 and 6 months."
     )

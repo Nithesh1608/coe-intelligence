@@ -485,7 +485,7 @@ chart_g2_heatmap <- function(prep) {
       text = list("Cars", "(thousands)"),
       textStyle = list(color = "#a3a3a3")
     ) |>
-    e_grid(left = 72, right = 96, top = 28, bottom = 56, containLabel = TRUE) |>
+    e_grid(left = 56, right = 88, top = 24, bottom = 48, containLabel = TRUE) |>
     e_tooltip() |>
     e_x_axis(
       type = "category",
@@ -623,13 +623,8 @@ chart_g2_heatmap <- function(prep) {
   )
 
   p$x$opts$series <- c(series, list(label_series))
-  p$x$opts$legend <- list(
-    show = TRUE,
-    right = 8,
-    top = 4,
-    textStyle = list(color = "#a3a3a3", fontSize = 11),
-    data = list("Cars (thousands)")
-  )
+  # visualMap already shows the scale — hide the duplicate series legend
+  p$x$opts$legend <- list(show = FALSE)
   p
 }
 
