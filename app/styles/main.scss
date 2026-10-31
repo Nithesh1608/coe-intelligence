@@ -2382,18 +2382,13 @@ body {
   border-radius: 2px;
 }
 
-/* Temporary: ggplot PNG beside black/orange echarts twin */
-.eda-compare {
+/* Temporary: ggplot PNG on top, black/orange echarts below */
+.eda-compare,
+.eda-compare--stack {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
   align-items: start;
-}
-
-@media (max-width: 1100px) {
-  .eda-compare {
-    grid-template-columns: 1fr;
-  }
 }
 
 .eda-compare__pane {
@@ -2424,11 +2419,38 @@ body {
 .eda-compare__pair {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.75rem;
+  gap: 1rem;
+}
+
+@media (min-width: 1100px) {
+  .eda-compare__pair {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .eda-compare .desk-card {
   margin: 0;
+}
+
+.eda-compare__chart-title {
+  margin: 0.15rem 0 0.35rem;
+  color: #fafafa;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.eda-compare__chart-note {
+  margin: 0 0 0.5rem;
+  color: #a3a3a3;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.eda-compare .card-header.eda-compare__chart-title {
+  background: transparent;
+  border: 0;
+  padding: 0.75rem 1rem 0;
 }
 
 .gloss .card-body p {

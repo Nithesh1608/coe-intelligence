@@ -10,13 +10,53 @@ box::use(
   tidyr[pivot_longer, pivot_wider],
   lubridate[days, floor_date, `%m+%`, `%m-%`, interval],
   echarts4r[
-    e_charts, e_line, e_area, e_scatter, e_heatmap,
+    e_charts, e_line, e_area, e_scatter, e_heatmap, e_band2,
     e_color, e_visual_map, e_datazoom, e_x_axis, e_y_axis,
-    e_tooltip, e_legend, e_grid, e_lm, e_labels
+    e_tooltip, e_legend, e_grid, e_lm, e_labels, e_mark_line, e_mark_area,
+    e_mark_point
   ],
-  app/logic/viewdata/charts[style_chart],
   app/logic/viewdata/store[project_root],
 )
+
+dl <- function(x) paste0("S$", format(round(x), big.mark = ",", trim = TRUE))
+dk <- function(x) {
+  if (!is.finite(x)) return("S$0")
+  if (round(abs(x) / 1000) == 0) return("S$0")
+  paste0(ifelse(x < 0, "-", "+"), "S$", round(abs(x) / 1000), "k")
+}
+pc <- function(x) paste0(round(100 * x), "%")
+
+# Room for axis names + titles sitting above in the card header.
+gallery_grid <- function(p, top = 36, bottom = 56, left = 16, right = 20) {
+  p |>
+    e_grid(left = left, right = right, top = top, bottom = bottom, containLabel = TRUE) |>
+    e_tooltip(trigger = "item") |>
+    e_legend(right = 8, top = 4, textStyle = list(color = "#a3a3a3", fontSize = 11))
+}
+
+axis_named <- function(p, xlab, ylab) {
+  p |>
+    e_x_axis(
+      name = xlab,
+      nameLocation = "middle",
+      nameGap = 32,
+      nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
+      axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono", fontSize = 11),
+      axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
+      axisTick = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
+      splitLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.06)"))
+    ) |>
+    e_y_axis(
+      name = ylab,
+      nameLocation = "middle",
+      nameGap = 48,
+      nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
+      axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono", fontSize = 11),
+      axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
+      axisTick = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
+      splitLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.06)"))
+    )
+}
 
 `%||%` <- function(a, b) {
   if (is.null(a) || !length(a) || (length(a) == 1L && is.na(a))) b else a
@@ -203,6 +243,57 @@ prep_gallery <- function(root = project_root()) {
     left_join(ridge_q |> select(category, horizon, lo), by = c("category", "horizon")) |>
     filter(change >= lo)
 
+  lo <- premiums |> filter(category == "A") |> dplyr::slice_min(premium, n = 1, with_ties = FALSE)
+  hi <- premiums |> filter(category == "B") |> dplyr::slice_max(premium, n = 1, with_ties = FALSE)
+  rule_q <- rule |>
+    group_by(q_start) |>
+    summarise(actual = sum(quota), rule = sum(rule), .groups = "drop") |>
+    mutate(extra_share = (actual - rule) / actual)
+  peak_extra <- rule_q |> dplyr::slice_max(extra_share, n = 1)
+  last_extra <- rule_q |> dplyr::slice_max(q_start, n = 1)
+  ct_early <- stats::cor.test(drivers$early, drivers$premium)
+  ct_y10 <- stats::cor.test(drivers$y10, drivers$pqp)
+  fmt_r <- function(ct) {
+    paste0("r = ", sprintf("%.2f", unname(ct$estimate)), ", p = ", signif(ct$p.value, 2))
+  }
+  rq <- function(cat, hz, v) {
+    ridge_q[[v]][ridge_q$category == cat & ridge_q$horizon == hz]
+  }
+
+  titles <- list(
+    g0 = paste0(
+      "Premiums have ranged from ", dl(lo$premium), " (Cat A, ", lubridate::year(lo$month), ") to ",
+      dl(hi$premium), " (Cat B, ", lubridate::year(hi$month), ")"
+    ),
+    g1 = paste0(
+      "LTA top-ups peaked at ", pc(peak_extra$extra_share),
+      " of Cat A + B supply and are now ", pc(last_extra$extra_share)
+    ),
+    g2 = paste0(
+      format(round(aged_7_10), big.mark = ",", trim = TRUE),
+      " cars bought in 2017-19 reach year 10 by 2029; half as many follow"
+    ),
+    g2_note = paste0(
+      "Year 10 = COE expires. Bought 2017-19: ",
+      format(round(aged_7_10), big.mark = ",", trim = TRUE),
+      " cars. Bought 2022-24: ",
+      format(round(aged_2_5), big.mark = ",", trim = TRUE),
+      " cars."
+    ),
+    g4 = "When COEs are dear, owners keep young cars; at year 10, a dear renewal pushes them to scrap",
+    g4a = paste0("Young cars scrapped vs COE premium (", fmt_r(ct_early), ")"),
+    g4b = paste0("Cars scrapped at year 10 vs renewal price (", fmt_r(ct_y10), ")"),
+    g7 = "When the quota rises, do premiums fall? Only partly",
+    g5 = paste0(
+      "Bids per COE sits near ", round(stats::median(quarters$bids_per_coe), 1),
+      " whether a COE costs S$30k or S$130k"
+    ),
+    g6 = paste0(
+      "The longer the wait, the bigger the bad case: ",
+      dk(rq("A", "6 months", "p90")), " per Cat A car after 6 months"
+    )
+  )
+
   list(
     premiums = premiums,
     regimes = regimes,
@@ -217,11 +308,17 @@ prep_gallery <- function(root = project_root()) {
     band_med = band_med,
     moves_plot = moves_plot,
     ridge_q = ridge_q,
-    quarters = quarters
+    quarters = quarters,
+    titles = titles
   )
 }
 
 # ---- charts -----------------------------------------------------------------
+
+snap_label <- function(labels, date) {
+  dates <- as.Date(labels)
+  labels[[which.min(abs(as.numeric(dates - as.Date(date))))]]
+}
 
 #' @export
 chart_g0_premium <- function(prep) {
@@ -231,25 +328,54 @@ chart_g0_premium <- function(prep) {
     names_from = category, values_from = premium, values_fn = mean
   )
   wide <- wide[order(as.Date(wide$label)), ]
+  labs <- wide$label
+  # Regime bands (R1 / R2 / R3) — same windows as render_gallery
+  areas <- lapply(seq_len(nrow(prep$regimes)), function(i) {
+    list(
+      list(
+        xAxis = snap_label(labs, prep$regimes$start[[i]]),
+        itemStyle = list(
+          color = c(
+            "rgba(115,115,115,0.22)",
+            "rgba(255,92,26,0.14)",
+            "rgba(200,245,66,0.10)"
+          )[[i]]
+        ),
+        name = c("R1", "R2", "R3")[[i]]
+      ),
+      list(xAxis = snap_label(labs, prep$regimes$end[[i]]))
+    )
+  })
+  policy_marks <- lapply(seq_len(nrow(prep$policy)), function(i) {
+    list(
+      xAxis = snap_label(labs, prep$policy$date[[i]]),
+      name = prep$policy$label[[i]]
+    )
+  })
   p <- wide |>
     e_charts(label) |>
     e_line(A, name = "Cat A", symbol = "none", lineStyle = list(width = 1.6)) |>
     e_line(B, name = "Cat B", symbol = "none", lineStyle = list(width = 1.6)) |>
     e_color(c(pal[["A"]], pal[["B"]])) |>
-    style_chart() |>
+    gallery_grid(bottom = 72) |>
+    axis_named("Bidding round", "COE premium (S$)") |>
     e_datazoom(type = "inside") |>
-    e_datazoom(type = "slider", bottom = 4, height = 18)
-  # Policy guides on the A series
-  marks <- lapply(seq_len(nrow(prep$policy)), function(i) {
-    list(xAxis = format(prep$policy$date[[i]], "%Y-%m-%d"), name = prep$policy$label[[i]])
-  })
+    e_datazoom(type = "slider", bottom = 8, height = 18)
   series <- p$x$opts$series
   if (length(series)) {
+    series[[1]]$markArea <- list(
+      silent = TRUE,
+      label = list(
+        show = TRUE, color = "#fafafa", fontSize = 11, fontWeight = "bold",
+        position = "insideTop"
+      ),
+      data = areas
+    )
     series[[1]]$markLine <- list(
       symbol = "none",
-      lineStyle = list(type = "dotted", color = "rgba(255,255,255,0.35)", width = 1),
-      label = list(color = "#a3a3a3", fontSize = 10, formatter = "{b}"),
-      data = marks
+      lineStyle = list(type = "dotted", color = "rgba(255,255,255,0.45)", width = 1),
+      label = list(color = "#d4d4d4", fontSize = 10, formatter = "{b}"),
+      data = policy_marks
     )
     p$x$opts$series <- series
   }
@@ -265,7 +391,6 @@ chart_g1_topup <- function(prep, category = "A") {
       rule = ifelse(part == "From the 25% rule", coes, 0),
       topup = ifelse(part == "LTA top-up", coes, 0)
     )
-  # one row per quarter
   q <- d |>
     group_by(label, q_start) |>
     summarise(rule = sum(rule), topup = sum(topup), .groups = "drop") |>
@@ -275,7 +400,8 @@ chart_g1_topup <- function(prep, category = "A") {
     e_area(rule, name = "From the 25% rule", stack = "q") |>
     e_area(topup, name = "LTA top-up", stack = "q") |>
     e_color(c(pal[["rule"]], pal[["topup"]])) |>
-    style_chart() |>
+    gallery_grid() |>
+    axis_named("Quota quarter", "COEs per quarter") |>
     e_datazoom(type = "inside")
 }
 
@@ -292,7 +418,7 @@ chart_g2_heatmap <- function(prep) {
     arrange(month_ord, age_n)
   ages <- as.character(0:15)
   d$age <- factor(d$age, levels = ages)
-  d |>
+  p <- d |>
     e_charts(month_lab) |>
     e_heatmap(age, value, name = "Cars (thousands)") |>
     e_visual_map(
@@ -300,21 +426,48 @@ chart_g2_heatmap <- function(prep) {
       max = max(d$value, na.rm = TRUE),
       calculable = TRUE,
       orient = "vertical",
-      right = 0,
-      top = 40,
+      right = 4,
+      top = 48,
       inRange = list(color = c("#1a1a1a", "#7c2d12", "#ff5c1a", "#c8f542")),
       textStyle = list(color = "#a3a3a3")
     ) |>
-    e_grid(left = 48, right = 72, top = 40, bottom = 48) |>
+    e_grid(left = 56, right = 80, top = 28, bottom = 48, containLabel = TRUE) |>
     e_tooltip() |>
-    e_x_axis(axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono", interval = 11)) |>
+    e_x_axis(
+      name = "Month",
+      nameLocation = "middle",
+      nameGap = 28,
+      nameTextStyle = list(color = "#d4d4d4"),
+      axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono", interval = 11)
+    ) |>
     e_y_axis(
       type = "category",
       data = ages,
-      name = "Age (years)",
+      name = "Age of car (years)",
+      nameLocation = "middle",
+      nameGap = 36,
+      nameTextStyle = list(color = "#d4d4d4"),
       axisLabel = list(color = "#a3a3a3")
     ) |>
     e_datazoom(type = "inside", x_index = 0)
+  # Year-10 expiry line (same as white heatmap annotation)
+  series <- p$x$opts$series
+  if (length(series)) {
+    series[[1]]$markLine <- list(
+      symbol = "none",
+      label = list(
+        formatter = "Year 10: COE expires",
+        color = "#fafafa",
+        fontWeight = "bold",
+        fontSize = 11,
+        position = "insideEndTop"
+      ),
+      lineStyle = list(color = "#fafafa", width = 2),
+      data = list(list(yAxis = "10"))
+    )
+    p$x$opts$series <- series
+  }
+  p
 }
 
 #' @export
@@ -322,33 +475,49 @@ chart_g4_owner <- function(prep, which = c("early", "y10")) {
   which <- match.arg(which)
   d <- prep$drivers
   if (which == "early") {
-    plot_df <- data.frame(
+    pts <- data.frame(
       x = d$premium / 1000,
       y = 100 * d$early,
       year = as.character(d$year),
       stringsAsFactors = FALSE
     )
-    xlab <- "Avg COE premium (S$'000)"
-    ylab <- "Share aged 1-9 scrapped (%)"
+    xlab <- "Average COE premium (S$ thousands)"
+    ylab <- "Share of cars aged 1-9 scrapped (%)"
   } else {
-    plot_df <- data.frame(
+    pts <- data.frame(
       x = d$pqp / 1000,
       y = 100 * d$y10,
       year = as.character(d$year),
       stringsAsFactors = FALSE
     )
-    xlab <- "Avg PQP (S$'000)"
+    xlab <- "Average PQP, the price to renew (S$ thousands)"
     ylab <- "Share scrapped at year 10 (%)"
   }
-  plot_df |>
+  fit <- stats::lm(y ~ x, data = pts)
+  xs <- seq(min(pts$x, na.rm = TRUE), max(pts$x, na.rm = TRUE), length.out = 40)
+  pr <- stats::predict(fit, newdata = data.frame(x = xs), interval = "confidence", level = 0.95)
+  band <- data.frame(
+    x = xs, lo = pr[, "lwr"], hi = pr[, "upr"],
+    y = NA_real_, year = NA_character_,
+    stringsAsFactors = FALSE
+  )
+  pts$lo <- NA_real_
+  pts$hi <- NA_real_
+  both <- rbind(band, pts)
+  both <- both[order(both$x, is.na(both$y)), ]
+  both |>
     e_charts(x) |>
+    e_band2(
+      lo, hi,
+      name = "95% band",
+      itemStyle = list(color = "rgba(255, 92, 26, 0.22)", borderWidth = 0)
+    ) |>
     e_scatter(y, bind = year, symbolSize = 14, name = "Year") |>
     e_lm(y ~ x, name = "Trend", lineStyle = list(width = 2, color = pal[["A"]])) |>
-    e_labels(formatter = "{b}", position = "top", color = "#a3a3a3", fontSize = 11) |>
-    e_x_axis(name = xlab, nameTextStyle = list(color = "#a3a3a3")) |>
-    e_y_axis(name = ylab, nameTextStyle = list(color = "#a3a3a3")) |>
+    e_labels(formatter = "{b}", position = "top", color = "#d4d4d4", fontSize = 11) |>
     e_color(pal[["A"]]) |>
-    style_chart()
+    gallery_grid(top = 40, bottom = 60, left = 8, right = 16) |>
+    axis_named(xlab, ylab)
 }
 
 #' @export
@@ -357,74 +526,120 @@ chart_g7_supply_price <- function(prep) {
     transmute(
       x = round(100 * quota_change, 2),
       y = round(100 * premium_change, 2),
-      category,
+      category = paste0("Cat ", category),
       label = paste0(category, " · ", format(q_start, "%b %Y"))
     )
-  # Two series via group_by so each gets its own lm
-  d |>
+  p <- d |>
     group_by(category) |>
     e_charts(x) |>
-    e_scatter(y, bind = label, symbolSize = 10) |>
+    e_scatter(y, bind = label, symbolSize = 11) |>
     e_lm(y ~ x, lineStyle = list(width = 2)) |>
     e_color(c(pal[["A"]], pal[["B"]])) |>
-    e_x_axis(name = "Quota change vs year earlier (%)", nameTextStyle = list(color = "#a3a3a3")) |>
-    e_y_axis(name = "Premium change vs year earlier (%)", nameTextStyle = list(color = "#a3a3a3")) |>
-    style_chart()
-}
-
-#' @export
-chart_g5_bids <- function(prep) {
-  # Same points as the violin; show as box-like strip: band category + scatter
-  d <- prep$bands |>
-    filter(!is.na(band)) |>
-    mutate(
-      band = as.character(band),
-      # light jitter in x for readability (same values as ggplot jitter intent)
-      x = as.numeric(factor(band, levels = c("Under S$50k", "S$50k to 100k", "Over S$100k"))) +
-        stats::runif(n(), -0.12, 0.12),
-      band_i = as.numeric(factor(band, levels = c("Under S$50k", "S$50k to 100k", "Over S$100k")))
+    gallery_grid(top = 40, bottom = 64, left = 12, right = 20) |>
+    axis_named(
+      "Change in number of COEs vs a year earlier (%)",
+      "Change in COE price vs a year earlier (%)"
     )
-  med <- prep$band_med |>
-    mutate(
-      band_i = as.numeric(factor(band, levels = c("Under S$50k", "S$50k to 100k", "Over S$100k"))),
-      label = paste0("median ", sprintf("%.2f", med))
-    )
-  # Build scatter on numeric x, then category labels
-  p <- d |>
-    e_charts(x) |>
-    e_scatter(bids_per_coe, symbolSize = 8, name = "Quarter") |>
-    e_color(pal[["A"]]) |>
-    e_x_axis(
-      min = 0.5, max = 3.5,
-      axisLabel = list(
-        color = "#a3a3a3",
-        formatter = htmlwidgets::JS(
-          "function(v){var m={1:'Under S$50k',2:'S$50k to 100k',3:'Over S$100k'}; return m[Math.round(v)] || '';}"
-        )
-      )
-    ) |>
-    e_y_axis(name = "Bids per COE", nameTextStyle = list(color = "#a3a3a3")) |>
-    style_chart()
-  # Median markers as a second series
-  med_df <- data.frame(x = med$band_i, y = med$med, label = med$label)
-  # Append via e_data is awkward; overlay with markLine at 1.5
   series <- p$x$opts$series
   if (length(series)) {
     series[[1]]$markLine <- list(
       symbol = "none",
-      data = list(list(yAxis = 1.5, name = "1.5")),
-      lineStyle = list(type = "dashed", color = "rgba(255,255,255,0.4)"),
-      label = list(color = "#a3a3a3", formatter = "1.5")
+      lineStyle = list(color = "rgba(255,255,255,0.35)", width = 1),
+      label = list(show = FALSE),
+      data = list(list(xAxis = 0), list(yAxis = 0))
     )
-    # median as markPoint
+    p$x$opts$series <- series
+  }
+  p
+}
+
+#' @export
+chart_g5_bids <- function(prep) {
+  levels_b <- c("Under S$50k", "S$50k to 100k", "Over S$100k")
+  d <- prep$bands |>
+    filter(!is.na(band)) |>
+    mutate(
+      band = as.character(band),
+      band_i = as.numeric(factor(band, levels = levels_b)),
+      x = band_i + stats::runif(n(), -0.12, 0.12)
+    )
+  med <- prep$band_med |>
+    mutate(
+      band = as.character(band),
+      band_i = as.numeric(factor(band, levels = levels_b)),
+      label = paste0("median ", sprintf("%.2f", med), " (n=", n, ")")
+    )
+  # Orange range shading: p10–p90 per band (violin stand-in)
+  rng <- d |>
+    group_by(band, band_i) |>
+    summarise(
+      lo = as.numeric(stats::quantile(bids_per_coe, 0.10, na.rm = TRUE)),
+      hi = as.numeric(stats::quantile(bids_per_coe, 0.90, na.rm = TRUE)),
+      .groups = "drop"
+    )
+  p <- d |>
+    e_charts(x) |>
+    e_scatter(bids_per_coe, symbolSize = 8, name = "Quarter") |>
+    e_color(pal[["A"]]) |>
+    gallery_grid(top = 36, bottom = 64) |>
+    e_x_axis(
+      min = 0.5, max = 3.5,
+      name = "Average premium in the quarter",
+      nameLocation = "middle",
+      nameGap = 32,
+      nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
+      axisLabel = list(
+        color = "#a3a3a3",
+        fontSize = 11,
+        formatter = htmlwidgets::JS(
+          "function(v){var m={1:'Under S$50k',2:'S$50k to 100k',3:'Over S$100k'}; return m[Math.round(v)] || '';}"
+        )
+      ),
+      axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
+      splitLine = list(show = FALSE)
+    ) |>
+    e_y_axis(
+      name = "Bids per COE",
+      nameLocation = "middle",
+      nameGap = 40,
+      nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
+      axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono"),
+      axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
+      splitLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.06)"))
+    )
+  series <- p$x$opts$series
+  if (length(series)) {
+    series[[1]]$markArea <- list(
+      silent = TRUE,
+      itemStyle = list(color = "rgba(255, 92, 26, 0.18)"),
+      data = lapply(seq_len(nrow(rng)), function(i) {
+        list(
+          list(xAxis = rng$band_i[[i]] - 0.28, yAxis = rng$lo[[i]]),
+          list(xAxis = rng$band_i[[i]] + 0.28, yAxis = rng$hi[[i]])
+        )
+      })
+    )
+    series[[1]]$markLine <- list(
+      symbol = "none",
+      data = list(list(yAxis = 1.5, name = "1.5")),
+      lineStyle = list(type = "dashed", color = "rgba(255,255,255,0.45)"),
+      label = list(color = "#d4d4d4", formatter = "1.5")
+    )
     series[[1]]$markPoint <- list(
       data = lapply(seq_len(nrow(med)), function(i) {
-        list(coord = c(med$band_i[[i]], med$med[[i]]), value = med$label[[i]])
+        list(
+          coord = c(med$band_i[[i]], med$med[[i]]),
+          value = med$label[[i]],
+          name = med$label[[i]]
+        )
       }),
       symbol = "rect",
-      symbolSize = c(28, 4),
+      symbolSize = c(36, 5),
       itemStyle = list(color = "#fafafa"),
-      label = list(show = TRUE, formatter = "{c}", color = "#fafafa", fontSize = 10, position = "right")
+      label = list(
+        show = TRUE, formatter = "{b}", color = "#fafafa",
+        fontSize = 11, position = "right", distance = 8
+      )
     )
     p$x$opts$series <- series
   }
@@ -435,11 +650,11 @@ chart_g5_bids <- function(prep) {
 #' @export
 chart_g6_risk <- function(prep, category = "A") {
   mp <- prep$moves_plot |> filter(category == !!category)
+  rq <- prep$ridge_q |> filter(category == !!category)
   dens <- lapply(levels(mp$horizon), function(hz) {
     x <- mp$change[mp$horizon == hz]
     if (!length(x) || sum(is.finite(x)) < 5) return(NULL)
     d <- stats::density(x[is.finite(x)], n = 128)
-    # scale density to 0-1 then offset by horizon index for ridge stacking
     yi <- match(hz, levels(mp$horizon))
     data.frame(
       x = d$x,
@@ -450,21 +665,78 @@ chart_g6_risk <- function(prep, category = "A") {
   })
   dens <- bind_rows(dens)
   if (!nrow(dens)) return(NULL)
-  dens |>
+  p <- dens |>
     group_by(horizon) |>
     e_charts(x) |>
-    e_area(y, name = NULL, stack = NULL) |>
+    e_area(y, stack = NULL) |>
     e_color(c(pal[["A"]], "#fb923c", "#fdba74")[seq_along(unique(dens$horizon))]) |>
-    e_x_axis(name = "Change per car at today's premium", nameTextStyle = list(color = "#a3a3a3")) |>
+    gallery_grid(top = 40, bottom = 56) |>
+    e_x_axis(
+      name = "Change per car (right of zero: dealer pays more)",
+      nameLocation = "middle",
+      nameGap = 32,
+      nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
+      axisLabel = list(
+        color = "#a3a3a3",
+        formatter = htmlwidgets::JS(
+          "function(v){var s=v<0?'-':'+'; var a=Math.abs(v)/1000; return s+'S$'+Math.round(a)+'k';}"
+        )
+      ),
+      axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
+      splitLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.06)"))
+    ) |>
     e_y_axis(
-      show = TRUE,
+      name = "Order to COE",
+      nameLocation = "middle",
+      nameGap = 48,
+      nameTextStyle = list(color = "#d4d4d4"),
+      min = -0.2,
+      max = 3.1,
       axisLabel = list(
         color = "#a3a3a3",
         formatter = htmlwidgets::JS(
           "function(v){var m={0:'6 months',1:'3 months',2:'1 month'}; return m[Math.round(v)] || '';}"
         )
-      )
+      ),
+      splitLine = list(show = FALSE)
     ) |>
-    style_chart() |>
     e_legend(show = TRUE)
+  # Typical + 1-in-10 labels (same ridge_q as ggplot)
+  series <- p$x$opts$series
+  if (length(series) && nrow(rq)) {
+    pts <- lapply(seq_len(nrow(rq)), function(i) {
+      yi <- match(as.character(rq$horizon[[i]]), levels(mp$horizon)) - 1
+      list(
+        list(
+          coord = c(rq$p50[[i]], yi + 0.45),
+          value = paste0("typical: ", dk(rq$p50[[i]])),
+          name = paste0("typical: ", dk(rq$p50[[i]]))
+        ),
+        list(
+          coord = c(rq$p90[[i]], yi + 0.7),
+          value = paste0("1 in 10: ", dk(rq$p90[[i]])),
+          name = paste0("1 in 10: ", dk(rq$p90[[i]]))
+        )
+      )
+    })
+    series[[1]]$markPoint <- list(
+      symbol = "circle",
+      symbolSize = 7,
+      itemStyle = list(color = "#fafafa"),
+      label = list(
+        show = TRUE, formatter = "{b}", color = "#fafafa",
+        fontSize = 11, position = "right", distance = 6,
+        backgroundColor = "rgba(0,0,0,0.55)", padding = c(2, 4)
+      ),
+      data = unlist(pts, recursive = FALSE)
+    )
+    series[[1]]$markLine <- list(
+      symbol = "none",
+      lineStyle = list(color = "rgba(255,255,255,0.4)", width = 1),
+      label = list(show = FALSE),
+      data = list(list(xAxis = 0))
+    )
+    p$x$opts$series <- series
+  }
+  p
 }

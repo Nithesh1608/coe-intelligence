@@ -1,5 +1,5 @@
 box::use(
-  shiny[NS, moduleServer, div, tags, addResourcePath, selectInput, reactive],
+  shiny[NS, moduleServer, div, tags, addResourcePath, selectInput, reactive, uiOutput, renderUI],
   bslib[card, card_header, card_body],
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
@@ -28,7 +28,7 @@ eda_fig <- function(file, alt = "") {
   )
 }
 
-# Temporary compare layout: ggplot PNG (left) | black-orange echarts (right).
+# Temporary compare layout: ggplot PNG (top) | black-orange echarts (bottom).
 eda_compare <- function(n, kicker, title, body, png, charts, aside = NULL) {
   div(
     class = "eda-beat eda-beat--full",
@@ -41,7 +41,7 @@ eda_compare <- function(n, kicker, title, body, png, charts, aside = NULL) {
       if (!is.null(aside)) tags$p(class = "eda-beat__aside", aside)
     ),
     div(
-      class = "eda-compare",
+      class = "eda-compare eda-compare--stack",
       div(
         class = "eda-compare__pane",
         tags$span(class = "eda-compare__tag", "ggplot (current)"),
@@ -72,10 +72,12 @@ viz_block <- function(num, kicker, title, body, bullets, controls = NULL, charts
   )
 }
 
-echart_card <- function(..., height = "360px") {
+echart_card <- function(outputId, height = "360px", title = NULL, note = NULL) {
   card(
     class = "desk-card",
-    card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(..., height = height))
+    if (!is.null(title)) card_header(class = "eda-compare__chart-title", title),
+    if (!is.null(note)) tags$p(class = "eda-compare__chart-note", note),
+    card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(outputId, height = height))
   )
 }
 
@@ -207,7 +209,10 @@ ui <- function(id) {
         "dotted lines are policy changes. Use this as context before you read supply mechanics below."
       ),
       "g0_premium_history.png",
-      echart_card(ns("g0"), height = "420px"),
+      list(
+        uiOutput(ns("g0_title")),
+        echart_card(ns("g0"), height = "440px")
+      ),
       "SingStat (to 2009) and LTA (2010 onwards)."
     ),
 
@@ -220,12 +225,13 @@ ui <- function(id) {
       ),
       "g1_quota_rule_topup.png",
       list(
+        uiOutput(ns("g1_title")),
         selectInput(
           ns("g1_cat"), "Category (echarts)",
           choices = c("Category A" = "A", "Category B" = "B"),
           selected = "A", width = "180px"
         ),
-        echart_card(ns("g1"), height = "340px")
+        echart_card(ns("g1"), height = "360px")
       ),
       "Stacked area by category and quota quarter."
     ),
@@ -238,7 +244,11 @@ ui <- function(id) {
         "Expect more certificates into 2029, then a tighter early-2030s window for fleets."
       ),
       "g2_age_heatmap.png",
-      echart_card(ns("g2"), height = "400px"),
+      list(
+        uiOutput(ns("g2_title")),
+        uiOutput(ns("g2_note")),
+        echart_card(ns("g2"), height = "420px")
+      ),
       "Cars on the road by age, monthly, ages 0-15."
     ),
 
@@ -250,10 +260,13 @@ ui <- function(id) {
         "High prices can cut early exits and keep supply tight - a feedback loop, not a quick mean reversion."
       ),
       "g4_owner_price_response.png",
-      div(
-        class = "eda-compare__pair",
-        echart_card(ns("g4a"), height = "300px"),
-        echart_card(ns("g4b"), height = "300px")
+      list(
+        uiOutput(ns("g4_title")),
+        div(
+          class = "eda-compare__pair",
+          div(uiOutput(ns("g4a_title")), echart_card(ns("g4a"), height = "340px")),
+          div(uiOutput(ns("g4b_title")), echart_card(ns("g4b"), height = "340px"))
+        )
       ),
       "Two yearly scatterplots with trend lines."
     ),
@@ -266,7 +279,10 @@ ui <- function(id) {
         "More certificates often go with softer premiums, but only partly. Price a locked book in Your risk."
       ),
       "g7_supply_price.png",
-      echart_card(ns("g7"), height = "360px"),
+      list(
+        uiOutput(ns("g7_title")),
+        echart_card(ns("g7"), height = "400px")
+      ),
       "Year-on-year % change in quota vs premium, Cat A and B."
     ),
 
@@ -274,11 +290,14 @@ ui <- function(id) {
       6, "Bidding pressure vs price",
       "Bids per COE sits near the same level whether premiums are cheap or dear",
       paste(
-        "Same quarterly points as the violin, as a strip + median marks (echarts has no true violin).",
+        "Orange band = 10th?90th percentile of bids per COE in that premium band; white bar = median.",
         "Pressure does not warn you about the next price move."
       ),
       "g5_bids_per_coe_violin.png",
-      echart_card(ns("g5"), height = "340px"),
+      list(
+        uiOutput(ns("g5_title")),
+        echart_card(ns("g5"), height = "380px")
+      ),
       "Violin of bids per COE by premium band."
     ),
 
@@ -286,17 +305,18 @@ ui <- function(id) {
       7, "Dealer risk between order and COE",
       "The longer the wait, the larger the 1-in-10 bad case",
       paste(
-        "Density curves from the same move series as the ridges (stacked by horizon).",
+        "Density curves from the same move series as the ridges, with typical and 1-in-10 labels.",
         "Price the open book in Your risk."
       ),
       "g6_dealer_risk_ridges.png",
       list(
+        uiOutput(ns("g6_title")),
         selectInput(
           ns("g6_cat"), "Category (echarts)",
           choices = c("Category A" = "A", "Category B" = "B"),
           selected = "A", width = "180px"
         ),
-        echart_card(ns("g6"), height = "340px")
+        echart_card(ns("g6"), height = "400px")
       ),
       "Ridgeline distributions at 1, 3 and 6 months."
     )
@@ -317,6 +337,31 @@ server <- function(id, store) {
         NULL
       })
     })
+
+    gallery_title <- function(key) {
+      force(key)
+      renderUI({
+        g <- gallery()
+        txt <- if (!is.null(g) && !is.null(g$titles[[key]])) g$titles[[key]] else NULL
+        if (is.null(txt) || !nzchar(txt)) return(NULL)
+        tags$h4(class = "eda-compare__chart-title", txt)
+      })
+    }
+    output$g0_title <- gallery_title("g0")
+    output$g1_title <- gallery_title("g1")
+    output$g2_title <- gallery_title("g2")
+    output$g2_note <- renderUI({
+      g <- gallery()
+      txt <- if (!is.null(g)) g$titles$g2_note else NULL
+      if (is.null(txt)) return(NULL)
+      tags$p(class = "eda-compare__chart-note", txt)
+    })
+    output$g4_title <- gallery_title("g4")
+    output$g4a_title <- gallery_title("g4a")
+    output$g4b_title <- gallery_title("g4b")
+    output$g7_title <- gallery_title("g7")
+    output$g5_title <- gallery_title("g5")
+    output$g6_title <- gallery_title("g6")
 
     output$cohort <- renderEcharts4r({
       yr <- suppressWarnings(as.integer(input$cohort_year))
