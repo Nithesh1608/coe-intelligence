@@ -247,7 +247,7 @@ ui <- function(id) {
       list(
         uiOutput(ns("g2_title")),
         uiOutput(ns("g2_note")),
-        echart_card(ns("g2"), height = "720px")
+        echart_card(ns("g2"), height = "760px")
       ),
       "Cars on the road by age, monthly, ages 0-15."
     ),

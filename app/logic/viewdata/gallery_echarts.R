@@ -460,13 +460,33 @@ chart_g2_heatmap <- function(prep) {
     format(round(prep$aged_2_5), big.mark = ",", trim = TRUE),
     " cars"
   )
-  # Same annotate endpoints as render_gallery.R
+  # Same annotate endpoints as render_gallery.R (segment + text)
   a1 <- list(x = snap_m("2018-01"), y = "1", x2 = snap_m("2026-04"), y2 = "9")
   a2 <- list(x = snap_m("2023-01"), y = "1", x2 = snap_m("2026-04"), y2 = "4")
   t1 <- list(x = snap_m("2021-09"), y = "6")
   t2 <- list(x = snap_m("2024-02"), y = "3")
   vmax <- max(d$value, na.rm = TRUE)
-  vmin <- max(0, stats::quantile(d$value, 0.02, na.rm = TRUE))
+  vmin <- max(0, as.numeric(stats::quantile(d$value, 0.02, na.rm = TRUE)))
+
+  # Line series on the same category axes — arrows stay in the plot (no onRender)
+  cohort_line <- function(a, name) {
+    list(
+      type = "line",
+      name = name,
+      clip = TRUE,
+      z = 10,
+      silent = TRUE,
+      tooltip = list(show = FALSE),
+      legendHoverLink = FALSE,
+      data = list(
+        list(value = c(a$x, a$y), symbol = "none", symbolSize = 0),
+        list(value = c(a$x2, a$y2), symbol = "arrow", symbolSize = 12)
+      ),
+      lineStyle = list(color = "#fafafa", width = 2.4),
+      itemStyle = list(color = "#fafafa"),
+      emphasis = list(disabled = TRUE)
+    )
+  }
 
   p <- d |>
     e_charts(month_lab) |>
@@ -479,7 +499,6 @@ chart_g2_heatmap <- function(prep) {
       right = 8,
       top = 80,
       bottom = 80,
-      # magma-like (matches ggplot viridis magma feel on dark)
       inRange = list(color = c(
         "#0b0920", "#3b0f70", "#8c2981", "#de4968", "#fe9f6d", "#fcfdbf"
       )),
@@ -489,10 +508,11 @@ chart_g2_heatmap <- function(prep) {
     e_grid(left = 72, right = 96, top = 28, bottom = 48, containLabel = TRUE) |>
     e_tooltip() |>
     e_x_axis(
+      type = "category",
+      data = month_labs,
       axisLabel = list(
         color = "#a3a3a3",
         fontFamily = "IBM Plex Mono",
-        # Show year only (January ticks) — same readability as ggplot %Y
         formatter = htmlwidgets::JS(
           "function(v){return (v&&v.slice(5)==='01') ? v.slice(0,4) : '';}"
         ),
@@ -514,118 +534,84 @@ chart_g2_heatmap <- function(prep) {
       axisLine = list(show = FALSE),
       splitLine = list(show = FALSE)
     )
+
   series <- p$x$opts$series
-  if (length(series)) {
-    series[[1]]$markLine <- list(
-      silent = TRUE,
-      symbol = "none",
-      animation = FALSE,
-      data = list(list(
-        yAxis = "10",
+  if (!length(series)) return(p)
+
+  # Red Year-10 COE line (user request)
+  series[[1]]$markLine <- list(
+    silent = TRUE,
+    symbol = "none",
+    animation = FALSE,
+    data = list(list(
+      yAxis = "10",
+      label = list(
+        formatter = "Year 10: COE expires",
+        color = "#ef4444",
+        fontWeight = "bold",
+        fontSize = 12,
+        position = "insideStartTop"
+      ),
+      lineStyle = list(color = "#ef4444", width = 2.6, type = "solid")
+    ))
+  )
+
+  # Rotated cohort labels beside the arrows (same positions as ggplot annotate)
+  series[[1]]$markPoint <- list(
+    silent = TRUE,
+    animation = FALSE,
+    data = list(
+      list(
+        coord = c(t1$x, t1$y),
+        symbol = "none",
         label = list(
-          formatter = "Year 10: COE expires",
+          show = TRUE,
+          formatter = lab_big,
+          color = "#fafafa",
+          fontWeight = "bold",
+          fontSize = 13,
+          rotate = 21,
+          backgroundColor = "rgba(0,0,0,0.35)",
+          padding = c(3, 6),
+          align = "left",
+          verticalAlign = "middle"
+        )
+      ),
+      list(
+        coord = c(t2$x, t2$y),
+        symbol = "none",
+        label = list(
+          show = TRUE,
+          formatter = lab_small,
           color = "#fafafa",
           fontWeight = "bold",
           fontSize = 12,
-          position = "insideStartTop"
-        ),
-        lineStyle = list(color = "#fafafa", width = 2.2, type = "solid")
-      ))
+          rotate = 21,
+          backgroundColor = "rgba(0,0,0,0.35)",
+          padding = c(3, 6),
+          align = "left",
+          verticalAlign = "middle"
+        )
+      )
     )
-    p$x$opts$series <- series
-  }
-
-  # Place arrows in data coordinates after render (percent graphics sat in the margin)
-  js <- sprintf(
-    "function(el, x) {
-      function getChart(node) {
-        if (!window.echarts) return null;
-        var c = window.echarts.getInstanceByDom(node);
-        if (c) return c;
-        var kids = node.querySelectorAll('div');
-        for (var i = 0; i < kids.length; i++) {
-          c = window.echarts.getInstanceByDom(kids[i]);
-          if (c) return c;
-        }
-        return null;
-      }
-      var chart = getChart(el);
-      if (!chart) return;
-      var labBig = %s;
-      var labSmall = %s;
-      var a1 = %s;
-      var a2 = %s;
-      var t1 = %s;
-      var t2 = %s;
-      function arrow(p0, p1, label, tp, rot) {
-        var dx = p1[0] - p0[0], dy = p1[1] - p0[1];
-        var len = Math.sqrt(dx*dx + dy*dy) || 1;
-        var ux = dx / len, uy = dy / len;
-        var hx = p1[0], hy = p1[1];
-        var bx = hx - ux * 12, by = hy - uy * 12;
-        var px = -uy * 6, py = ux * 6;
-        return {
-          type: 'group',
-          children: [
-            {
-              type: 'line',
-              shape: {x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1]},
-              style: {stroke: '#fafafa', lineWidth: 2.2}
-            },
-            {
-              type: 'polygon',
-              shape: {points: [[hx, hy], [bx + px, by + py], [bx - px, by - py]]},
-              style: {fill: '#fafafa'}
-            },
-            {
-              type: 'text',
-              style: {
-                text: label,
-                fill: '#fafafa',
-                font: 'bold 13px sans-serif',
-                textRotation: rot,
-                backgroundColor: 'rgba(0,0,0,0.45)',
-                padding: [3, 6]
-              },
-              x: tp[0],
-              y: tp[1]
-            }
-          ]
-        };
-      }
-      function draw() {
-        try {
-          var ax = {xAxisIndex: 0, yAxisIndex: 0};
-          var p0 = chart.convertToPixel(ax, [a1.x, a1.y]);
-          var p1 = chart.convertToPixel(ax, [a1.x2, a1.y2]);
-          var p2 = chart.convertToPixel(ax, [a2.x, a2.y]);
-          var p3 = chart.convertToPixel(ax, [a2.x2, a2.y2]);
-          var tp1 = chart.convertToPixel(ax, [t1.x, t1.y]);
-          var tp2 = chart.convertToPixel(ax, [t2.x, t2.y]);
-          if (!p0 || !p1 || !p2 || !p3) return;
-          chart.setOption({
-            graphic: [
-              arrow(p0, p1, labBig, tp1, -0.36),
-              arrow(p2, p3, labSmall, tp2, -0.30)
-            ]
-          }, {replaceMerge: ['graphic']});
-        } catch (e) {}
-      }
-      draw();
-      chart.off('finished');
-      chart.on('finished', draw);
-      if (window.ResizeObserver) {
-        new ResizeObserver(function(){ draw(); }).observe(el);
-      }
-    }",
-    jsonlite::toJSON(lab_big, auto_unbox = TRUE),
-    jsonlite::toJSON(lab_small, auto_unbox = TRUE),
-    jsonlite::toJSON(a1, auto_unbox = TRUE),
-    jsonlite::toJSON(a2, auto_unbox = TRUE),
-    jsonlite::toJSON(t1, auto_unbox = TRUE),
-    jsonlite::toJSON(t2, auto_unbox = TRUE)
   )
-  htmlwidgets::onRender(p, js)
+
+  # Append diagonal cohort arrows as line series on the same axes
+  p$x$opts$series <- c(
+    series,
+    list(
+      cohort_line(a1, "cohort_2017_19"),
+      cohort_line(a2, "cohort_2022_24")
+    )
+  )
+  p$x$opts$legend <- list(
+    show = TRUE,
+    right = 8,
+    top = 4,
+    textStyle = list(color = "#a3a3a3", fontSize = 11),
+    data = list("Cars (thousands)")
+  )
+  p
 }
 
 #' @export
