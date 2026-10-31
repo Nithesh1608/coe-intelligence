@@ -4,7 +4,6 @@ box::use(
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
 box::use(
-  app/logic/viewdata/charts[quota_track_chart],
   app/logic/viewdata/proposal_viz[prep_quota_fan, chart_quota_fan, forward_quarters],
   app/logic/viewdata/pipeline[quarter_label],
 )
@@ -13,7 +12,7 @@ fmt_int <- function(x) format(round(as.numeric(x)), big.mark = ",", scientific =
 
 LIVE_MODEL <- "core_forecast"
 
-#' Home - supply forecast vs released quota (+ fan chart)
+#' Home - single supply outlook chart (released history + forward fan)
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -63,33 +62,21 @@ ui <- function(id) {
         tags$span(class = "nx-hint", "Central path plus bands")
       )
     ),
-    card(
-      class = "desk-card",
-      full_screen = TRUE,
-      card_header("Released certificates versus our outlook"),
-      card_body(
-        class = "chart-frame chart-frame--tall",
-        echarts4rOutput(ns("quota"), height = "400px", width = "100%")
-      )
-    ),
-
-
     tags$section(
       class = "viz-explain",
-      tags$span(class = "nx-kicker", "Forward outlook"),
-      tags$h2("Certificate supply for the next twelve quarters")
+      tags$span(class = "nx-kicker", "Supply outlook"),
+      tags$h2("Released certificates and the supply outlook")
     ),
     card(
       class = "desk-card",
       full_screen = TRUE,
-      card_header("Projected quota"),
+      card_header("Certificate supply"),
       card_body(
         class = "chart-frame chart-frame--tall",
-        echarts4rOutput(ns("fan"), height = "400px", width = "100%")
+        echarts4rOutput(ns("supply"), height = "440px", width = "100%")
       )
     ),
-
-    tags$p(class = "footnote", shiny::textOutput(ns("fan_note"), inline = TRUE)),
+    tags$p(class = "footnote", shiny::textOutput(ns("supply_note"), inline = TRUE)),
     card(
       class = "desk-card",
       card_header("Quarterly outlook"),
@@ -105,8 +92,6 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    live_label <- "Our outlook"
-
     cat_code <- reactive({
       c <- input$cat
       if (is.null(c) || !nzchar(as.character(c)[[1]])) "A" else as.character(c)[[1]]
@@ -120,59 +105,33 @@ server <- function(id, store) {
       sprintf("%.0f%%", 100 * as.numeric(row$MAPE[[1]]))
     })
 
-    output$quota <- renderEcharts4r({
-      q <- store$two_quota
-      req(!is.null(q), nrow(q) > 0)
-      code <- cat_code()
-      one <- q[as.character(q$model) == LIVE_MODEL & as.character(q$category) == code, , drop = FALSE]
-      base <- q[as.character(q$model) == "simple_average" & as.character(q$category) == code, , drop = FALSE]
-      req(nrow(one) > 0)
-      one <- one[order(one$month), , drop = FALSE]
-      df <- data.frame(
-        month = one$month,
-        published = as.numeric(one$published),
-        outlook = as.numeric(one$outlook),
-        baseline = as.numeric(base$outlook[match(one$month, base$month)]),
-        stringsAsFactors = FALSE
-      )
-      df <- df[is.finite(df$published) | is.finite(df$outlook), , drop = FALSE]
-      req(nrow(df) > 0)
+    supply_prep <- reactive({
       tryCatch(
-        quota_track_chart(df, live_label),
+        prep_quota_fan(store, category = cat_code(), horizon_months = 36L, history_months = 48L),
         error = function(e) {
-          warning("Home quota chart failed: ", conditionMessage(e))
+          warning("Supply prep failed: ", conditionMessage(e))
           NULL
         }
       )
     })
 
-    fan_prep <- reactive({
-      tryCatch(
-        prep_quota_fan(store, category = cat_code(), horizon_months = 36L),
-        error = function(e) {
-          warning("Fan prep failed: ", conditionMessage(e))
-          NULL
-        }
-      )
-    })
-
-    output$fan <- renderEcharts4r({
-      prep <- fan_prep()
+    output$supply <- renderEcharts4r({
+      prep <- supply_prep()
       req(!is.null(prep), !is.null(prep$df), nrow(prep$df) > 0)
       tryCatch(
         chart_quota_fan(prep),
         error = function(e) {
-          warning("Fan chart failed: ", conditionMessage(e))
+          warning("Supply chart failed: ", conditionMessage(e))
           NULL
         }
       )
     })
 
-    output$fan_note <- renderText({
-      prep <- fan_prep()
+    output$supply_note <- renderText({
+      prep <- supply_prep()
       if (is.null(prep)) return("Outlook unavailable - rebuild the forward artefacts, then reload.")
       sprintf(
-        "Category %s  |  outlook from %s  |  %d months ahead  |  released quota through %s.",
+        "Category %s  |  outlook from %s  |  %d months ahead  |  released through %s.",
         prep$category, format(prep$as_of, "%b %Y"), prep$horizon, format(prep$last_published, "%b %Y")
       )
     })
@@ -195,6 +154,5 @@ server <- function(id, store) {
         tags$tbody(rows)
       )
     })
-
   })
 }

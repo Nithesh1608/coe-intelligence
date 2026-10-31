@@ -68,11 +68,16 @@ prep_quota_fan <- function(store, category = "A", horizon_months = 36L, history_
     cc <- cal[as.character(cal$category) == category, ]
     if (nrow(cc)) cover <- stats::weighted.mean(cc$quota_cover80, cc$months, na.rm = TRUE)
   }
+  train_end <- tryCatch(as.Date(store$meta$train_end), error = function(e) as.Date("2024-08-01"))
+  if (!length(train_end) || !is.finite(train_end)) train_end <- as.Date("2024-08-01")
+  last_pub <- max(fwd_df$month[is.finite(fwd_df$actual)], hist$month, na.rm = TRUE)
+
   list(
     df = both, category = category,
     as_of = max(hist$month, na.rm = TRUE),
     horizon = nrow(fwd_df),
-    last_published = max(fwd_df$month[is.finite(fwd_df$actual)], hist$month, na.rm = TRUE),
+    last_published = last_pub,
+    train_end = train_end,
     cover80 = cover
   )
 }
@@ -82,36 +87,68 @@ chart_quota_fan <- function(prep) {
   d <- prep$df
   if (is.null(d) || !nrow(d)) return(NULL)
 
-  # Keep true gaps so Released stops when publications end.
+  # Released = published quota. Outlook = held-out path then forward path.
   d$released <- ifelse(is.finite(d$actual), as.numeric(d$actual), NA_real_)
+  d$outlook <- ifelse(is.finite(d$mid), as.numeric(d$mid), NA_real_)
   d$lo80 <- ifelse(is.finite(d$lo80), as.numeric(d$lo80), NA_real_)
   d$hi80 <- ifelse(is.finite(d$hi80), as.numeric(d$hi80), NA_real_)
   d$lo50 <- ifelse(is.finite(d$lo50), as.numeric(d$lo50), NA_real_)
   d$hi50 <- ifelse(is.finite(d$hi50), as.numeric(d$hi50), NA_real_)
 
-  # Outlook + bands start only after Released ends (anchor at the join for continuity).
-  d$outlook <- NA_real_
-  idx <- seq_len(nrow(d))
-  last_rel <- suppressWarnings(max(idx[is.finite(d$released)]))
-  if (is.finite(last_rel)) {
-    keep_hist <- idx <= last_rel
-    d$lo80[keep_hist] <- NA_real_
-    d$hi80[keep_hist] <- NA_real_
-    d$lo50[keep_hist] <- NA_real_
-    d$hi50[keep_hist] <- NA_real_
-    d$outlook[last_rel] <- d$released[last_rel]
-    after <- idx > last_rel & is.finite(d$mid)
-    d$outlook[after] <- as.numeric(d$mid[after])
-  } else {
-    d$outlook <- ifelse(is.finite(d$mid), as.numeric(d$mid), NA_real_)
+  # Uncertainty bands only beyond the latest release.
+  last_pub <- prep$last_published
+  if (length(last_pub) && is.finite(last_pub)) {
+    before_now <- as.Date(d$month) <= as.Date(last_pub)
+    d$lo80[before_now] <- NA_real_
+    d$hi80[before_now] <- NA_real_
+    d$lo50[before_now] <- NA_real_
+    d$hi50[before_now] <- NA_real_
   }
 
   y_vals <- c(d$released, d$outlook, d$lo80, d$hi80, d$lo50, d$hi50)
   y_vals <- y_vals[is.finite(y_vals)]
-  y_min <- if (length(y_vals)) max(0, floor(min(y_vals) * 0.85 / 100) * 100) else 0
-  y_max <- if (length(y_vals)) ceiling(max(y_vals) * 1.08 / 100) * 100 else 4000
+  # Uniform y scale: round ticks (usually 0 / 1k / 2k / ?) with a little headroom.
+  y_span <- if (length(y_vals)) max(y_vals) else 4000
+  y_step <- if (y_span <= 2000) 500 else if (y_span <= 6000) 1000 else 2000
+  y_min <- 0
+  y_max <- max(y_step * 2L, y_step * as.integer(ceiling((y_span * 1.06) / y_step)))
+  y_interval <- y_step
 
-  d |>
+  train_lab <- {
+    te <- prep$train_end
+    if (length(te) && is.finite(te)) format(as.Date(te), "%b %Y") else NA_character_
+  }
+  now_lab <- {
+    lp <- prep$last_published
+    if (length(lp) && is.finite(lp)) format(as.Date(lp), "%b %Y") else NA_character_
+  }
+  mark_data <- list()
+  if (is.character(train_lab) && nzchar(train_lab) && train_lab %in% d$label) {
+    mark_data[[length(mark_data) + 1L]] <- list(
+      xAxis = train_lab,
+      name = "Training ends",
+      label = list(
+        formatter = "Training ends",
+        color = "#a3a3a3",
+        fontSize = 10,
+        position = "insideEndTop"
+      )
+    )
+  }
+  if (is.character(now_lab) && nzchar(now_lab) && now_lab %in% d$label) {
+    mark_data[[length(mark_data) + 1L]] <- list(
+      xAxis = now_lab,
+      name = "Latest release",
+      label = list(
+        formatter = "Latest release",
+        color = "#a3a3a3",
+        fontSize = 10,
+        position = "insideEndTop"
+      )
+    )
+  }
+
+  p <- d |>
     e_charts(label) |>
     e_band2(
       lo80, hi80,
@@ -137,7 +174,7 @@ chart_quota_fan <- function(prep) {
       lineStyle = list(width = 2.8, color = "#ff5c1a"),
       itemStyle = list(color = "#ff5c1a")
     ) |>
-    e_grid(left = 8, right = 16, top = 48, bottom = 20, containLabel = TRUE) |>
+    e_grid(left = 8, right = 16, top = 52, bottom = 28, containLabel = TRUE) |>
     e_tooltip(trigger = "axis") |>
     e_legend(
       data = list("Released", "Outlook", "50% range", "80% range"),
@@ -154,6 +191,8 @@ chart_quota_fan <- function(prep) {
       name = "Certificates / month",
       min = y_min,
       max = y_max,
+      interval = y_interval,
+      splitNumber = as.integer(y_max / y_interval),
       nameTextStyle = list(color = "#737373", fontSize = 11),
       axisLine = list(show = FALSE),
       axisTick = list(show = FALSE),
@@ -161,6 +200,22 @@ chart_quota_fan <- function(prep) {
       splitLine = list(show = FALSE)
     ) |>
     e_datazoom(type = "inside")
+
+  # Attach dashed guides to the Outlook series (avoid e_mark_line helper crashes).
+  if (length(mark_data)) {
+    series <- p$x$opts$series
+    hit <- which(vapply(series, function(s) identical(s$name, "Outlook"), logical(1)))
+    if (!length(hit)) hit <- length(series)
+    series[[hit[[1]]]]$markLine <- list(
+      symbol = "none",
+      animation = FALSE,
+      lineStyle = list(type = "dashed", color = "rgba(255,255,255,0.45)", width = 1.2),
+      label = list(color = "#a3a3a3", fontSize = 10),
+      data = mark_data
+    )
+    p$x$opts$series <- series
+  }
+  p
 }
 
 #' Quarterly forward quota table for a category (for Home and the deck).
