@@ -865,35 +865,56 @@ chart_g5_bids <- function(prep) {
   p
 }
 
-#' Density curves standing in for ridges (same moves_plot values).
+#' Density ridges for one category (ggplot twin). 6 months on top, like ggridges.
 #' @export
 chart_g6_risk <- function(prep, category = "A") {
-  mp <- prep$moves_plot |> filter(category == !!category)
-  rq <- prep$ridge_q |> filter(category == !!category)
-  dens <- lapply(levels(mp$horizon), function(hz) {
+  hz_levels <- c("1 month", "3 months", "6 months") # bottom -> top in echarts y
+  mp <- prep$moves_plot |>
+    filter(category == !!category) |>
+    mutate(horizon = factor(as.character(horizon), levels = hz_levels))
+  rq <- prep$ridge_q |>
+    filter(category == !!category) |>
+    mutate(horizon = factor(as.character(horizon), levels = hz_levels))
+  fill <- if (identical(as.character(category), "A")) "rgba(255,92,26,0.45)" else "rgba(228,228,231,0.35)"
+  stroke <- if (identical(as.character(category), "A")) pal[["A"]] else "#e4e4e7"
+
+  # Closed ridge polygons (fill only under each hill, not down to y=0)
+  series <- list()
+  for (hz in hz_levels) {
     x <- mp$change[mp$horizon == hz]
-    if (!length(x) || sum(is.finite(x)) < 5) return(NULL)
+    if (!length(x) || sum(is.finite(x)) < 5) next
     d <- stats::density(x[is.finite(x)], n = 128)
-    yi <- match(hz, levels(mp$horizon))
-    data.frame(
-      x = d$x,
-      y = d$y / max(d$y) * 0.85 + (yi - 1),
-      horizon = hz,
-      stringsAsFactors = FALSE
+    yi <- match(hz, hz_levels) - 1
+    xs <- d$x
+    ys <- d$y / max(d$y) * 0.82 + yi
+    # up the ridge, back along the baseline
+    poly_x <- c(xs, rev(xs), xs[[1]])
+    poly_y <- c(ys, rep(yi, length(xs)), ys[[1]])
+    series[[length(series) + 1]] <- list(
+      type = "line",
+      name = hz,
+      data = Map(function(xx, yy) c(xx, yy), poly_x, poly_y),
+      showSymbol = FALSE,
+      smooth = FALSE,
+      lineStyle = list(width = 1.2, color = stroke, type = "solid"),
+      areaStyle = list(color = fill, opacity = 1),
+      z = 2 + yi,
+      silent = TRUE,
+      tooltip = list(show = FALSE),
+      legendHoverLink = FALSE
     )
-  })
-  dens <- bind_rows(dens)
-  if (!nrow(dens)) return(NULL)
-  p <- dens |>
-    group_by(horizon) |>
+  }
+  if (!length(series)) return(NULL)
+
+  seed <- data.frame(x = 0, y = 0)
+  p <- seed |>
     e_charts(x) |>
-    e_area(y, stack = NULL) |>
-    e_color(c(pal[["A"]], "#fb923c", "#fdba74")[seq_along(unique(dens$horizon))]) |>
-    gallery_grid(top = 40, bottom = 56) |>
+    e_grid(left = 72, right = 28, top = 36, bottom = 56, containLabel = TRUE) |>
+    e_tooltip(show = FALSE) |>
     e_x_axis(
       name = "Change per car (right of zero: dealer pays more)",
       nameLocation = "middle",
-      nameGap = 32,
+      nameGap = 36,
       nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
       axisLabel = list(
         color = "#a3a3a3",
@@ -907,55 +928,68 @@ chart_g6_risk <- function(prep, category = "A") {
     e_y_axis(
       name = "Order to COE",
       nameLocation = "middle",
-      nameGap = 48,
+      nameGap = 52,
       nameTextStyle = list(color = "#d4d4d4"),
-      min = -0.2,
-      max = 3.1,
+      min = -0.15,
+      max = 2.95,
+      axisTick = list(show = TRUE, customValues = c(0, 1, 2)),
       axisLabel = list(
         color = "#a3a3a3",
+        customValues = c(0, 1, 2),
         formatter = htmlwidgets::JS(
-          "function(v){var m={0:'6 months',1:'3 months',2:'1 month'}; return m[Math.round(v)] || '';}"
+          "function(v){var m={0:'1 month',1:'3 months',2:'6 months'}; return m[v] != null ? m[v] : '';}"
         )
       ),
       splitLine = list(show = FALSE)
     ) |>
-    e_legend(show = TRUE)
-  # Typical + 1-in-10 labels (same ridge_q as ggplot)
-  series <- p$x$opts$series
-  if (length(series) && nrow(rq)) {
-    pts <- lapply(seq_len(nrow(rq)), function(i) {
-      yi <- match(as.character(rq$horizon[[i]]), levels(mp$horizon)) - 1
+    e_legend(show = FALSE)
+
+  # Zero line once; typical / 1-in-10 as points on each ridge (not full-height lines)
+  mark_pts <- list()
+  for (i in seq_len(nrow(rq))) {
+    yi <- match(as.character(rq$horizon[[i]]), hz_levels) - 1
+    if (is.na(yi)) next
+    mark_pts <- c(mark_pts, list(
       list(
-        list(
-          coord = c(rq$p50[[i]], yi + 0.45),
-          value = paste0("typical: ", dk(rq$p50[[i]])),
-          name = paste0("typical: ", dk(rq$p50[[i]]))
-        ),
-        list(
-          coord = c(rq$p90[[i]], yi + 0.7),
-          value = paste0("1 in 10: ", dk(rq$p90[[i]])),
-          name = paste0("1 in 10: ", dk(rq$p90[[i]]))
+        coord = c(rq$p50[[i]], yi + 0.35),
+        name = paste0("typical: ", dk(rq$p50[[i]])),
+        symbol = "rect",
+        symbolSize = c(2, 28),
+        itemStyle = list(color = "#fafafa"),
+        label = list(
+          show = TRUE, formatter = "{b}", color = "#fafafa",
+          fontSize = 11, position = "right", distance = 6
+        )
+      ),
+      list(
+        coord = c(rq$p90[[i]], yi + 0.55),
+        name = paste0("1 in 10: ", dk(rq$p90[[i]])),
+        symbol = "rect",
+        symbolSize = c(2, 28),
+        itemStyle = list(color = pal[["A"]]),
+        label = list(
+          show = TRUE, formatter = "{b}", color = "#fafafa",
+          fontSize = 11, position = "right", distance = 6
         )
       )
-    })
-    series[[1]]$markPoint <- list(
-      symbol = "circle",
-      symbolSize = 7,
-      itemStyle = list(color = "#fafafa"),
-      label = list(
-        show = TRUE, formatter = "{b}", color = "#fafafa",
-        fontSize = 11, position = "right", distance = 6,
-        backgroundColor = "rgba(0,0,0,0.55)", padding = c(2, 4)
-      ),
-      data = unlist(pts, recursive = FALSE)
-    )
-    series[[1]]$markLine <- list(
-      symbol = "none",
-      lineStyle = list(color = "rgba(255,255,255,0.4)", width = 1),
-      label = list(show = FALSE),
-      data = list(list(xAxis = 0))
-    )
-    p$x$opts$series <- series
+    ))
   }
+  series[[length(series)]]$markLine <- list(
+    symbol = "none",
+    silent = TRUE,
+    data = list(list(
+      xAxis = 0,
+      lineStyle = list(color = "rgba(255,255,255,0.45)", width = 1, type = "solid"),
+      label = list(show = FALSE)
+    ))
+  )
+  series[[length(series)]]$markPoint <- list(data = mark_pts, silent = TRUE)
+  p$x$opts$series <- series
+  p$x$opts$title <- list(
+    text = paste0("Cat ", category),
+    left = "center",
+    top = 4,
+    textStyle = list(color = "#d4d4d4", fontSize = 13, fontWeight = "600")
+  )
   p
 }

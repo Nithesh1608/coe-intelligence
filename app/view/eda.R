@@ -185,21 +185,22 @@ ui <- function(id) {
     tags$p(class = "nx-kicker", "Deeper context"),
     tags$p(
       class = "lede lede--wide",
-      "Long premium history and the supply-price link, then the gallery: formula top-ups, the age wave, ",
-      "owner response, bidding pressure, and dealer timing risk. ",
-      "Each beat shows the current ggplot PNG beside a black/orange echarts twin (same prep) for comparison."
+      "Start from the price backdrop, then the cars aging into certificates, how LTA builds quota, ",
+      "whether supply eases premiums, how owners respond, why bidding pressure is a weak signal, ",
+      "and finally the cost of waiting ? which leads into Your risk. ",
+      "Each beat shows the ggplot PNG above a black/orange echarts twin (same prep) for comparison."
     ),
     div(
       class = "eda-spine",
       tags$span("Premium history"),
       tags$span(class = "eda-spine__dot", "->"),
-      tags$span("Formula vs top-up"),
-      tags$span(class = "eda-spine__dot", "->"),
       tags$span("Age wave"),
       tags$span(class = "eda-spine__dot", "->"),
-      tags$span("Owner response"),
+      tags$span("Formula vs top-up"),
       tags$span(class = "eda-spine__dot", "->"),
       tags$span("Supply vs price"),
+      tags$span(class = "eda-spine__dot", "->"),
+      tags$span("Owner response"),
       tags$span(class = "eda-spine__dot", "->"),
       tags$span("Bidding"),
       tags$span(class = "eda-spine__dot", "->"),
@@ -222,7 +223,23 @@ ui <- function(id) {
     ),
 
     eda_compare(
-      2, "Where supply comes from",
+      2, "The wave on the road",
+      "A large 2017-19 cohort reaches year 10 by 2029; a thinner cohort follows",
+      paste(
+        "Each row is age, each column a month. Bright bands move up the heatmap as cars age.",
+        "Expect more certificates into 2029, then a tighter early-2030s window for fleets."
+      ),
+      "g2_age_heatmap.png",
+      list(
+        uiOutput(ns("g2_title")),
+        uiOutput(ns("g2_note")),
+        echart_card(ns("g2"), height = "640px")
+      ),
+      "Cars on the road by age, monthly, ages 0-15."
+    ),
+
+    eda_compare(
+      3, "Where supply comes from",
       "Formula quota versus LTA top-ups since 2023",
       paste(
         "Grey / muted is the 25% rule; orange is LTA top-up. Same split as the PNG.",
@@ -242,23 +259,22 @@ ui <- function(id) {
     ),
 
     eda_compare(
-      3, "The wave on the road",
-      "A large 2017-19 cohort reaches year 10 by 2029; a thinner cohort follows",
+      4, "Supply and clearing prices",
+      "When the quota rises, do premiums fall? Only partly",
       paste(
-        "Each row is age, each column a month. Bright bands move up the heatmap as cars age.",
-        "Expect more certificates into 2029, then a tighter early-2030s window for fleets."
+        "Each point is one quarter versus the same quarter a year earlier (percent changes).",
+        "More certificates often go with softer premiums, but only partly. Price a locked book in Your risk."
       ),
-      "g2_age_heatmap.png",
+      "g7_supply_price.png",
       list(
-        uiOutput(ns("g2_title")),
-        uiOutput(ns("g2_note")),
-        echart_card(ns("g2"), height = "640px")
+        uiOutput(ns("g7_title")),
+        echart_card(ns("g7"), height = "540px")
       ),
-      "Cars on the road by age, monthly, ages 0-15."
+      "Year-on-year % change in quota vs premium, Cat A and B."
     ),
 
     eda_compare(
-      4, "How owners react to price",
+      5, "How owners react to price",
       "Dear COEs slow early scrapping; dear PQP pushes more year-10 exits",
       paste(
         "Left: share of cars aged 1-9 scrapped vs premium. Right: share scrapped at year 10 vs renewal price.",
@@ -277,25 +293,10 @@ ui <- function(id) {
     ),
 
     eda_compare(
-      5, "Supply and clearing prices",
-      "When the quota rises, do premiums fall? Only partly",
-      paste(
-        "Each point is one quarter versus the same quarter a year earlier (percent changes).",
-        "More certificates often go with softer premiums, but only partly. Price a locked book in Your risk."
-      ),
-      "g7_supply_price.png",
-      list(
-        uiOutput(ns("g7_title")),
-        echart_card(ns("g7"), height = "540px")
-      ),
-      "Year-on-year % change in quota vs premium, Cat A and B."
-    ),
-
-    eda_compare(
       6, "Bidding pressure vs price",
       "Bids per COE sits near the same level whether premiums are cheap or dear",
       paste(
-        "Orange band = 10th?90th percentile of bids per COE in that premium band; white bar = median.",
+        "Orange band = 10th-90th percentile of bids per COE in that premium band; white bar = median.",
         "Pressure does not warn you about the next price move."
       ),
       "g5_bids_per_coe_violin.png",
@@ -310,18 +311,17 @@ ui <- function(id) {
       7, "Dealer risk between order and COE",
       "The longer the wait, the larger the 1-in-10 bad case",
       paste(
-        "Density curves from the same move series as the ridges, with typical and 1-in-10 labels.",
-        "Price the open book in Your risk."
+        "Cat A and Cat B side by side, same as the PNG. Hills show how often the premium moved since May 2022,",
+        "scaled to today's price. Price the open book in Your risk."
       ),
       "g6_dealer_risk_ridges.png",
       list(
         uiOutput(ns("g6_title")),
-        selectInput(
-          ns("g6_cat"), "Category (echarts)",
-          choices = c("Category A" = "A", "Category B" = "B"),
-          selected = "A", width = "180px"
-        ),
-        echart_card(ns("g6"), height = "560px")
+        div(
+          class = "eda-compare__pair",
+          echart_card(ns("g6a"), height = "520px"),
+          echart_card(ns("g6b"), height = "520px")
+        )
       ),
       "Ridgeline distributions at 1, 3 and 6 months."
     )
@@ -451,10 +451,15 @@ server <- function(id, store) {
       if (is.null(g)) return(NULL)
       chart_g5_bids(g)
     })
-    output$g6 <- renderEcharts4r({
+    output$g6a <- renderEcharts4r({
       g <- gallery()
       if (is.null(g)) return(NULL)
-      chart_g6_risk(g, category = input$g6_cat %||% "A")
+      chart_g6_risk(g, category = "A")
+    })
+    output$g6b <- renderEcharts4r({
+      g <- gallery()
+      if (is.null(g)) return(NULL)
+      chart_g6_risk(g, category = "B")
     })
 
     # Do not force-render EDA charts while Home is open - heavy prep + echarts
