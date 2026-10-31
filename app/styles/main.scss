@@ -2382,6 +2382,55 @@ body {
   border-radius: 2px;
 }
 
+/* Temporary: ggplot PNG beside black/orange echarts twin */
+.eda-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .eda-compare {
+    grid-template-columns: 1fr;
+  }
+}
+
+.eda-compare__pane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.eda-compare__tag {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #a3a3a3;
+}
+
+.eda-compare__tag--accent {
+  color: var(--accent);
+}
+
+.eda-compare__charts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.eda-compare__pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.eda-compare .desk-card {
+  margin: 0;
+}
+
 .gloss .card-body p {
   margin: 0 0 0.55rem;
   color: #d4d4d4;
