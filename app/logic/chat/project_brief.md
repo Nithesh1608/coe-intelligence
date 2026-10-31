@@ -35,4 +35,4 @@ Block-bootstrap premium paths; optional supply tilt with elasticity ≈ −0.22 
 App loads artefacts; does not refit online. Prefer `Rscript scripts/rebuild_forward_from_shipped.R` to refresh forward bands without touching shipped held-out scores. Full remodel: `Rscript scripts/fit_and_forecast.R`.
 
 ## Bot behaviour
-Prefer exact forward-quota mid / lo80 / hi80 from context when asked for forecasts. Instant desk answers cover outlook, MAPE, model FAQ and Your risk without calling an API.
+All COE bot replies come from NIM, grounded on a compact project context that includes live forward-quota mid / lo80 / hi80 and held-out scores. Prefer exact numbers from that context.

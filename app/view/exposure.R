@@ -2,8 +2,8 @@ box::use(
   shiny[
     NS, moduleServer, div, tags, numericInput, selectInput, sliderInput,
     checkboxInput, actionButton, fileInput, downloadButton, downloadHandler,
-    renderText, renderUI, uiOutput, reactive, reactiveVal, observe, observeEvent,
-    invalidateLater, updateNumericInput, updateSelectInput, req, withProgress,
+    renderText, renderUI, uiOutput, reactive, reactiveVal, observeEvent,
+    updateNumericInput, updateSelectInput, req, withProgress,
     incProgress, showNotification
   ],
   bslib[card, card_header, card_body, navset_card_underline, nav_panel],
@@ -407,7 +407,8 @@ server <- function(id, store) {
     # (published months plus forecast for the rest of it), then the next
     # forecast quarters under the selected scenario. simulate_premiums drifts
     # each quarter by the log change between consecutive quarterly totals.
-    quota_path_for <- function(cat, scenario_id = input$tilt_scn %||% "baseline", n_quarters = 8L) {
+    # Pass scenario_id explicitly — never read input$ in default args.
+    quota_path_for <- function(cat, scenario_id = "baseline", n_quarters = 8L) {
       fq <- store$forward_quota
       if (is.null(fq) || !nrow(fq)) return(NULL)
       d <- fq[as.character(fq$category) == cat, ]
@@ -461,7 +462,7 @@ server <- function(id, store) {
 
     dl_res <- reactiveVal(NULL)
 
-    price_book_once <- function(b, nsim, use_progress = TRUE) {
+    price_book_once <- function(b, nsim, knobs, use_progress = TRUE) {
       cats <- unique(as.character(b$category))
       sims <- list()
       for (i in seq_along(cats)) {
@@ -473,8 +474,8 @@ server <- function(id, store) {
         if (!length(dlog)) stop("No historical premium moves for category ", cat_code)
         p0 <- last_premium(store$bidding, cat_code)
         pqp0 <- last_pqp(root, cat_code, p0)
-        q_path <- if (isTRUE(input$tilt)) quota_path_for(cat_code) else NULL
-        if (isTRUE(input$tilt) && is.null(q_path)) {
+        q_path <- if (isTRUE(knobs$tilt)) quota_path_for(cat_code, scenario_id = knobs$tilt_scn) else NULL
+        if (isTRUE(knobs$tilt) && is.null(q_path)) {
           stop(
             "Tilt is on but no forward quota path for Cat ", cat_code,
             ". Run scripts/fit_and_forecast.R to build forward_quota.csv."
@@ -487,21 +488,19 @@ server <- function(id, store) {
           start_month = store$latest_bid_month,
           elasticity = elasticity_for(cat_code),
           n_sims = nsim,
-          vol_mult = as.numeric(input$vol %||% 1),
-          supply_tilt = isTRUE(input$tilt),
+          vol_mult = knobs$vol,
+          supply_tilt = isTRUE(knobs$tilt),
           quota_path = q_path
         )
       }
       if (isTRUE(use_progress)) {
         incProgress(1 / (length(cats) + 1), detail = "Pricing book")
       }
-      p_win <- as.numeric(input$psucc %||% 70) / 100
-      if (!is.finite(p_win) || p_win <= 0 || p_win > 1) p_win <- 0.7
-      base <- funs$dealer_exposure(b, sims, p_success = p_win)
+      base <- funs$dealer_exposure(b, sims, p_success = knobs$p_win)
       shifts <- funs$timing_shift(
         b, sims,
         shifts = c(0, 6, 12),
-        p_success = p_win
+        p_success = knobs$p_win
       )
       dl_res(list(base = base, shifts = shifts, nsim = nsim, n_orders = nrow(b)))
       invisible(TRUE)
@@ -521,6 +520,15 @@ server <- function(id, store) {
         if (!quiet) showNotification("Order book is empty.", type = "error")
         return(invisible(FALSE))
       }
+      p_win <- as.numeric(input$psucc %||% 70) / 100
+      if (!is.finite(p_win) || p_win <= 0 || p_win > 1) p_win <- 0.7
+      knobs <- list(
+        tilt = isTRUE(input$tilt),
+        tilt_scn = as.character(input$tilt_scn %||% "baseline"),
+        vol = as.numeric(input$vol %||% 1),
+        p_win = p_win
+      )
+      if (!is.finite(knobs$vol) || knobs$vol <= 0) knobs$vol <- 1
       nsim_raw <- if (!is.null(nsim_override)) nsim_override else as.integer(input$nsim)
       nsim <- max(100L, min(1500L, as.integer(nsim_raw %||% 500L)))
       tryCatch({
@@ -528,10 +536,10 @@ server <- function(id, store) {
           withProgress(
             message = "Simulating premium paths",
             value = 0,
-            price_book_once(b, nsim, use_progress = TRUE)
+            price_book_once(b, nsim, knobs, use_progress = TRUE)
           )
         } else {
-          price_book_once(b, nsim, use_progress = FALSE)
+          price_book_once(b, nsim, knobs, use_progress = FALSE)
         }
         invisible(TRUE)
       }, error = function(e) {
@@ -547,19 +555,22 @@ server <- function(id, store) {
       run_dealer(use_progress = TRUE)
     })
 
-    # Deferred light auto-price so Your risk is not empty; never blocks Home on Posit.
+    # One-shot light auto-price inside a real reactive consumer (onFlushed +
+    # isolate() crashes the process — no currentContext there).
     auto_priced <- reactiveVal(FALSE)
-    auto_tries <- reactiveVal(0L)
-    observe({
-      if (isTRUE(auto_priced()) || !is.null(dl_res())) return()
-      tries <- as.integer(auto_tries())
-      if (tries >= 5L) return()
-      shiny::invalidateLater(900, session)
-      auto_tries(tries + 1L)
-      if (is.null(funs) || is.null(exp_data)) return()
-      auto_priced(TRUE)
-      run_dealer(nsim_override = 150L, quiet = TRUE, use_progress = FALSE)
-    })
+    observeEvent(
+      {
+        list(ready = !is.null(funs) && !is.null(exp_data), book = tryCatch(book(), error = function(e) NULL))
+      },
+      {
+        if (isTRUE(auto_priced()) || !is.null(dl_res())) return()
+        b <- tryCatch(book(), error = function(e) NULL)
+        if (is.null(b) || !nrow(b)) return()
+        auto_priced(TRUE)
+        run_dealer(nsim_override = 150L, quiet = TRUE, use_progress = FALSE)
+      },
+      ignoreInit = FALSE
+    )
 
     output$dl_lead <- renderUI({
       r <- dl_res()
@@ -692,9 +703,14 @@ server <- function(id, store) {
       r <- dl_res()
       if (is.null(r)) return("")
       if (isTRUE(input$tilt)) {
+        scn_id <- as.character(input$tilt_scn %||% "baseline")
         cats <- unique(as.character(book()$category))
-        n_q <- max(vapply(cats, function(c) length(quota_path_for(c) %||% numeric()), integer(1)))
-        scn_label <- names(preset_choices())[match(input$tilt_scn %||% "baseline", preset_choices())]
+        n_q <- max(vapply(
+          cats,
+          function(c) length(quota_path_for(c, scenario_id = scn_id) %||% numeric()),
+          integer(1)
+        ))
+        scn_label <- names(preset_choices())[match(scn_id, preset_choices())]
         sprintf(
           "Supply tilt on · scenario “%s” · %s quarters of outlook applied to cost paths.",
           scn_label %||% "baseline", max(0L, n_q - 1L)

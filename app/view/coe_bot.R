@@ -9,7 +9,7 @@ box::use(
 box::use(
   app/logic/chat/nim[nim_chat, nvidia_key_ok, ensure_nvidia_env, nim_model_label],
   app/logic/chat/context[system_prompt, build_project_context],
-  app/logic/chat/desk_answers[try_desk_answer, suggestion_chips],
+  app/logic/chat/desk_answers[suggestion_chips],
 )
 
 `%||%` <- function(a, b) {
@@ -28,7 +28,6 @@ inline_md <- function(s) {
   s <- gsub("`([^`]+)`", "<code>\\1</code>", s, perl = TRUE)
   s <- gsub("\\*\\*([^*]+)\\*\\*", "<strong>\\1</strong>", s, perl = TRUE)
   s <- gsub("(?<!\\*)\\*([^*]+)\\*(?!\\*)", "<em>\\1</em>", s, perl = TRUE)
-  s
 }
 
 is_table_sep <- function(line) {
@@ -167,7 +166,7 @@ bubble <- function(role, text, pending = FALSE) {
     tags$div(
       class = "coe-bot-pending",
       tags$span(class = "coe-bot-pulse", `aria-hidden` = "true"),
-      tags$span("Writing a reply…")
+      tags$span("Thinking…")
     )
   } else {
     tags$div(class = "coe-bot-text", HTML(format_bot_text(text)))
@@ -185,12 +184,11 @@ ui <- function(id) {
     tags$h1("Ask about your supply outlook"),
     tags$p(
       class = "lede lede--wide",
-      "Quick answers on the forward quota path, track record, and how to use the desk — grounded on the live numbers."
+      "Answers come from the live model, grounded on the desk’s forecast and scores."
     ),
     uiOutput(ns("status")),
     div(
       class = "coe-bot-chips",
-      # Plain buttons (not actionButton) so only our JS send path fires.
       lapply(chips, function(label) {
         tags$button(
           type = "button",
@@ -221,7 +219,7 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "Enter to send · Shift+Enter for a new line. Method and data detail live in About."
+      "Enter to send · Shift+Enter for a new line. Method detail lives in About."
     ),
     tags$script(HTML(sprintf(
       "(function(){
@@ -238,6 +236,9 @@ ui <- function(id) {
         }
         function unlockIfIdle(){
           if(!hasPending()) gate=false;
+        }
+        function setChipsDisabled(on){
+          document.querySelectorAll('.coe-bot-chip').forEach(function(b){ b.disabled=!!on; });
         }
         function paintPending(q){
           var host=threadHost();
@@ -256,7 +257,7 @@ ui <- function(id) {
           esc.textContent=q;
           add('You','coe-bot-bubble--user','<div class=\"coe-bot-text\"><p>'+esc.innerHTML+'</p></div>');
           add('COE bot','coe-bot-bubble--bot coe-bot-bubble--pending',
-            '<div class=\"coe-bot-pending\"><span class=\"coe-bot-pulse\"></span><span>Writing a reply…</span></div>');
+            '<div class=\"coe-bot-pending\"><span class=\"coe-bot-pulse\"></span><span>Thinking…</span></div>');
           scrollThread();
         }
         function sendOnce(forced){
@@ -265,17 +266,20 @@ ui <- function(id) {
           var q=forced || (ta ? (ta.value||'').trim() : '');
           if(!q) return;
           gate=true;
+          setChipsDisabled(true);
           paintPending(q);
           Shiny.setInputValue(ns+'ask', {q:q, nonce: Date.now()}, {priority:'event'});
           if(ta) ta.value='';
         }
-        // Shiny replaces the thread after every answer; unlock once pending is gone.
         $(document).on('shiny:value', function(e){
           if(e.name!==ns+'thread') return;
-          setTimeout(function(){ scrollThread(); unlockIfIdle(); }, 50);
-          setTimeout(unlockIfIdle, 250);
+          setTimeout(function(){ scrollThread(); unlockIfIdle(); setChipsDisabled(hasPending()); }, 40);
+          setTimeout(function(){ unlockIfIdle(); setChipsDisabled(hasPending()); }, 220);
         });
-        $(document).on('shiny:idle', unlockIfIdle);
+        $(document).on('shiny:idle', function(){
+          unlockIfIdle();
+          setChipsDisabled(hasPending());
+        });
         $(document).on('click', '#'+ns+'send', function(ev){
           ev.preventDefault();
           ev.stopImmediatePropagation();
@@ -286,6 +290,7 @@ ui <- function(id) {
           ev.preventDefault();
           ev.stopImmediatePropagation();
           var btn=ev.currentTarget;
+          if(btn && btn.disabled) return false;
           var t=(btn && (btn.getAttribute('data-q') || btn.innerText)) || '';
           if(t) sendOnce(t.trim());
           return false;
@@ -308,19 +313,21 @@ finish_turn <- function(history, busy, session, out) {
   } else {
     history(c(done, list(list(
       role = "assistant",
-      content = paste0("Request failed: ", out$error %||% "unknown error")
+      content = paste0(
+        "I could not reach the model just now. ",
+        out$error %||% "unknown error",
+        "\n\nTry again in a moment — every reply comes from the live model."
+      )
     ))))
   }
   busy(FALSE)
   updateActionButton(session, "send", label = "Send")
 }
 
-local_or_help <- function(q, store) {
-  local <- tryCatch(try_desk_answer(q, store), error = function(e) NULL)
-  if (!is.null(local) && nzchar(local)) return(local)
+key_missing_msg <- function() {
   paste(
-    "I can answer forecasts, accuracy, model setup, and Your risk from the live artefacts — try those chips.",
-    "For NIM phrasing on every question, set NVIDIA_API_KEY in .Renviron (local) or Posit Connect Cloud Variables.",
+    "The bot needs **NVIDIA_API_KEY** to answer (every reply is from the model).",
+    "Add it to `.Renviron` locally, or to Posit Connect Cloud Variables, then reload.",
     sep = "\n\n"
   )
 }
@@ -332,6 +339,7 @@ server <- function(id, store) {
     ensure_nvidia_env(root)
     history <- reactiveVal(list())
     busy <- reactiveVal(FALSE)
+    # Compact context built once per session — enough numbers, low lag.
     ctx <- build_project_context(store)
     sys <- paste(system_prompt(), "\n\n", ctx, sep = "")
 
@@ -340,12 +348,12 @@ server <- function(id, store) {
       if (nvidia_key_ok()) {
         tags$p(
           class = "coe-bot-status coe-bot-status--ok",
-          paste("NIM ready:", nim_model_label(), "· chips and free-form")
+          paste0("Model live · ", nim_model_label(), " · every answer from NIM")
         )
       } else {
         tags$p(
-          class = "coe-bot-status coe-bot-status--ok",
-          "Desk artefact answers ready. Set NVIDIA_API_KEY for NIM on every question."
+          class = "coe-bot-status coe-bot-status--bad",
+          "NVIDIA_API_KEY missing — set it in .Renviron (or Posit Variables) to use the bot."
         )
       }
     })
@@ -355,7 +363,7 @@ server <- function(id, store) {
       if (!length(msgs)) {
         return(div(
           class = "coe-bot-empty",
-          tags$p("Tap a chip above, or ask for the Cat A / B quota outlook, MAPE, or how Your risk works.")
+          tags$p("Tap a chip, or ask for Cat A / B quota outlook, MAPE, or how Your risk works.")
         ))
       }
       do.call(tagList, lapply(msgs, function(m) {
@@ -375,46 +383,37 @@ server <- function(id, store) {
       q <- if (is.list(ask)) trimws(ask$q %||% "") else trimws(ask %||% "")
       if (!nzchar(q)) return()
 
-      # Prefer NIM for chips and free-form alike; fall back to local artefacts.
+      ensure_nvidia_env(root)
       if (!nvidia_key_ok()) {
         history(c(
           history(),
           list(list(role = "user", content = q)),
-          list(list(role = "assistant", content = local_or_help(q, store)))
+          list(list(role = "assistant", content = key_missing_msg()))
         ))
         updateTextAreaInput(session, "prompt", value = "")
         return()
       }
 
       busy(TRUE)
-      updateActionButton(session, "send", label = "Writing…")
-      history(c(
-        history(),
-        list(list(role = "user", content = q)),
-        list(list(role = "assistant", content = "", pending = TRUE))
-      ))
+      updateActionButton(session, "send", label = "Thinking…")
+      # JS already paints an optimistic pending bubble; keep server history clean
+      # of pending so we never need onFlushed (which has no reactive context).
+      prior <- Filter(function(m) !isTRUE(m$pending), history())
+      history(c(prior, list(list(role = "user", content = q))))
       updateTextAreaInput(session, "prompt", value = "")
 
-      turns <- utils::tail(
-        Filter(function(m) !isTRUE(m$pending), history()),
-        6L
-      )
+      turns <- utils::tail(prior, 3L)
       api_msgs <- c(
         list(list(role = "system", content = sys)),
-        turns
+        turns,
+        list(list(role = "user", content = q))
       )
 
-      session$onFlushed(function() {
-        out <- tryCatch(
-          nim_chat(api_msgs, max_tokens = 1800L),
-          error = function(e) list(ok = FALSE, error = conditionMessage(e))
-        )
-        if (!isTRUE(out$ok)) {
-          soft <- local_or_help(q, store)
-          out <- list(ok = TRUE, text = soft)
-        }
-        finish_turn(history, busy, session, out)
-      }, once = TRUE)
+      out <- tryCatch(
+        nim_chat(api_msgs, max_tokens = 1100L, timeout_sec = 35L),
+        error = function(e) list(ok = FALSE, error = conditionMessage(e))
+      )
+      finish_turn(history, busy, session, out)
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
   })
 }
