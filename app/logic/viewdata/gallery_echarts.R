@@ -519,16 +519,19 @@ chart_g2_heatmap <- function(prep) {
   series <- p$x$opts$series
   if (!length(series)) return(p)
 
-  # Red Year-10 line + two cohort arrows with heads (markLine pair form)
+  # Year-10 = plain red line (no arrow). Cohort arrows = solid white with tip only at end.
   series[[1]]$markLine <- list(
     silent = TRUE,
     animation = FALSE,
-    symbol = list("none", "arrow"),
-    symbolSize = 16,
+    # Default none so the Year-10 guide is not an arrow; tips set per endpoint below
+    symbol = "none",
+    symbolSize = 0,
+    lineStyle = list(type = "solid"),
     data = list(
       list(
         yAxis = "10",
         symbol = "none",
+        symbolSize = 0,
         label = list(
           formatter = "Year 10: COE expires",
           color = "#ef4444",
@@ -538,30 +541,38 @@ chart_g2_heatmap <- function(prep) {
         ),
         lineStyle = list(color = "#ef4444", width = 3, type = "solid")
       ),
-      # Big 2017-19 cohort arrow
       list(
-        list(coord = list(a1$x, a1$y), symbol = "none"),
+        list(
+          coord = list(a1$x, a1$y),
+          symbol = "none",
+          symbolSize = 0,
+          lineStyle = list(color = "#fafafa", width = 2.4, type = "solid")
+        ),
         list(
           coord = list(a1$x2, a1$y2),
           symbol = "arrow",
-          symbolSize = 16,
-          lineStyle = list(color = "#fafafa", width = 2.6)
+          symbolSize = 12,
+          lineStyle = list(color = "#fafafa", width = 2.4, type = "solid")
         )
       ),
-      # Thin 2022-24 cohort arrow
       list(
-        list(coord = list(a2$x, a2$y), symbol = "none"),
+        list(
+          coord = list(a2$x, a2$y),
+          symbol = "none",
+          symbolSize = 0,
+          lineStyle = list(color = "#fafafa", width = 2.2, type = "solid")
+        ),
         list(
           coord = list(a2$x2, a2$y2),
           symbol = "arrow",
-          symbolSize = 14,
-          lineStyle = list(color = "#fafafa", width = 2.4)
+          symbolSize = 11,
+          lineStyle = list(color = "#fafafa", width = 2.2, type = "solid")
         )
       )
     )
   )
 
-  # Rotated labels as a scatter overlay (markPoint symbol=none often drops labels)
+  # Bare white text on the heatmap (no dark label boxes)
   label_series <- list(
     type = "scatter",
     name = "cohort_labels",
@@ -581,8 +592,10 @@ chart_g2_heatmap <- function(prep) {
           fontWeight = "bold",
           fontSize = 14,
           rotate = 21,
-          backgroundColor = "rgba(0,0,0,0.4)",
-          padding = c(4, 6),
+          backgroundColor = "transparent",
+          padding = 0,
+          textBorderColor = "rgba(0,0,0,0.65)",
+          textBorderWidth = 2,
           position = "top",
           distance = 2
         )
@@ -598,8 +611,10 @@ chart_g2_heatmap <- function(prep) {
           fontWeight = "bold",
           fontSize = 13,
           rotate = 21,
-          backgroundColor = "rgba(0,0,0,0.4)",
-          padding = c(4, 6),
+          backgroundColor = "transparent",
+          padding = 0,
+          textBorderColor = "rgba(0,0,0,0.65)",
+          textBorderWidth = 2,
           position = "top",
           distance = 2
         )
@@ -702,13 +717,17 @@ chart_g7_supply_price <- function(prep) {
 }
 
 # Density violin polygon around a band centre (same points as ggplot violin).
-violin_poly <- function(vals, center, width = 0.22) {
+violin_poly <- function(vals, center, width = 0.28) {
   vals <- vals[is.finite(vals)]
   if (length(vals) < 3L) return(NULL)
-  d <- stats::density(vals, n = 100)
+  # from/to so the shape covers the full point range (esp. sparse Over S$100k)
+  d <- stats::density(
+    vals, n = 128,
+    from = min(vals), to = max(vals),
+    adjust = if (length(vals) < 30L) 0.85 else 1
+  )
   xs <- d$y / max(d$y) * width
   ys <- d$x
-  # right edge up, left edge down — closed shape
   data.frame(
     x = c(center + xs, rev(center - xs), center + xs[[1]]),
     y = c(ys, rev(ys), ys[[1]])
@@ -733,47 +752,54 @@ chart_g5_bids <- function(prep) {
       label = paste0("median ", sprintf("%.2f", med), "\n(", n, " quarters)")
     )
   spikes <- d |> filter(bids_per_coe > 2.2)
-  ymin <- max(0.95, min(d$bids_per_coe, na.rm = TRUE) - 0.05)
-  ymax <- max(d$bids_per_coe, na.rm = TRUE) * 1.08
+  ymin <- floor(min(d$bids_per_coe, na.rm = TRUE) * 20) / 20
+  ymax <- ceiling(max(d$bids_per_coe, na.rm = TRUE) * 20) / 20
   # Tall/narrow plot area so violins read vertically (not flat)
   p <- d |>
     e_charts(x) |>
     e_scatter(bids_per_coe, symbolSize = 8, name = "Quarter") |>
     e_color(pal[["A"]]) |>
-    e_grid(left = "18%", right = "18%", top = 36, bottom = 80, containLabel = TRUE) |>
+    e_grid(left = "16%", right = "20%", top = 40, bottom = 88, containLabel = TRUE) |>
     e_tooltip(trigger = "item") |>
     e_x_axis(
       type = "value",
-      min = 0.55, max = 3.45,
-      interval = 1,
-      name = "Average premium in the quarter",
-      nameLocation = "middle",
-      nameGap = 40,
-      nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
+      min = 0.5, max = 3.5,
+      # Force ticks at 1/2/3 — interval=1 from 0.55 was landing on 1.55/2.55 (blank labels)
+      axisTick = list(show = TRUE, customValues = c(1, 2, 3)),
       axisLabel = list(
         color = "#a3a3a3",
         fontSize = 12,
+        customValues = c(1, 2, 3),
         formatter = htmlwidgets::JS(
-          "function(v){var m={'1':'Under S$50k','2':'S$50k to 100k','3':'Over S$100k'}; return m[String(v)] || '';}"
+          "function(v){var m={1:'Under S$50k',2:'S$50k to 100k',3:'Over S$100k'}; return m[v] || '';}"
         )
       ),
+      name = "Average premium in the quarter",
+      nameLocation = "middle",
+      nameGap = 42,
+      nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
       axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
       splitLine = list(show = FALSE)
     ) |>
     e_y_axis(
       min = ymin,
       max = ymax,
+      interval = 0.25,
       name = "Bids per COE",
       nameLocation = "middle",
       nameGap = 48,
       nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
-      axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono"),
+      axisLabel = list(
+        color = "#a3a3a3",
+        fontFamily = "IBM Plex Mono",
+        formatter = htmlwidgets::JS("function(v){return Number(v).toFixed(2);}")
+      ),
       axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
       splitLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.06)"))
     )
   violins <- lapply(seq_along(levels_b), function(i) {
     vals <- d$bids_per_coe[d$band_i == i]
-    poly <- violin_poly(vals, center = i, width = 0.22)
+    poly <- violin_poly(vals, center = i, width = 0.28)
     if (is.null(poly)) return(NULL)
     list(
       type = "line",
@@ -790,7 +816,6 @@ chart_g5_bids <- function(prep) {
   })
   violins <- Filter(Negate(is.null), violins)
   series <- p$x$opts$series
-  # Put violins under the scatter
   series[[1]]$z <- 3
   series[[1]]$markLine <- list(
     symbol = "none",
@@ -798,29 +823,30 @@ chart_g5_bids <- function(prep) {
     lineStyle = list(type = "dashed", color = "rgba(255,255,255,0.45)"),
     label = list(color = "#d4d4d4", formatter = "1.5")
   )
+  # Median bar at band centre; label nudged right so it clears the violin
   med_pts <- lapply(seq_len(nrow(med)), function(i) {
     list(
       coord = c(med$band_i[[i]], med$med[[i]]),
       value = med$label[[i]],
       name = med$label[[i]],
       symbol = "rect",
-      symbolSize = c(40, 5),
+      symbolSize = c(36, 4),
       itemStyle = list(color = "#fafafa"),
       label = list(
         show = TRUE, formatter = "{b}", color = "#fafafa",
-        fontSize = 11, position = "right", distance = 8,
-        lineHeight = 14
+        fontSize = 11, position = "right", distance = 18,
+        lineHeight = 14,
+        backgroundColor = "transparent"
       )
     )
   })
-  # Same callout as render_gallery: Early 2013 rush before car-loan curbs
   if (nrow(spikes)) {
     sp_y <- max(spikes$bids_per_coe, na.rm = TRUE)
     med_pts <- c(med_pts, list(list(
-      coord = c(2.12, sp_y),
+      coord = c(2.25, sp_y),
       name = "Early 2013: rush before\nthe car-loan curbs",
       symbol = "circle",
-      symbolSize = 6,
+      symbolSize = 5,
       itemStyle = list(color = "#fafafa"),
       label = list(
         show = TRUE,
@@ -828,14 +854,14 @@ chart_g5_bids <- function(prep) {
         color = "#d4d4d4",
         fontSize = 11,
         position = "right",
-        distance = 10,
-        lineHeight = 14
+        distance = 12,
+        lineHeight = 14,
+        backgroundColor = "transparent"
       )
     )))
   }
   series[[1]]$markPoint <- list(data = med_pts)
   p$x$opts$series <- c(violins, series)
-  # Hide violin entries in legend (keep Cat scatter only)
   p$x$opts$legend <- list(
     right = 8, top = 4,
     textStyle = list(color = "#a3a3a3", fontSize = 11),
