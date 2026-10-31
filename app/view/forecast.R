@@ -1,10 +1,10 @@
 box::use(
   shiny[NS, moduleServer, div, tags, selectInput, renderUI, uiOutput, req],
   bslib[card, card_header, card_body],
-  echarts4r[renderEcharts4r, echarts4rOutput, e_charts, e_line, e_color, e_datazoom],
+  echarts4r[renderEcharts4r, echarts4rOutput],
 )
 box::use(
-  app/logic/viewdata/charts[exit_track_chart, style_chart],
+  app/logic/viewdata/charts[exit_track_chart, quota_track_chart],
 )
 
 fmt_pct <- function(x, digits = 0) {
@@ -18,7 +18,7 @@ fmt_int <- function(x) {
   format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE)
 }
 
-#' Results — deregistrations behind the quota
+#' Results - one-step track record for exits and quota
 #' @export
 ui <- function(id) {
   ns <- NS(id)
@@ -28,8 +28,8 @@ ui <- function(id) {
     tags$h2("How the outlook held up against real releases"),
     tags$p(
       class = "lede lede--wide",
-      "Before you lean on the forward path, see the track record: how close the outlook came to actual exits, ",
-      "and how a two-year walk-forward test performed. Pick a category."
+      "Held-out months after training: predicted exits, then quota from those exits with LTA's replacement-style rule ",
+      "(share of the last 12 months of deregistrations). Pick a category."
     ),
     div(
       class = "desk-controls desk-controls--row",
@@ -51,39 +51,26 @@ ui <- function(id) {
         echarts4rOutput(ns("exits"), height = "400px")
       )
     ),
+    card(
+      class = "desk-card",
+      full_screen = TRUE,
+      card_header("Monthly quota: released versus outlook"),
+      card_body(
+        class = "chart-frame chart-frame--tall",
+        echarts4rOutput(ns("quota"), height = "400px")
+      )
+    ),
 
     tags$section(
       class = "viz-explain",
       tags$span(class = "nx-kicker", "By period"),
-      tags$h2("Totals by period"),
+      tags$h2("Our outlook vs a plain 12-month average"),
       tags$p(
         class = "lede lede--wide",
-        "Compare period totals so you can see when the outlook was tight and when the market moved faster."
+        "Same periods, same actuals. Green = closer to reality. One glance: who was more accurate."
       )
     ),
-    uiOutput(ns("miss_table")),
-
-    tags$section(
-      class = "viz-explain",
-      tags$span(class = "nx-kicker", "Walk-forward test"),
-      tags$h2("Two years ahead, month by month"),
-      tags$p(
-        class = "lede lede--wide",
-        "A planning-horizon check: the outlook was rolled forward for 24 months and compared with what actually happened. ",
-        "Use the scorecard below when you decide how wide a buffer to keep on a locked book."
-      )
-    ),
-    card(
-      class = "desk-card",
-      full_screen = TRUE,
-      card_header("Walk-forward path versus actual deregistrations"),
-      card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("bt_chart"), height = "380px"))
-    ),
-    uiOutput(ns("cal_table")),
-    tags$p(
-      class = "footnote",
-      "Full method, data handling and limitations are in About."
-    )
+    uiOutput(ns("miss_table"))
   )
 }
 
@@ -125,6 +112,7 @@ server <- function(id, store) {
 
     output$exits <- renderEcharts4r({
       dm <- store$two_monthly
+      req(!is.null(dm), nrow(dm) > 0)
       f <- dm[dm$category == input$cat & dm$model == LIVE_MODEL, ]
       s <- dm[dm$category == input$cat & dm$model == "simple_average", ]
       df <- data.frame(
@@ -137,79 +125,84 @@ server <- function(id, store) {
       exit_track_chart(df, live_label)
     })
 
+    output$quota <- renderEcharts4r({
+      q <- store$two_quota
+      req(!is.null(q), nrow(q) > 0)
+      f <- q[as.character(q$category) == input$cat & as.character(q$model) == LIVE_MODEL, ]
+      s <- q[as.character(q$category) == input$cat & as.character(q$model) == "simple_average", ]
+      f <- f[order(as.Date(f$month)), ]
+      df <- data.frame(
+        month = as.Date(f$month),
+        published = as.numeric(f$published),
+        outlook = as.numeric(f$outlook),
+        baseline = as.numeric(s$outlook[match(as.Date(f$month), as.Date(s$month))]),
+        stringsAsFactors = FALSE
+      )
+      quota_track_chart(df, live_label)
+    })
+
     output$miss_table <- renderUI({
       r <- store$two_rollup
       if (is.null(r) || !nrow(r)) return(NULL)
       r <- r[as.character(r$category) == input$cat, ]
-      r <- r[order(r$period, r$model), ]
-      rows <- lapply(seq_len(nrow(r)), function(i) {
-        off <- as.numeric(r$pct_off[i])
-        cls <- if (abs(off) <= 10) "ex-row--green" else if (abs(off) <= 20) "" else "ex-row--accent"
+      periods <- unique(as.character(r$period))
+      # Chronological-ish: late 2024, then 2025, then 2026
+      ord <- order(vapply(periods, function(p) {
+        if (grepl("2024", p)) 1L else if (grepl("2025", p)) 2L else 3L
+      }, integer(1)))
+      periods <- periods[ord]
+
+      wins <- 0L
+      rows <- lapply(periods, function(per) {
+        ours <- r[as.character(r$period) == per & as.character(r$model) == LIVE_MODEL, ]
+        base <- r[as.character(r$period) == per & as.character(r$model) == "simple_average", ]
+        if (!nrow(ours) || !nrow(base)) return(NULL)
+        off_o <- abs(as.numeric(ours$pct_off[[1]]))
+        off_b <- abs(as.numeric(base$pct_off[[1]]))
+        we_win <- off_o < off_b
+        if (we_win) wins <<- wins + 1L
         tags$tr(
-          class = cls,
-          tags$td(r$period[i]),
-          tags$td(if (r$model[i] == LIVE_MODEL) live_label else "12-month average"),
-          tags$td(fmt_int(r$actual[i])),
-          tags$td(fmt_int(r$predicted[i])),
-          tags$td(sprintf("%s%s", if (off >= 0) "+" else "", fmt_int(r$gap[i]))),
-          tags$td(sprintf("%+.1f%%", off))
+          class = if (we_win) "cmp-row cmp-row--win" else "cmp-row cmp-row--lose",
+          tags$td(per),
+          tags$td(fmt_int(ours$actual[[1]])),
+          tags$td(
+            class = if (we_win) "cmp-cell cmp-cell--win" else "cmp-cell",
+            tags$div(class = "cmp-pred", fmt_int(ours$predicted[[1]])),
+            tags$div(class = "cmp-off", sprintf("%+.1f%%", as.numeric(ours$pct_off[[1]])))
+          ),
+          tags$td(
+            class = if (!we_win) "cmp-cell cmp-cell--win" else "cmp-cell cmp-cell--dim",
+            tags$div(class = "cmp-pred", fmt_int(base$predicted[[1]])),
+            tags$div(class = "cmp-off", sprintf("%+.1f%%", as.numeric(base$pct_off[[1]])))
+          ),
+          tags$td(
+            class = if (we_win) "cmp-verdict cmp-verdict--win" else "cmp-verdict cmp-verdict--lose",
+            if (we_win) "We win" else "Average closer"
+          )
         )
       })
-      tags$table(
-        class = "table table-sm",
-        style = "color:#fafafa;",
-        tags$thead(tags$tr(
-          tags$th("Period"), tags$th("Model"), tags$th("Actual exits"), tags$th("Predicted"),
-          tags$th("Gap"), tags$th("Off by")
-        )),
-        tags$tbody(rows)
-      )
-    })
-
-    output$bt_chart <- renderEcharts4r({
-      bt <- store$backtest
-      req(!is.null(bt), nrow(bt) > 0)
-      d <- bt[as.character(bt$category) == input$cat, ]
-      d <- d[order(as.Date(d$month)), ]
-      d$label <- format(as.Date(d$month), "%b %Y")
-      d |>
-        e_charts(label) |>
-        e_line(dereg_lo80, name = "80% low", symbol = "none", lineStyle = list(width = 1, opacity = 0.4)) |>
-        e_line(dereg_hi80, name = "80% high", symbol = "none", lineStyle = list(width = 1, opacity = 0.4)) |>
-        e_line(dereg_actual, name = "Actual deregistrations", symbol = "circle", symbolSize = 5, lineStyle = list(width = 2.4)) |>
-        e_line(dereg_mid, name = "Recursive forecast", symbol = "none", lineStyle = list(width = 2.2)) |>
-        e_color(c("#ff5c1a", "#ff5c1a", "#fafafa", "#ff5c1a")) |>
-        style_chart() |>
-        e_datazoom(type = "inside")
-    })
-
-    output$cal_table <- renderUI({
-      cal <- store$calibration
-      if (is.null(cal) || !nrow(cal)) {
-        return(tags$p(class = "footnote", "Recursive backtest not available - run scripts/fit_and_forecast.R."))
-      }
-      d <- cal[as.character(cal$category) == input$cat, ]
-      rows <- lapply(seq_len(nrow(d)), function(i) {
-        tags$tr(
-          tags$td(d$horizon[i]),
-          tags$td(d$months[i]),
-          tags$td(fmt_pct(d$dereg_mape[i])),
-          tags$td(sprintf("%+.0f%%", d$dereg_bias_pct[i])),
-          tags$td(fmt_pct(d$dereg_cover80[i])),
-          tags$td(fmt_pct(d$quota_mape[i])),
-          tags$td(sprintf("%+.0f%%", d$quota_bias_pct[i])),
-          tags$td(fmt_pct(d$quota_cover80[i]))
+      rows <- Filter(Negate(is.null), rows)
+      n <- length(rows)
+      div(
+        class = "cmp-wrap",
+        tags$p(
+          class = "cmp-summary",
+          sprintf(
+            "Our outlook closer in %d of %d periods for Cat %s.",
+            wins, n, input$cat
+          )
+        ),
+        tags$table(
+          class = "desk-table cmp-table",
+          tags$thead(tags$tr(
+            tags$th("Period"),
+            tags$th("Actual exits"),
+            tags$th("Our outlook"),
+            tags$th("12-month average"),
+            tags$th("Closer?")
+          )),
+          tags$tbody(rows)
         )
-      })
-      tags$table(
-        class = "table table-sm",
-        style = "color:#fafafa;",
-        tags$thead(tags$tr(
-          tags$th("Horizon"), tags$th("Months"),
-          tags$th("Exits MAPE"), tags$th("Exits bias"), tags$th("Exits 80% cover"),
-          tags$th("Quota MAPE"), tags$th("Quota bias"), tags$th("Quota 80% cover")
-        )),
-        tags$tbody(rows)
       )
     })
   })

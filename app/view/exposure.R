@@ -63,136 +63,185 @@ last_pqp <- function(root, category, fallback) {
 ui <- function(id) {
   ns <- NS(id)
   div(
-    class = "page-stack desk",
-    tags$p(class = "eyebrow", "Your risk"),
-    tags$h2("Price the exposure on your book"),
-    tags$p(
-      class = "lede lede--wide",
-      "Upload a locked order book or fleet schedule. Get expected COE cost, a loss range, ",
-      "and what happens if you shift purchases by one or two quarters — so you can decide timing with numbers, not gut feel."
+    class = "page-stack desk risk-page",
+    tags$section(
+      class = "desk-hero desk-hero--pitch",
+      div(
+        class = "desk-hero__copy",
+        tags$p(class = "eyebrow", "Your risk"),
+        tags$h1("Price the COE risk on a locked book."),
+        tags$p(
+          class = "lede lede--wide",
+          "Turn orders or a fleet schedule into expected cost, a bad-case loss, and the cost of waiting."
+        )
+      )
+    ),
+    div(
+      class = "risk-value-strip",
+      div(
+        class = "risk-value-chip",
+        tags$span(class = "risk-value-chip__k", "01"),
+        tags$span(class = "risk-value-chip__t", "Expected cost"),
+        tags$span(class = "risk-value-chip__d", "total COE $ vs quote")
+      ),
+      div(
+        class = "risk-value-chip",
+        tags$span(class = "risk-value-chip__k", "02"),
+        tags$span(class = "risk-value-chip__t", "Bad-case loss"),
+        tags$span(class = "risk-value-chip__d", "loss exceeded only 1 in 20 runs")
+      ),
+      div(
+        class = "risk-value-chip",
+        tags$span(class = "risk-value-chip__k", "03"),
+        tags$span(class = "risk-value-chip__t", "Timing"),
+        tags$span(class = "risk-value-chip__d", "cost if you wait 1–2 quarters")
+      )
     ),
 
     navset_card_underline(
       id = ns("tabs"),
       nav_panel(
         "Dealer order book",
-        div(
-          class = "give-panel",
-          tags$span(class = "nx-kicker", "Inputs"),
-          tags$h3("Locked book"),
+        tags$section(
+          class = "risk-block",
+          tags$span(class = "nx-kicker", "Step 1"),
+          tags$h2(class = "risk-block__title", "Your book"),
           div(
-            class = "desk-controls desk-controls--row",
-            numericInput(ns("n_cars"), "Orders", 30, min = 1, max = 200, width = "110px"),
-            selectInput(
-              ns("category"), "Category",
-              choices = c("Category A" = "A", "Category B" = "B", "A + B example book" = "AB"),
-              selected = "A", width = "180px"
-            ),
-            numericInput(ns("quoted"), "Quoted premium ($)", 130000, min = 0, max = 400000, step = 500, width = "160px"),
-            sliderInput(ns("psucc"), "Bid success chance", 0.3, 1, 0.7, 0.05, width = "180px"),
-            sliderInput(ns("vol"), "Volatility ×", 0.5, 2, 1, 0.1, width = "160px"),
-            checkboxInput(ns("tilt"), "Tilt paths by supply forecast", TRUE),
-            selectInput(ns("tilt_scn"), "Supply scenario for tilt", choices = preset_choices(), selected = "baseline", width = "300px"),
-            numericInput(ns("nsim"), "Simulations", 500, 100, 1500, 100, width = "120px"),
-            actionButton(ns("load_demo"), "Load example", class = "btn-demo"),
-            actionButton(ns("clear_upload"), "Clear upload", class = "btn-demo"),
-            actionButton(ns("run"), "Price the book", class = "btn-demo")
-          ),
-          div(
-            class = "desk-controls desk-controls--row",
-            style = "margin-top: 0.75rem; align-items: end;",
+            class = "risk-panel",
             div(
-              style = "min-width: 260px; flex: 1;",
-              fileInput(
-                ns("dl_file"),
-                "Upload order book (CSV)",
-                accept = c(".csv", "text/csv"),
-                buttonLabel = "Browse…",
-                placeholder = "No file selected"
-              )
+              class = "risk-panel__grid risk-panel__grid--3",
+              numericInput(ns("n_cars"), "Orders", 30, min = 1, max = 200, width = "100%"),
+              selectInput(
+                ns("category"), "Category",
+                choices = c("Category A" = "A", "Category B" = "B", "A + B example" = "AB"),
+                selected = "A", width = "100%"
+              ),
+              numericInput(ns("quoted"), "Quoted premium ($)", 130000, min = 0, max = 400000, step = 500, width = "100%")
             ),
-            downloadButton(ns("dl_tmpl"), "Download template", class = "btn btn-outline-secondary btn-sm")
-          ),
-          uiOutput(ns("book_status")),
-          tags$p(
-            class = "footnote",
-            "Download the template, fill your orders, then upload. Or use the controls / example book. ",
-            "Turn on supply tilt to reflect the Home outlook under the scenario you pick."
+            div(
+              class = "risk-panel__actions",
+              div(
+                class = "risk-upload",
+                fileInput(
+                  ns("dl_file"),
+                  "Or upload CSV",
+                  accept = c(".csv", "text/csv"),
+                  buttonLabel = "Browse",
+                  placeholder = "order book"
+                )
+              ),
+              downloadButton(ns("dl_tmpl"), "Template", class = "btn btn-outline-secondary btn-sm"),
+              actionButton(ns("load_demo"), "Example book", class = "btn-demo"),
+              actionButton(ns("clear_upload"), "Clear upload", class = "btn-demo")
+            ),
+            uiOutput(ns("book_status"))
           )
         ),
-        uiOutput(ns("dl_lead")),
-        div(
-          class = "calc-section",
-          tags$span(class = "nx-kicker", "Outcomes"),
-          tags$h3("Where the book can land"),
+        tags$section(
+          class = "risk-block",
+          tags$span(class = "nx-kicker", "Step 2"),
+          tags$h2(class = "risk-block__title", "Stress knobs"),
           div(
-            class = "timing-compare",
-            style = "grid-template-columns: 1.2fr 1fr;",
+            class = "risk-panel",
+            div(
+              class = "risk-panel__grid risk-panel__grid--4",
+              sliderInput(
+                ns("psucc"),
+                "Win rate per bid attempt (%)",
+                min = 30, max = 100, value = 70, step = 5,
+                post = "%", width = "100%"
+              ),
+              sliderInput(
+                ns("vol"),
+                "Premium swing vs history",
+                min = 0.5, max = 2, value = 1, step = 0.1,
+                pre = "", post = "×", width = "100%"
+              ),
+              numericInput(ns("nsim"), "Monte Carlo runs", 500, 100, 1500, 100, width = "100%"),
+              selectInput(
+                ns("tilt_scn"), "Quota path for supply tilt",
+                choices = preset_choices(), selected = "baseline", width = "100%"
+              )
+            ),
+            div(
+              class = "risk-panel__actions risk-panel__actions--end",
+              checkboxInput(ns("tilt"), "Tilt premiums by supply outlook", TRUE),
+              actionButton(ns("run"), "Price the book", class = "btn-demo btn-demo--primary")
+            )
+          )
+        ),
+        tags$section(
+          class = "risk-block",
+          tags$span(class = "nx-kicker", "Step 3"),
+          tags$h2(class = "risk-block__title", "What you get"),
+          uiOutput(ns("dl_lead")),
+          div(
+            class = "timing-compare risk-charts",
+            style = "grid-template-columns: 1.15fr 1fr;",
             card(
               class = "desk-card",
-              card_header("Dealer P&L across simulations"),
+              card_header("P&L distribution"),
               card_body(class = "chart-frame", echarts4rOutput(ns("dl_hist"), height = "320px"))
             ),
             card(
               class = "desk-card",
-              card_header("Delay the whole book"),
+              card_header("If you delay +1Q / +2Q"),
               card_body(class = "chart-frame", echarts4rOutput(ns("dl_shift"), height = "320px"))
             )
-          )
-        ),
-        div(
-          class = "calc-section viz-explain",
-          tags$span(class = "nx-kicker", "Cost build-up"),
-          tags$h3("From quoted total to clearing and timing"),
-          tags$p(
-            "See the gap between what you quoted and what clearing may cost, the likely range, ",
-            "and the impact of delaying the whole book by one or two quarters."
           ),
           card(
             class = "desk-card",
-            card_header("Order-book cost waterfall ($ thousands)"),
+            card_header("Cost build-up ($ thousands)"),
             card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("dl_waterfall"), height = "400px"))
           ),
-          tags$p(class = "footnote", shiny::textOutput(ns("dl_waterfall_note"), inline = TRUE))
-        ),
-        tags$p(class = "footnote", shiny::textOutput(ns("dl_note"), inline = TRUE))
+          tags$p(class = "footnote", shiny::textOutput(ns("dl_waterfall_note"), inline = TRUE)),
+          tags$p(class = "footnote", shiny::textOutput(ns("dl_note"), inline = TRUE))
+        )
       ),
       nav_panel(
         "Fleet replacement",
-        div(
-          class = "give-panel",
-          tags$span(class = "nx-kicker", "Inputs"),
-          tags$h3("Replacement schedule"),
+        tags$section(
+          class = "risk-block",
+          tags$span(class = "nx-kicker", "Step 1"),
+          tags$h2(class = "risk-block__title", "Replacement schedule"),
           div(
-            class = "desk-controls desk-controls--row",
-            sliderInput(ns("fl_shift"), "Shift schedule (quarters)", 0, 2, 0, 1, width = "220px"),
-            checkboxInput(ns("fl_capex"), "Include vehicle capital (if columns present)", FALSE),
-            actionButton(ns("fl_clear_upload"), "Clear upload", class = "btn-demo"),
-            actionButton(ns("fl_run"), "Compare options", class = "btn-demo")
-          ),
-          div(
-            class = "desk-controls desk-controls--row",
-            style = "margin-top: 0.75rem; align-items: end;",
+            class = "risk-panel",
             div(
-              style = "min-width: 260px; flex: 1;",
-              fileInput(
-                ns("fl_file"),
-                "Upload replacement schedule (CSV)",
-                accept = c(".csv", "text/csv"),
-                buttonLabel = "Browse…",
-                placeholder = "No file selected"
-              )
+              class = "risk-panel__grid risk-panel__grid--2",
+              sliderInput(
+                ns("fl_shift"),
+                "Push every replacement later",
+                min = 0, max = 2, value = 0, step = 1,
+                post = " quarters", width = "100%"
+              ),
+              checkboxInput(ns("fl_capex"), "Include vehicle capital (if in CSV)", FALSE)
             ),
-            downloadButton(ns("fl_tmpl"), "Download template", class = "btn btn-outline-secondary btn-sm")
-          ),
-          uiOutput(ns("fleet_status")),
-          tags$p(
-            class = "footnote",
-            "Download the template for a quarterly A/B schedule, or run the example. Compare bid-new versus renew options."
+            div(
+              class = "risk-panel__actions",
+              div(
+                class = "risk-upload",
+                fileInput(
+                  ns("fl_file"),
+                  "Upload schedule CSV",
+                  accept = c(".csv", "text/csv"),
+                  buttonLabel = "Browse",
+                  placeholder = "fleet schedule"
+                )
+              ),
+              downloadButton(ns("fl_tmpl"), "Template", class = "btn btn-outline-secondary btn-sm"),
+              actionButton(ns("fl_clear_upload"), "Clear upload", class = "btn-demo"),
+              actionButton(ns("fl_run"), "Compare options", class = "btn-demo btn-demo--primary")
+            ),
+            uiOutput(ns("fleet_status"))
           )
         ),
-        uiOutput(ns("fl_table")),
-        tags$p(class = "footnote", shiny::textOutput(ns("fl_note"), inline = TRUE))
+        tags$section(
+          class = "risk-block",
+          tags$span(class = "nx-kicker", "Step 2"),
+          tags$h2(class = "risk-block__title", "Bid-new vs renew"),
+          uiOutput(ns("fl_table")),
+          tags$p(class = "footnote", shiny::textOutput(ns("fl_note"), inline = TRUE))
+        )
       )
     )
   )
@@ -446,11 +495,13 @@ server <- function(id, store) {
       if (isTRUE(use_progress)) {
         incProgress(1 / (length(cats) + 1), detail = "Pricing book")
       }
-      base <- funs$dealer_exposure(b, sims, p_success = as.numeric(input$psucc %||% 0.7))
+      p_win <- as.numeric(input$psucc %||% 70) / 100
+      if (!is.finite(p_win) || p_win <= 0 || p_win > 1) p_win <- 0.7
+      base <- funs$dealer_exposure(b, sims, p_success = p_win)
       shifts <- funs$timing_shift(
         b, sims,
         shifts = c(0, 6, 12),
-        p_success = as.numeric(input$psucc %||% 0.7)
+        p_success = p_win
       )
       dl_res(list(base = base, shifts = shifts, nsim = nsim, n_orders = nrow(b)))
       invisible(TRUE)
@@ -513,7 +564,13 @@ server <- function(id, store) {
     output$dl_lead <- renderUI({
       r <- dl_res()
       if (is.null(r)) {
-        return(tags$p(class = "footnote", "Pricing the book… or click “Price the book” to re-run."))
+        return(div(
+          class = "lead-grid",
+          div(class = "lead-cell lead-cell--empty", tags$span(class = "nx-kicker", "Expected cost"), div(class = "lead-num", "-"), tags$p(class = "lead-lab", "Run Step 2")),
+          div(class = "lead-cell lead-cell--empty", tags$span(class = "nx-kicker", "Bad-case loss"), div(class = "lead-num", "-"), tags$p(class = "lead-lab", "1-in-20 VaR")),
+          div(class = "lead-cell lead-cell--empty", tags$span(class = "nx-kicker", "Chance of loss"), div(class = "lead-num", "-"), tags$p(class = "lead-lab", "% of sims")),
+          div(class = "lead-cell lead-cell--empty", tags$span(class = "nx-kicker", "Customer top-up"), div(class = "lead-num lead-num--sm", "-"), tags$p(class = "lead-lab", "Expected"))
+        ))
       }
       s <- r$base$summary
       div(
@@ -525,22 +582,22 @@ server <- function(id, store) {
           tags$p(class = "lead-lab", sprintf("%s orders · %s sims", fmt_int(r$n_orders), fmt_int(r$nsim)))
         ),
         div(
-          class = "lead-cell lead-cell--hot",
-          tags$span(class = "nx-kicker", "95% loss (VaR)"),
+          class = "lead-cell",
+          tags$span(class = "nx-kicker", "Bad-case loss"),
           div(class = "lead-num", fmt_sgd(s$var95_loss)),
-          tags$p(class = "lead-lab", "Dealer loss exceeded one time in twenty")
-        ),
-        div(
-          class = "lead-cell lead-cell--accent",
-          tags$span(class = "nx-kicker", "Chance book loses"),
-          div(class = "lead-num", fmt_pct(s$prob_loss)),
-          tags$p(class = "lead-lab", "Share of sims with dealer P&L < 0")
+          tags$p(class = "lead-lab", "Exceeded in only 1 of 20 runs")
         ),
         div(
           class = "lead-cell",
-          tags$span(class = "nx-kicker", "Expected customer top-up"),
+          tags$span(class = "nx-kicker", "Chance book loses"),
+          div(class = "lead-num", fmt_pct(s$prob_loss)),
+          tags$p(class = "lead-lab", "Share of runs with P&L < 0")
+        ),
+        div(
+          class = "lead-cell",
+          tags$span(class = "nx-kicker", "Customer top-up"),
           div(class = "lead-num lead-num--sm", fmt_sgd(s$expected_customer_topup)),
-          tags$p(class = "lead-lab", "Average across sims")
+          tags$p(class = "lead-lab", "Expected across sims")
         )
       )
     })

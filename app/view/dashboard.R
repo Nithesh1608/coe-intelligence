@@ -143,7 +143,7 @@ server <- function(id, store) {
         )
       })
       tags$table(
-        class = "desk-table",
+        class = "desk-table desk-table--3col",
         tags$thead(tags$tr(tags$th("Quarter"), tags$th("Central"), tags$th("80% band"))),
         tags$tbody(rows)
       )

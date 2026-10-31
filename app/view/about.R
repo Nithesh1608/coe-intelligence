@@ -106,7 +106,7 @@ ui <- function(id) {
         ),
         tags$li(
           tags$strong("Results. "),
-          "One-step held-out scores, period totals, and a 24-month walk-forward backtest with 80% band coverage."
+          "One-step held-out track record: monthly exits and quota vs released figures, plus period totals that compare our outlook to a 12-month average."
         ),
         tags$li(
           tags$strong("Your risk. "),
@@ -392,21 +392,21 @@ server <- function(id, store) {
           )
         ),
         tags$li(
-          tags$strong("Recursive 13-24 month error. "),
+          tags$strong("Quota mapping. "),
           sprintf(
-            "Deregistrations %s (A, bias %+.0f%%) and %s (B, bias %+.0f%%); quota %s (A) and %s (B).",
+            "Predicted (or actual) monthly deregistrations are turned into quota with an LTA-style rule: monthly quota = alpha x trailing 12-month exits. Alpha is the training-window median of published quota / trailing exits: %.3f for A and %.3f for B (textbook ~25%% of last year's exits per year is about 0.019 monthly after a Cat E share).",
+            alpha_of("A"), alpha_of("B")
+          ),
+          " LTA discretion over that formula is the mapping residual, resampled into Home's quota bands."
+        ),
+        tags$li(
+          tags$strong("Walk-forward lab check (not on Results). "),
+          sprintf(
+            "A separate 24-month roll from the training end is kept in the artefacts for method honesty. At 13-24 months: exits MAPE %s (A, bias %+.0f%%) and %s (B, bias %+.0f%%); quota MAPE %s (A) and %s (B). The live Results tab sticks to the clearer one-step charts.",
             pct(cal_of("A", "13-24 months", "dereg_mape")), cal_of("A", "13-24 months", "dereg_bias_pct"),
             pct(cal_of("B", "13-24 months", "dereg_mape")), cal_of("B", "13-24 months", "dereg_bias_pct"),
             pct(cal_of("A", "13-24 months", "quota_mape")), pct(cal_of("B", "13-24 months", "quota_mape"))
           )
-        ),
-        tags$li(
-          tags$strong("Quota mapping. "),
-          sprintf(
-            "Monthly quota = alpha x trailing 12-month deregistrations, alpha the training-window median of published / trailing exits: %.3f for A and %.3f for B (the textbook 25%% annual rule is 0.019 monthly).",
-            alpha_of("A"), alpha_of("B")
-          ),
-          " LTA's discretion over the formula is measured as the relative residual of that mapping and resampled into the quota band."
         ),
         tags$li(
           tags$strong("Bands. "),
@@ -468,7 +468,7 @@ server <- function(id, store) {
         tags$li(
           tags$strong("Where the model is weak. "),
           sprintf(
-            "In the recursive backtest the 80%% quota band covered %s (A) and %s (B) of months at 1-6 months, where LTA's 2024-25 releases ran above the formula. Category B exits were under-called by %+.0f%% in the first year. These are on Results, not hidden.",
+            "On the one-step held-out window (Results), watch periods where we miss the naive average. In a separate walk-forward lab check, the 80%% quota band covered %s (A) and %s (B) of months at 1-6 months when LTA's 2024-25 releases ran above the formula; Category B exits were under-called by %+.0f%% in months 7-12 of that roll. Numbers live here and in the calibration artefacts, not as a second Results chart.",
             pct(cal_of("A", "1-6 months", "quota_cover80")), pct(cal_of("B", "1-6 months", "quota_cover80")),
             cal_of("B", "7-12 months", "dereg_bias_pct")
           )

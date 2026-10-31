@@ -42,80 +42,92 @@ ui <- function(id) {
     ),
 
     tags$section(
-      class = "viz-explain",
-      tags$span(class = "nx-kicker", "Step 1"),
-      tags$h2("Set the stress"),
-      tags$p(
-        "Pick a ready-made scenario, then fine-tune. Every control changes supply over the next twelve quarters; nothing here prices premiums as a forecast."
-      )
-    ),
-    div(
-      class = "desk-controls desk-controls--row",
-      selectInput(
-        ns("cat"), "Category",
-        choices = c("Category A" = "A", "Category B" = "B", "Merged A + B" = "AB"),
-        selected = "A", width = "170px"
+      class = "scenario-block",
+      tags$div(
+        class = "viz-explain viz-explain--flush",
+        tags$span(class = "nx-kicker", "Step 1"),
+        tags$h2("Set the stress"),
+        tags$p(
+          "Pick a ready-made scenario, then fine-tune. Every control changes supply over the next twelve quarters; nothing here prices premiums as a forecast."
+        )
       ),
-      selectInput(
-        ns("preset"), "Ready-made scenario",
-        choices = preset_choices(), selected = "baseline", width = "330px"
+      div(
+        class = "desk-controls desk-controls--panel scenario-controls",
+        selectInput(
+          ns("cat"), "Category",
+          choices = c("Category A" = "A", "Category B" = "B", "Merged A + B" = "AB"),
+          selected = "A", width = "100%"
+        ),
+        selectInput(
+          ns("preset"), "Ready-made scenario",
+          choices = preset_choices(), selected = "baseline", width = "100%"
+        ),
+        sliderInput(
+          ns("renew"), "Renewal share shift",
+          min = -15, max = 15, value = 0, step = 1, width = "100%",
+          post = " pts"
+        ),
+        numericInput(
+          ns("inject"), "Extra certificates / quarter",
+          0, min = -2000, max = 5000, step = 50, width = "100%"
+        )
       ),
-      sliderInput(
-        ns("renew"), "Extra renewal shift (pts)",
-        min = -0.15, max = 0.15, value = 0, step = 0.01, width = "280px"
-      ),
-      numericInput(
-        ns("inject"), "Extra certificates / quarter",
-        0, min = -2000, max = 5000, step = 50, width = "190px"
-      )
-    ),
-    tags$ul(
-      class = "viz-explain__list scenario-lever-list",
-      tags$li(
-        tags$strong("Renewals. "),
-        "Owners who renew keep the car; fewer exits soon after, so fewer certificates in the following year."
-      ),
-      tags$li(
-        tags$strong("Premium path (in the scenario pack). "),
-        "Cheaper or dearer PQP changes renewal share through the fitted response, then exits and quota."
-      ),
-      tags$li(
-        tags$strong("LTA injection / clawback. "),
-        "Certificates added or removed straight into quota, on top of the formula path."
-      ),
-      tags$li(
-        tags$strong("Merged A + B. "),
-        "One combined car category if LTA joins them - same levers, pooled supply."
+      tags$ul(
+        class = "viz-explain__list scenario-lever-list",
+        tags$li(
+          tags$strong("Renewal share shift. "),
+          "Percentage points of owners at the year-10 decision who renew instead of leaving. ",
+          "+5 pts means 5 more renewals per 100 due cars that month (fewer exits soon after). ",
+          "Stacks on top of any premium-path effect in the scenario pack."
+        ),
+        tags$li(
+          tags$strong("Premium path (in the scenario pack). "),
+          "Cheaper or dearer PQP changes renewal share through the fitted response, then exits and quota."
+        ),
+        tags$li(
+          tags$strong("LTA injection / clawback. "),
+          "Certificates added or removed straight into quota, on top of the formula path."
+        ),
+        tags$li(
+          tags$strong("Merged A + B. "),
+          "One combined car category if LTA joins them - same levers, pooled supply."
+        )
       )
     ),
 
     tags$section(
-      class = "viz-explain",
-      tags$span(class = "nx-kicker", "Step 2"),
-      tags$h2("Read the impact")
+      class = "scenario-block",
+      tags$div(
+        class = "viz-explain viz-explain--flush",
+        tags$span(class = "nx-kicker", "Step 2"),
+        tags$h2("Read the impact")
+      ),
+      uiOutput(ns("lead")),
+      card(
+        class = "desk-card",
+        full_screen = TRUE,
+        card_header("Certificate supply: baseline vs your scenario"),
+        card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("quota"), height = "400px"))
+      ),
+      tags$p(class = "footnote scenario-active-note", textOutput(ns("note"), inline = TRUE))
     ),
-    uiOutput(ns("lead")),
-    card(
-      class = "desk-card",
-      full_screen = TRUE,
-      card_header("Certificate supply: baseline vs your scenario"),
-      card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("quota"), height = "400px"))
-    ),
-    tags$p(class = "footnote", textOutput(ns("note"), inline = TRUE)),
 
     tags$section(
-      class = "viz-explain",
-      tags$span(class = "nx-kicker", "Why the path moved"),
-      tags$h2("Exits under the same stress"),
-      tags$p(
-        "Quota is mapped from trailing exits. This chart shows the deregistration path that sits under the certificate chart above."
+      class = "scenario-block",
+      tags$div(
+        class = "viz-explain viz-explain--flush",
+        tags$span(class = "nx-kicker", "Why the path moved"),
+        tags$h2("Exits under the same stress"),
+        tags$p(
+          "Quota is mapped from trailing exits. This chart shows the deregistration path that sits under the certificate chart above."
+        )
+      ),
+      card(
+        class = "desk-card",
+        full_screen = TRUE,
+        card_header("Deregistrations: baseline vs your scenario"),
+        card_body(class = "chart-frame", echarts4rOutput(ns("dereg"), height = "320px"))
       )
-    ),
-    card(
-      class = "desk-card",
-      full_screen = TRUE,
-      card_header("Deregistrations: baseline vs your scenario"),
-      card_body(class = "chart-frame", echarts4rOutput(ns("dereg"), height = "320px"))
     )
   )
 }
@@ -129,7 +141,7 @@ server <- function(id, store) {
           store,
           category = input$cat %||% "A",
           preset_id = input$preset %||% "baseline",
-          renewal_shift = as.numeric(input$renew %||% 0),
+          renewal_shift = as.numeric(input$renew %||% 0) / 100,
           injection_per_qtr = as.numeric(input$inject %||% 0),
           horizon_quarters = 12L
         ),
@@ -191,7 +203,7 @@ server <- function(id, store) {
       p <- prep()
       if (is.null(p)) return("")
       sprintf(
-        "Active: %s | %s | renewal %+0.f pts | injection %s / quarter",
+        "Active: %s | %s | renewal share %+0.f pts | injection %s / quarter",
         if (identical(p$category, "AB")) "Merged A + B" else paste("Category", p$category),
         p$preset$label, 100 * p$renewal_shift, fmt_int(p$injection_per_qtr)
       )

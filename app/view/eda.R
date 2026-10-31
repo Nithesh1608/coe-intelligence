@@ -150,21 +150,6 @@ ui <- function(id) {
       )
     ),
 
-    div(
-      class = "eda-beat eda-beat--full eda-beat--cta",
-      div(
-        class = "eda-beat__copy eda-beat__copy--wide",
-        tags$span(class = "eda-beat__num", "04"),
-        tags$span(class = "nx-kicker", "Feedback"),
-        tags$h3("Stress renewals and policy in Scenarios"),
-        tags$p(
-          "Ready to move the forward path? Open ",
-          tags$strong("Scenarios"),
-          " to test renewals, premium paths and LTA injections against the live outlook."
-        )
-      )
-    ),
-
     tags$hr(class = "eda-divider"),
     tags$p(class = "nx-kicker", "Deeper context"),
     tags$p(
@@ -251,10 +236,6 @@ ui <- function(id) {
       "Ridgeline distributions at 1, 3 and 6 months."
     ),
 
-    tags$p(
-      class = "footnote eda-close",
-      "Home = outlook  |  Scenarios = stress tests  |  Results = track record  |  Your risk = price the book  |  About = method."
-    )
   )
 }
 
