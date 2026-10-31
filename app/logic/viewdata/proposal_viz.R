@@ -84,11 +84,29 @@ chart_quota_fan <- function(prep) {
 
   # Keep true gaps so Released stops when publications end.
   d$released <- ifelse(is.finite(d$actual), as.numeric(d$actual), NA_real_)
-  d$outlook <- ifelse(is.finite(d$mid), as.numeric(d$mid), NA_real_)
   d$lo80 <- ifelse(is.finite(d$lo80), as.numeric(d$lo80), NA_real_)
   d$hi80 <- ifelse(is.finite(d$hi80), as.numeric(d$hi80), NA_real_)
+  d$lo50 <- ifelse(is.finite(d$lo50), as.numeric(d$lo50), NA_real_)
+  d$hi50 <- ifelse(is.finite(d$hi50), as.numeric(d$hi50), NA_real_)
 
-  y_vals <- c(d$released, d$outlook, d$lo80, d$hi80)
+  # Outlook + bands start only after Released ends (anchor at the join for continuity).
+  d$outlook <- NA_real_
+  idx <- seq_len(nrow(d))
+  last_rel <- suppressWarnings(max(idx[is.finite(d$released)]))
+  if (is.finite(last_rel)) {
+    keep_hist <- idx <= last_rel
+    d$lo80[keep_hist] <- NA_real_
+    d$hi80[keep_hist] <- NA_real_
+    d$lo50[keep_hist] <- NA_real_
+    d$hi50[keep_hist] <- NA_real_
+    d$outlook[last_rel] <- d$released[last_rel]
+    after <- idx > last_rel & is.finite(d$mid)
+    d$outlook[after] <- as.numeric(d$mid[after])
+  } else {
+    d$outlook <- ifelse(is.finite(d$mid), as.numeric(d$mid), NA_real_)
+  }
+
+  y_vals <- c(d$released, d$outlook, d$lo80, d$hi80, d$lo50, d$hi50)
   y_vals <- y_vals[is.finite(y_vals)]
   y_min <- if (length(y_vals)) max(0, floor(min(y_vals) * 0.85 / 100) * 100) else 0
   y_max <- if (length(y_vals)) ceiling(max(y_vals) * 1.08 / 100) * 100 else 4000
@@ -97,8 +115,13 @@ chart_quota_fan <- function(prep) {
     e_charts(label) |>
     e_band2(
       lo80, hi80,
-      name = "Likely range",
-      itemStyle = list(color = "rgba(255, 92, 26, 0.22)", borderWidth = 0)
+      name = "80% range",
+      itemStyle = list(color = "rgba(255, 92, 26, 0.14)", borderWidth = 0)
+    ) |>
+    e_band2(
+      lo50, hi50,
+      name = "50% range",
+      itemStyle = list(color = "rgba(200, 245, 66, 0.22)", borderWidth = 0)
     ) |>
     e_line(
       released, name = "Released",
@@ -117,7 +140,7 @@ chart_quota_fan <- function(prep) {
     e_grid(left = 8, right = 16, top = 48, bottom = 20, containLabel = TRUE) |>
     e_tooltip(trigger = "axis") |>
     e_legend(
-      data = list("Released", "Outlook", "Likely range"),
+      data = list("Released", "Outlook", "50% range", "80% range"),
       right = 8, top = 4,
       textStyle = list(color = "#a3a3a3", fontSize = 11)
     ) |>

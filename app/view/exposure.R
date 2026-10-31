@@ -9,7 +9,7 @@ box::use(
   bslib[card, card_header, card_body, navset_card_underline, nav_panel],
   echarts4r[
     renderEcharts4r, echarts4rOutput, e_charts, e_bar, e_tooltip,
-    e_color, e_y_axis, e_x_axis, e_legend
+    e_color, e_grid, e_y_axis, e_x_axis, e_legend
   ],
 )
 box::use(
@@ -557,8 +557,12 @@ server <- function(id, store) {
         e_tooltip() |>
         e_color("#ff5c1a") |>
         e_legend(show = FALSE) |>
+        e_grid(left = 48, right = 16, top = 28, bottom = 48, containLabel = FALSE) |>
         e_x_axis(
           name = "Dealer P&L vs quote ($k)",
+          nameLocation = "middle",
+          nameGap = 28,
+          nameTextStyle = list(color = "#a3a3a3", fontSize = 11),
           splitLine = list(show = FALSE),
           axisLine = list(show = FALSE),
           axisTick = list(show = FALSE),
@@ -566,6 +570,10 @@ server <- function(id, store) {
         ) |>
         e_y_axis(
           name = "Count",
+          nameLocation = "middle",
+          nameGap = 36,
+          nameRotate = 90,
+          nameTextStyle = list(color = "#a3a3a3", fontSize = 11),
           splitLine = list(show = FALSE),
           axisLine = list(show = FALSE),
           axisTick = list(show = FALSE),
