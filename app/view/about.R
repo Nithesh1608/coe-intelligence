@@ -36,10 +36,9 @@ ui <- function(id) {
       tags$h1("COE Intelligence"),
       tags$p(
         class = "lede lede--wide",
-        "A Category A/B supply desk for dealers, parallel importers, and fleets that buy certificates ",
-        "continuously, not once a decade. We project deregistrations and the quota they imply twelve ",
-        "quarters ahead with bootstrap bands, let you move that path with renewal, premium and policy ",
-        "scenarios, and translate it into cost exposure on a locked order book. We do not forecast premiums."
+        "A supply desk for dealers, parallel importers, and fleets that buy Category A and B certificates ",
+        "every month. The main pages show what the outlook means for your book. This page is the method: ",
+        "data, model, scenarios, exposure engine, and the limits we design around."
       )
     ),
 
@@ -52,7 +51,7 @@ ui <- function(id) {
     ),
 
     section(
-      "The problem",
+      "The problem we solve",
       tags$p(
         "Most COE tools serve the individual buyer. Trade buyers face a different risk. ",
         "A dealer who quotes a COE-inclusive package is short certificates until the tender clears: ",
@@ -61,7 +60,7 @@ ui <- function(id) {
         "shifting replacement by a quarter or two can move seven-figure totals."
       ),
       tags$p(
-        "Both need the same thing they cannot get from consumer apps: a view of ",
+        "Both need a view of ",
         tags$strong("supply"),
         " far enough ahead to plan against, expressed as a range rather than a single number."
       )
@@ -82,50 +81,47 @@ ui <- function(id) {
           "with bid-new versus 5-year / 10-year renew choices."
         ),
         tags$li(
-          tags$strong("Not for. "),
+          tags$strong("Out of scope. "),
           "A household deciding whether to bid this fortnight. Consumer Buy / Wait signals are a different product."
         )
       )
     ),
 
     section(
-      "The views",
+      "What each page does",
       tags$ul(
         class = "about-list",
         tags$li(
-          tags$strong("Home — supply pipeline. "),
-          "Released certificates against the held-out model, then the production model rolled ~36 months ",
-          "forward with 50% and 80% bootstrap bands and a quarterly table."
+          tags$strong("Home. "),
+          "Released certificates against the outlook, then ~36 months forward with 50% and 80% bands and a quarterly table."
         ),
         tags$li(
-          tags$strong("Scenarios — feedback and policy. "),
+          tags$strong("Scenarios. "),
           "Renewal share as a fitted function of PQP, a direct renewal lever, premium glide paths, ",
           "LTA injections or clawbacks, and a merged A+B view."
         ),
         tags$li(
-          tags$strong("Market — category dynamics. "),
-          "Cohort flow, within-quarter premium swings, the A/B spread and volume shares, plus the supporting EDA."
+          tags$strong("Market. "),
+          "Cohort flow, within-quarter premium swings, the A/B spread and volume shares, plus supporting EDA."
         ),
         tags$li(
-          tags$strong("Results — calibration. "),
-          "One-step held-out scores, period totals where the model missed, and a 24-month recursive backtest ",
-          "with coverage of the 80% band."
+          tags$strong("Results. "),
+          "One-step held-out scores, period totals, and a 24-month walk-forward backtest with 80% band coverage."
         ),
         tags$li(
-          tags$strong("Your risk — exposure calculator. "),
-          "Upload or edit a dealer book / fleet schedule and settle it against block-bootstrap premium paths, ",
+          tags$strong("Your risk. "),
+          "Dealer book / fleet schedule settled against block-bootstrap premium paths, ",
           "optionally tilted by the forward quota path under a chosen scenario."
         ),
         tags$li(
-          tags$strong("COE bot — desk Q&A. "),
-          "Instant answers on the forward quota path, held-out accuracy, and how the desk works, grounded on ",
-          "the live artefacts (optional NVIDIA NIM for freer phrasing)."
+          tags$strong("COE bot. "),
+          "Q&A on the live outlook and track record, grounded on desk artefacts (optional NVIDIA NIM phrasing)."
         )
       )
     ),
 
     section(
-      "Why supply is forecastable, and what is not",
+      "Why supply is forecastable — and what is not",
       tags$p(
         "Every COE runs about ten years and most cars leave just before the PARF deadline. Quota is a share of ",
         "recent deregistrations; deregistrations are driven by the registration cohort reaching year ten. Those ",
@@ -136,6 +132,11 @@ ui <- function(id) {
         "Two things are not mechanical. The exit rate of a due cohort moves with PQP, and in the data dearer PQP ",
         "means fewer renewals and more exits, not more renewals. And LTA sets quota with discretion over the ",
         "formula: it released more than the rule implied in 2023-25. Both are modelled explicitly and both are in the band."
+      ),
+      tags$p(
+        tags$strong("We forecast supply, not premiums. "),
+        "Premiums also depend on demand, credit, and policy. Your risk stresses premium paths with history ",
+        "and an optional supply tilt; it does not claim the next clearing price."
       )
     ),
 

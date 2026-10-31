@@ -25,14 +25,13 @@ ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk",
-    tags$p(class = "eyebrow", "Feedback and scenarios"),
-    tags$h2("How behaviour and policy move the supply path"),
+    tags$p(class = "eyebrow", "Scenarios"),
+    tags$h2("What if renewals, premiums or LTA policy change?"),
     tags$p(
       class = "lede lede--wide",
-      "The baseline is the mechanical forward path: registration cohorts reaching their COE decision, ",
-      "with PQP held where it is today. Here you change behaviour and policy on top of it. ",
-      "Renewal share is a fitted function of PQP, so a premium path changes renewals, deregistrations, ",
-      "and then quota twelve months later. Injections add certificates directly."
+      "Start from today’s outlook, then stress the levers that move certificate supply: ",
+      "more renewals, a different premium path, extra certificates from LTA, or a merged A+B category. ",
+      "See the impact on the next twelve quarters before you lock packages or replacement windows."
     ),
     div(
       class = "desk-controls desk-controls--row",
@@ -43,42 +42,39 @@ ui <- function(id) {
       ),
       selectInput(ns("preset"), "Scenario", choices = preset_choices(), selected = "baseline", width = "330px"),
       sliderInput(
-        ns("renew"), "Extra renewal-rate shift (share points)",
+        ns("renew"), "Renewal rate change",
         min = -0.15, max = 0.15, value = 0, step = 0.01, width = "280px"
       ),
-      numericInput(ns("inject"), "Extra car COEs per quarter", 0, min = -2000, max = 5000, step = 50, width = "190px")
+      numericInput(ns("inject"), "Extra certificates / quarter", 0, min = -2000, max = 5000, step = 50, width = "190px")
     ),
     uiOutput(ns("lead")),
     card(
       class = "desk-card",
       full_screen = TRUE,
-      card_header("Quarterly quota: baseline versus scenario (next 12 quarters)"),
+      card_header("Quota: baseline versus your scenario"),
       card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("quota"), height = "400px"))
     ),
     tags$p(class = "footnote", textOutput(ns("note"), inline = TRUE)),
     tags$section(
       class = "viz-explain",
-      tags$span(class = "nx-kicker", "Mechanics"),
-      tags$h2("What the lever does"),
+      tags$span(class = "nx-kicker", "What you can change"),
       tags$ul(
         class = "viz-explain__list",
-        tags$li(tags$strong("Renewal response - "), textOutput(ns("slope_text"), inline = TRUE)),
-        tags$li(tags$strong("Due cohort - "), "cars reaching the year-10 decision each month, projected from registrations ten years earlier and age stock."),
-        tags$li(tags$strong("Quota - "), "calibrated share of trailing twelve-month deregistrations, so a change in exits feeds quota over the following year."),
-        tags$li(tags$strong("Injection - "), "added to published quota in proportion to recent A/B shares; it does not change deregistrations."),
-        tags$li(tags$strong("Merged A + B - "), "sums both categories, the shape a single car category would take if LTA merges them.")
+        tags$li(tags$strong("Renewals — "), "more owners keeping cars means fewer certificates soon after."),
+        tags$li(tags$strong("Premium path — "), "cheaper or dearer renewals shift how many cars leave."),
+        tags$li(tags$strong("LTA injection — "), "extra certificates added straight into the quota."),
+        tags$li(tags$strong("Merged A + B — "), "one combined car category, if LTA joins them.")
       )
     ),
     card(
       class = "desk-card",
       full_screen = TRUE,
-      card_header("Quarterly deregistrations: baseline versus scenario"),
+      card_header("Deregistrations: baseline versus your scenario"),
       card_body(class = "chart-frame", echarts4rOutput(ns("dereg"), height = "320px"))
     ),
     tags$p(
       class = "footnote",
-      "Scenarios shift the central path and carry the baseline bootstrap band with it. ",
-      "They are supply scenarios, not premium forecasts."
+      "Use this to pressure-test timing. How the levers are modelled is in About."
     )
   )
 }
@@ -129,7 +125,7 @@ server <- function(id, store) {
           class = "nx-metric",
           tags$span(class = "nx-kicker", "Baseline, next 4 quarters"),
           div(class = "nx-num", fmt_int(sum(first_year$quota_base))),
-          tags$span(class = "nx-hint", "certificates, central path")
+          tags$span(class = "nx-hint", "certificates")
         ),
         div(
           class = "nx-metric nx-metric--accent",
@@ -149,29 +145,10 @@ server <- function(id, store) {
     output$note <- renderText({
       p <- prep()
       if (is.null(p)) return("")
-      pqp_end <- utils::tail(p$quarters$pqp_scenario, 1)
       sprintf(
-        "%s | %s | renewal shift %+.0f share points | injection %s per quarter | PQP ends near %s. %s",
+        "%s · %s · renewal %+.0f pts · injection %s / quarter",
         if (identical(p$category, "AB")) "Merged A + B" else paste("Category", p$category),
-        p$preset$label, 100 * p$renewal_shift, fmt_int(p$injection_per_qtr), fmt_sgd(pqp_end), p$preset$note
-      )
-    })
-
-    output$slope_text <- renderText({
-      p <- prep()
-      r <- store$renewal_response
-      if (is.null(r) || !nrow(r)) return("fitted on LTA revalidations against PQP.")
-      if (!is.null(p) && identical(p$category, "AB")) {
-        return(sprintf(
-          "fitted on 2015-2026 revalidations: slopes %.2f (A) and %.2f (B) share points per log-unit of PQP. In the data, dearer PQP goes with fewer renewals, not more.",
-          r$slope_log_pqp[r$category == "A"], r$slope_log_pqp[r$category == "B"]
-        ))
-      }
-      cat <- p$category %||% "A"
-      row <- r[as.character(r$category) == cat, ]
-      sprintf(
-        "fitted on %d months (%s to %s): renewal share falls %.1f points for every 10%% rise in PQP (R² %.2f). The data contradict the common claim that dear premiums push owners to renew.",
-        row$n, row$from, row$to, 100 * abs(row$slope_log_pqp) * log(1.1), row$r2
+        p$preset$label, 100 * p$renewal_shift, fmt_int(p$injection_per_qtr)
       )
     })
   })

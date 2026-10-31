@@ -65,11 +65,11 @@ ui <- function(id) {
   div(
     class = "page-stack desk",
     tags$p(class = "eyebrow", "Your risk"),
-    tags$h2("Exposure calculator"),
+    tags$h2("Price the exposure on your book"),
     tags$p(
-      class = "lede",
-      "Turn a locked order book or fleet schedule into expected COE cost, a loss range, and timing options. ",
-      "Premium paths are simulated; optionally tilted by the supply forecast. We do not forecast the next premium."
+      class = "lede lede--wide",
+      "Upload a locked order book or fleet schedule. Get expected COE cost, a loss range, ",
+      "and what happens if you shift purchases by one or two quarters — so you can decide timing with numbers, not gut feel."
     ),
 
     navset_card_underline(
@@ -116,10 +116,8 @@ ui <- function(id) {
           uiOutput(ns("book_status")),
           tags$p(
             class = "footnote",
-            "Download the template, edit your orders, then upload. Columns: order_id, category (A/B), ",
-            "quoted_premium, target_exercise, max_attempts, contract (guaranteed|capped|rebate), optional cap_topup. ",
-            "Without an upload, pooled controls / example book apply. Tilt uses the forward quota path from Home, ",
-            "under the scenario you pick."
+            "Download the template, fill your orders, then upload. Or use the controls / example book. ",
+            "Turn on supply tilt to reflect the Home outlook under the scenario you pick."
           )
         ),
         uiOutput(ns("dl_lead")),
@@ -145,20 +143,10 @@ ui <- function(id) {
         div(
           class = "calc-section viz-explain",
           tags$span(class = "nx-kicker", "Cost build-up"),
-          tags$h3("Exposure waterfall — quote to clearing to timing"),
+          tags$h3("From quoted total to clearing and timing"),
           tags$p(
-            paste(
-              "From the package total you quoted, to expected clearing under simulated paths,",
-              "the p10–p90 range, and what happens if you delay the whole book by one or two quarters.",
-              "Runs automatically on an example book; re-run after you change inputs."
-            )
-          ),
-          tags$ul(
-            class = "viz-explain__list",
-            tags$li(tags$strong("Quoted book — "), "sum of locked package premiums."),
-            tags$li(tags$strong("Clearing gap — "), "quoted total versus expected realised COE cost."),
-            tags$li(tags$strong("Upside / downside — "), "distance from expected cost to p10 and p90."),
-            tags$li(tags$strong("Delay +1Q / +2Q — "), "change in expected cost if every order shifts later.")
+            "See the gap between what you quoted and what clearing may cost, the likely range, ",
+            "and the impact of delaying the whole book by one or two quarters."
           ),
           card(
             class = "desk-card",
@@ -200,8 +188,7 @@ ui <- function(id) {
           uiOutput(ns("fleet_status")),
           tags$p(
             class = "footnote",
-            "Fleet template columns: quarter, category (A/B), n_vehicles, parf_rebate; ",
-            "optional new_vehicle_cost, old_vehicle_residual for capex mode. Default is the example schedule."
+            "Download the template for a quarterly A/B schedule, or run the example. Compare bid-new versus renew options."
           )
         ),
         uiOutput(ns("fl_table")),
@@ -569,8 +556,21 @@ server <- function(id, store) {
         e_bar(n, name = "Simulations") |>
         e_tooltip() |>
         e_color("#ff5c1a") |>
-        e_x_axis(name = "Dealer P&L vs quote ($k)") |>
-        e_y_axis(name = "Count")
+        e_legend(show = FALSE) |>
+        e_x_axis(
+          name = "Dealer P&L vs quote ($k)",
+          splitLine = list(show = FALSE),
+          axisLine = list(show = FALSE),
+          axisTick = list(show = FALSE),
+          axisLabel = list(color = "#a3a3a3")
+        ) |>
+        e_y_axis(
+          name = "Count",
+          splitLine = list(show = FALSE),
+          axisLine = list(show = FALSE),
+          axisTick = list(show = FALSE),
+          axisLabel = list(color = "#a3a3a3")
+        )
     })
 
     output$dl_shift <- renderEcharts4r({
@@ -586,7 +586,19 @@ server <- function(id, store) {
         e_bar(var_k, name = "-VaR95 ($k)") |>
         e_tooltip() |>
         e_color(c("#c8f542", "#ff5c1a")) |>
-        e_legend(bottom = 0)
+        e_legend(bottom = 0, textStyle = list(color = "#a3a3a3")) |>
+        e_x_axis(
+          splitLine = list(show = FALSE),
+          axisLine = list(show = FALSE),
+          axisTick = list(show = FALSE),
+          axisLabel = list(color = "#a3a3a3")
+        ) |>
+        e_y_axis(
+          splitLine = list(show = FALSE),
+          axisLine = list(show = FALSE),
+          axisTick = list(show = FALSE),
+          axisLabel = list(color = "#a3a3a3")
+        )
     })
 
     output$dl_waterfall <- renderEcharts4r({
@@ -619,11 +631,11 @@ server <- function(id, store) {
         n_q <- max(vapply(cats, function(c) length(quota_path_for(c) %||% numeric()), integer(1)))
         scn_label <- names(preset_choices())[match(input$tilt_scn %||% "baseline", preset_choices())]
         sprintf(
-          "Supply tilt ON — drift from the forward quota path (%s), %s quarters ahead from the current quarter. Tighter forecast supply pushes simulated premiums up, looser pulls them down. Paths still resample historical premium moves.",
+          "Supply tilt on · scenario “%s” · %s quarters of outlook applied to cost paths.",
           scn_label %||% "baseline", max(0L, n_q - 1L)
         )
       } else {
-        "Supply tilt OFF — premium paths are historical moves only; predicted quota is not applied."
+        "Supply tilt off · cost paths use historical premium moves only."
       }
     })
 

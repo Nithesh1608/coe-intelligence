@@ -25,10 +25,11 @@ ui <- function(id) {
   div(
     class = "page-stack desk",
     tags$p(class = "eyebrow", "Results"),
-    tags$h2("How supply is built"),
+    tags$h2("How the outlook held up against real releases"),
     tags$p(
-      class = "lede",
-      "Quota follows deregistrations. Live model is an elastic net; pick a category."
+      class = "lede lede--wide",
+      "Before you lean on the forward path, see the track record: how close the outlook came to actual exits, ",
+      "and how a two-year walk-forward test performed. Pick a category."
     ),
     div(
       class = "desk-controls desk-controls--row",
@@ -40,66 +41,48 @@ ui <- function(id) {
         width = "180px"
       )
     ),
-    tags$p(
-      class = "footnote",
-      "Predicts monthly deregistrations from due-stock and recent flow features, then maps to quota."
-    ),
     uiOutput(ns("example_grid")),
     card(
       class = "desk-card",
       full_screen = TRUE,
-      card_header("Deregistrations each month"),
+      card_header("Monthly deregistrations: actual versus outlook"),
       card_body(
         class = "chart-frame chart-frame--tall",
         echarts4rOutput(ns("exits"), height = "400px")
       )
     ),
-    tags$p(
-      class = "footnote",
-      "White = actual deregistrations. Orange = elastic net, one step ahead with actual lags. Grey dashed = 12-month average."
-    ),
 
     tags$section(
       class = "viz-explain",
-      tags$span(class = "nx-kicker", "Where it misses"),
-      tags$h2("The honest view: where the model was wrong"),
+      tags$span(class = "nx-kicker", "By period"),
+      tags$h2("Totals by period"),
       tags$p(
         class = "lede lede--wide",
-        "Totals by period against actual deregistrations. A negative gap means the model under-called supply. ",
-        "The 2025-26 surge is the 2016-17 registration boom reaching year ten; the cohort features carry it, ",
-        "but the exit rate also rose as PQP climbed, and that part the model only partly caught."
+        "Compare period totals so you can see when the outlook was tight and when the market moved faster."
       )
     ),
     uiOutput(ns("miss_table")),
 
     tags$section(
       class = "viz-explain",
-      tags$span(class = "nx-kicker", "Recursive backtest"),
-      tags$h2("Rolled forward 24 months from August 2024, no peeking"),
+      tags$span(class = "nx-kicker", "Walk-forward test"),
+      tags$h2("Two years ahead, month by month"),
       tags$p(
         class = "lede lede--wide",
-        "This is the test that matters for a planning horizon. The evaluation model was rolled forward month by ",
-        "month from the training end, feeding its own predictions back as lags and projecting age stock from ",
-        "registration cohorts. Bands come from recursive bootstrap paths of its held-out errors."
-      ),
-      tags$ul(
-        class = "viz-explain__list",
-        tags$li(tags$strong("MAPE - "), "mean absolute percentage error of the central path."),
-        tags$li(tags$strong("Bias - "), "signed total error; negative means supply was under-called."),
-        tags$li(tags$strong("80% coverage - "), "share of months inside the 80% band; 80% is the target, below it the band is too narrow.")
+        "A planning-horizon check: the outlook was rolled forward for 24 months and compared with what actually happened. ",
+        "Use the scorecard below when you decide how wide a buffer to keep on a locked book."
       )
     ),
     card(
       class = "desk-card",
       full_screen = TRUE,
-      card_header("Recursive path versus actual deregistrations"),
+      card_header("Walk-forward path versus actual deregistrations"),
       card_body(class = "chart-frame chart-frame--tall", echarts4rOutput(ns("bt_chart"), height = "380px"))
     ),
     uiOutput(ns("cal_table")),
     tags$p(
       class = "footnote",
-      "Specification was chosen on this held-out window (cohort-only predictors, lambda.min), so these numbers ",
-      "are the fairest we can report, not an independent test. The next twelve months of releases will be."
+      "Full method, data handling and limitations are in About."
     )
   )
 }
@@ -107,8 +90,7 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    live_label <- store$meta$model_labels[[LIVE_MODEL]]
-    if (is.null(live_label) || is.na(live_label)) live_label <- "Elastic net"
+    live_label <- "Our outlook"
 
     output$example_grid <- renderUI({
       dm <- store$two_monthly

@@ -24,20 +24,15 @@ ui <- function(id) {
       div(
         class = "desk-hero__copy",
         tags$p(class = "eyebrow", "COE Intelligence"),
-        tags$h1("Forecast COE supply. Price the risk."),
+        tags$h1("Know your certificate supply three years out."),
         tags$p(
           class = "lede lede--wide",
-          "Built for dealers and fleets that buy certificates every month. We project Category A and B quota ",
-          "so you can time purchases and size exposure - instead of guessing the next premium."
+          "For dealers and fleets that buy every month. See how many Category A and B certificates are ",
+          "coming to market, plan purchase timing, and size exposure with a clear range - not a single guess."
         )
       ),
       div(
         class = "desk-controls",
-        tags$p(
-          class = "footnote",
-          style = "margin:0 0 0.6rem;",
-          "Live model: elastic net on registration cohorts, age stock, renewals and PQP, mapped to quota."
-        ),
         selectInput(
           ns("cat"),
           "Category",
@@ -51,74 +46,58 @@ ui <- function(id) {
       class = "nx-metrics nx-metrics--3",
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "Typical miss versus released quota"),
-        div(class = "nx-num", shiny::textOutput(ns("kpi_mape"), inline = TRUE)),
-        tags$span(class = "nx-hint", "Out-of-sample months | elastic net")
+        tags$span(class = "nx-kicker", "Planning horizon"),
+        div(class = "nx-num nx-num--sm", "12 quarters"),
+        tags$span(class = "nx-hint", "Forward certificate outlook")
       ),
       div(
         class = "nx-metric nx-metric--accent",
-        tags$span(class = "nx-kicker", "What we forecast"),
-        div(class = "nx-num nx-num--sm", "Supply"),
-        tags$span(class = "nx-hint", "Certificates coming to market")
+        tags$span(class = "nx-kicker", "Typical accuracy"),
+        div(class = "nx-num", shiny::textOutput(ns("kpi_mape"), inline = TRUE)),
+        tags$span(class = "nx-hint", "Versus released quota")
       ),
       div(
         class = "nx-metric",
-        tags$span(class = "nx-kicker", "What we do not forecast"),
-        div(class = "nx-num nx-num--sm", "Premiums"),
-        tags$span(class = "nx-hint", "Stress them in Your risk")
+        tags$span(class = "nx-kicker", "What you get"),
+        div(class = "nx-num nx-num--sm", "A range"),
+        tags$span(class = "nx-hint", "Central path plus bands")
       )
     ),
     card(
       class = "desk-card",
       full_screen = TRUE,
-      card_header("Certificates released versus forecast"),
+      card_header("Released certificates versus our outlook"),
       card_body(
         class = "chart-frame chart-frame--tall",
         echarts4rOutput(ns("quota"), height = "400px", width = "100%")
       )
     ),
-    tags$p(
-      class = "footnote",
-      "White = certificates released. Orange = elastic net. Grey dashed = 12-month average."
-    ),
+
 
     tags$section(
       class = "viz-explain",
-      tags$span(class = "nx-kicker", "Supply outlook"),
-      tags$h2("Quota path for the next twelve quarters, with a bootstrap band"),
-      tags$p(
-        class = "lede lede--wide",
-        "A single number is not enough to price a forward book. The fan is the production model rolled ",
-        "forward month by month from the last published deregistrations, with recursive bootstrap paths that ",
-        "resample the model's held-out errors, refit it on resampled training windows, and let PQP wander ",
-        "as it has historically - so the band is earned, not drawn."
-      ),
-      tags$ul(
-        class = "viz-explain__list",
-        tags$li(tags$strong("White - "), "certificates actually released."),
-        tags$li(tags$strong("Orange - "), "central projected quota from the live supply model."),
-        tags$li(tags$strong("Dashed / thin - "), "50% and 80% bootstrap bands; they widen as premium and parameter uncertainty accumulate.")
-      )
+      tags$span(class = "nx-kicker", "Forward outlook"),
+      tags$h2("Certificate supply for the next twelve quarters")
     ),
     card(
       class = "desk-card",
       full_screen = TRUE,
-      card_header("Projected quota fan (next 36 months)"),
+      card_header("Projected quota"),
       card_body(
         class = "chart-frame chart-frame--tall",
         echarts4rOutput(ns("fan"), height = "400px", width = "100%")
       )
     ),
+
     tags$p(class = "footnote", shiny::textOutput(ns("fan_note"), inline = TRUE)),
     card(
       class = "desk-card",
-      card_header("Quarterly supply outlook (certificates, central path and 80% band)"),
+      card_header("Quarterly outlook"),
       card_body(uiOutput(ns("qtr_table")))
     ),
     tags$p(
       class = "footnote",
-      "Scenarios changes this path with renewal, premium and injection levers. Results shows how the same ",
-      "method did when rolled forward from August 2024."
+      "Stress this path in Scenarios. Price a locked book in Your risk. Method detail lives in About."
     )
   )
 }
@@ -126,8 +105,7 @@ ui <- function(id) {
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    live_label <- store$meta$model_labels[[LIVE_MODEL]]
-    if (is.null(live_label) || is.na(live_label)) live_label <- "Elastic net"
+    live_label <- "Our outlook"
 
     cat_code <- reactive({
       c <- input$cat
@@ -192,11 +170,10 @@ server <- function(id, store) {
 
     output$fan_note <- renderText({
       prep <- fan_prep()
-      if (is.null(prep)) return("Fan chart unavailable - run scripts/fit_and_forecast.R to build forward_quota.csv.")
-      cover <- if (is.finite(prep$cover80)) sprintf(" In the 24-month recursive backtest the 80%% band covered %.0f%% of published months.", 100 * prep$cover80) else ""
+      if (is.null(prep)) return("Outlook unavailable - rebuild the forward artefacts, then reload.")
       sprintf(
-        "Category %s | forward path from %s for %d months | published quota shown through %s.%s We forecast supply, not premiums.",
-        prep$category, format(prep$as_of, "%b %Y"), prep$horizon, format(prep$last_published, "%b %Y"), cover
+        "Category %s  |  outlook from %s  |  %d months ahead  |  released quota through %s.",
+        prep$category, format(prep$as_of, "%b %Y"), prep$horizon, format(prep$last_published, "%b %Y")
       )
     })
 
@@ -219,10 +196,5 @@ server <- function(id, store) {
       )
     })
 
-    # Keep Home charts alive even when other nav panels are selected (Posit/bslib).
-    shiny::outputOptions(output, "quota", suspendWhenHidden = FALSE)
-    shiny::outputOptions(output, "fan", suspendWhenHidden = FALSE)
-    shiny::outputOptions(output, "kpi_mape", suspendWhenHidden = FALSE)
-    shiny::outputOptions(output, "qtr_table", suspendWhenHidden = FALSE)
   })
 }

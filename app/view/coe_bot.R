@@ -182,10 +182,10 @@ ui <- function(id) {
   div(
     class = "page-stack desk coe-bot-page",
     tags$p(class = "eyebrow", "COE bot"),
-    tags$h1("Ask the desk"),
+    tags$h1("Ask about your supply outlook"),
     tags$p(
       class = "lede lede--wide",
-      "Ask anything about the supply desk. Chips and free-form questions both go through NIM when a key is set; otherwise they answer from the live artefacts."
+      "Quick answers on the forward quota path, track record, and how to use the desk — grounded on the live numbers."
     ),
     uiOutput(ns("status")),
     div(
@@ -221,7 +221,7 @@ ui <- function(id) {
     ),
     tags$p(
       class = "footnote",
-      "NIM answers chips and typed questions when NVIDIA_API_KEY is set; otherwise desk artefacts answer. Not financial advice. Enter to send · Shift+Enter for a new line."
+      "Enter to send · Shift+Enter for a new line. Method and data detail live in About."
     ),
     tags$script(HTML(sprintf(
       "(function(){

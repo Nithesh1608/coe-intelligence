@@ -41,6 +41,20 @@
     window.addEventListener("load", () => window.setTimeout(resizePlots, 200));
     window.setTimeout(resizePlots, 300);
     window.setTimeout(resizePlots, 900);
+
+    // Below-fold Home charts can stay blank until they enter the viewport.
+    if ("IntersectionObserver" in window) {
+      const io = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          window.setTimeout(resizePlots, 40);
+        }
+      }, { root: null, threshold: 0.05 });
+      const watch = () => {
+        document.querySelectorAll(".chart-frame, .echarts4r").forEach((el) => io.observe(el));
+      };
+      watch();
+      document.addEventListener("shiny:value", () => window.setTimeout(watch, 100));
+    }
   };
 
   if (document.readyState === "loading") {

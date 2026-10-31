@@ -9,8 +9,7 @@ box::use(
     e_color,
     e_datazoom,
     e_x_axis,
-    e_y_axis,
-    e_theme
+    e_y_axis
   ],
 )
 
@@ -19,14 +18,14 @@ palette <- c(A = "#ff5c1a", B = "#e4e4e7")
 axis <- list(
   axisLine = list(show = FALSE),
   axisTick = list(show = FALSE),
-  axisLabel = list(color = "#737373", fontFamily = "IBM Plex Mono"),
+  axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono"),
   splitLine = list(lineStyle = list(color = "rgba(255,255,255,0.06)"))
 )
 
+# Skip e_theme("dark") — it paints a purple canvas that looks empty on the desk.
 #' @export
 style_chart <- function(p) {
   p |>
-    e_theme("dark") |>
     e_grid(left = 12, right = 16, top = 48, bottom = 16, containLabel = TRUE) |>
     e_tooltip(trigger = "axis") |>
     e_legend(right = 8, top = 4, textStyle = list(color = "#a3a3a3", fontSize = 11)) |>

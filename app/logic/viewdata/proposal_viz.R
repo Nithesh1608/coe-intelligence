@@ -4,8 +4,9 @@
 
 box::use(
   echarts4r[
-    e_charts, e_line, e_bar, e_area, e_tooltip, e_legend,
-    e_grid, e_color, e_datazoom, e_x_axis, e_y_axis, e_labels
+    e_charts, e_line, e_bar, e_area, e_band2,
+    e_tooltip, e_legend, e_grid, e_color, e_datazoom,
+    e_x_axis, e_y_axis, e_labels
   ],
   app/logic/viewdata/charts[style_chart],
   app/logic/viewdata/pipeline[add_months],
@@ -20,7 +21,7 @@ box::use(
 #' History (published monthly quota + held-out outlook) followed by the
 #' production forward path with bootstrap 50% / 80% bands.
 #' @export
-prep_quota_fan <- function(store, category = "A", horizon_months = 36L, history_from = as.Date("2019-01-01")) {
+prep_quota_fan <- function(store, category = "A", horizon_months = 36L, history_months = 36L) {
   fq <- store$forward_quota
   if (is.null(fq) || !nrow(fq)) return(NULL)
   fwd <- fq[as.character(fq$category) == category, , drop = FALSE]
@@ -33,14 +34,15 @@ prep_quota_fan <- function(store, category = "A", horizon_months = 36L, history_
   if ("partial" %in% names(b)) b <- b[!b$partial, ]
   b <- b[as.character(b$category) == category & is.finite(b$quota), c("month", "quota")]
   b <- b[order(b$month), ]
-  b <- b[b$month >= history_from, ]
   # Held-out one-step outlook where available, to show the fit on history.
   q <- store$quota_outlook
   outlook <- if (!is.null(q)) q[as.character(q$category) == category, c("month", "outlook_from_forecast")] else NULL
 
   first_fwd <- min(as.Date(fwd$month))
+  # Keep recent history so the forward fan is readable, not a stub on a decade chart.
+  hist_from <- add_months(first_fwd, -as.integer(history_months))
   hist <- data.frame(month = as.Date(b$month), actual = as.numeric(b$quota), stringsAsFactors = FALSE)
-  hist <- hist[hist$month < first_fwd, ]
+  hist <- hist[hist$month >= hist_from & hist$month < first_fwd, ]
   hist$mid <- if (!is.null(outlook)) as.numeric(outlook$outlook_from_forecast[match(hist$month, as.Date(outlook$month))]) else NA_real_
   hist$lo80 <- NA_real_
   hist$hi80 <- NA_real_
@@ -79,23 +81,62 @@ prep_quota_fan <- function(store, category = "A", horizon_months = 36L, history_
 chart_quota_fan <- function(prep) {
   d <- prep$df
   if (is.null(d) || !nrow(d)) return(NULL)
-  # Envelope lines are portable across echarts4r versions (no e_band2).
+
+  # Keep true gaps so Released stops when publications end.
+  d$released <- ifelse(is.finite(d$actual), as.numeric(d$actual), NA_real_)
+  d$outlook <- ifelse(is.finite(d$mid), as.numeric(d$mid), NA_real_)
+  d$lo80 <- ifelse(is.finite(d$lo80), as.numeric(d$lo80), NA_real_)
+  d$hi80 <- ifelse(is.finite(d$hi80), as.numeric(d$hi80), NA_real_)
+
+  y_vals <- c(d$released, d$outlook, d$lo80, d$hi80)
+  y_vals <- y_vals[is.finite(y_vals)]
+  y_min <- if (length(y_vals)) max(0, floor(min(y_vals) * 0.85 / 100) * 100) else 0
+  y_max <- if (length(y_vals)) ceiling(max(y_vals) * 1.08 / 100) * 100 else 4000
+
   d |>
     e_charts(label) |>
-    e_line(lo80, name = "80% band low", symbol = "none",
-           lineStyle = list(width = 1, opacity = 0.35, color = "#ff5c1a")) |>
-    e_line(hi80, name = "80% band high", symbol = "none",
-           lineStyle = list(width = 1, opacity = 0.35, color = "#ff5c1a")) |>
-    e_line(lo50, name = "50% band low", symbol = "none",
-           lineStyle = list(width = 1.2, opacity = 0.6, color = "#ff5c1a", type = "dashed")) |>
-    e_line(hi50, name = "50% band high", symbol = "none",
-           lineStyle = list(width = 1.2, opacity = 0.6, color = "#ff5c1a", type = "dashed")) |>
-    e_line(actual, name = "Certificates released", symbol = "circle", symbolSize = 5,
-           lineStyle = list(width = 2.4, color = "#fafafa")) |>
-    e_line(mid, name = "Central supply path", symbol = "none",
-           lineStyle = list(width = 2.2, color = "#ff5c1a")) |>
-    e_color(c("#ff5c1a", "#ff5c1a", "#ff5c1a", "#ff5c1a", "#fafafa", "#ff5c1a")) |>
-    style_chart() |>
+    e_band2(
+      lo80, hi80,
+      name = "Likely range",
+      itemStyle = list(color = "rgba(255, 92, 26, 0.22)", borderWidth = 0)
+    ) |>
+    e_line(
+      released, name = "Released",
+      symbol = "circle", symbolSize = 4,
+      connectNulls = FALSE,
+      lineStyle = list(width = 2.6, color = "#fafafa"),
+      itemStyle = list(color = "#fafafa")
+    ) |>
+    e_line(
+      outlook, name = "Outlook",
+      symbol = "none",
+      connectNulls = FALSE,
+      lineStyle = list(width = 2.8, color = "#ff5c1a"),
+      itemStyle = list(color = "#ff5c1a")
+    ) |>
+    e_grid(left = 8, right = 16, top = 48, bottom = 20, containLabel = TRUE) |>
+    e_tooltip(trigger = "axis") |>
+    e_legend(
+      data = list("Released", "Outlook", "Likely range"),
+      right = 8, top = 4,
+      textStyle = list(color = "#a3a3a3", fontSize = 11)
+    ) |>
+    e_x_axis(
+      axisLine = list(show = FALSE),
+      axisTick = list(show = FALSE),
+      axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono", hideOverlap = TRUE),
+      splitLine = list(show = FALSE)
+    ) |>
+    e_y_axis(
+      name = "Certificates / month",
+      min = y_min,
+      max = y_max,
+      nameTextStyle = list(color = "#737373", fontSize = 11),
+      axisLine = list(show = FALSE),
+      axisTick = list(show = FALSE),
+      axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono"),
+      splitLine = list(show = FALSE)
+    ) |>
     e_datazoom(type = "inside")
 }
 
