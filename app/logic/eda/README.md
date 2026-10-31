@@ -5,19 +5,24 @@ All EDA visualisation code for the desk lives here — static ggplot sources nex
 ```
 app/logic/eda/
   README.md
-  render_static.R      # regenerates PNGs into app/static/eda/
+  render_static.R      # earlier static PNGs (e1_*, 01_* ...)
+  render_gallery.R     # improved 6-chart gallery (g1_* ... g6_*)
   source/
     EDA1.Rmd           # exploratory notebook (Cat A/B)
     EDA2.R             # exploratory script (Cat A/B)
+    coe_eda_gallery.Rmd  # improved gallery notebook (R Graph Gallery styles)
 
-app/static/eda/        # committed PNG artefacts served by the EDA tab
-app/logic/viewdata/    # live echarts helpers used by Home / EDA / Results / Your risk
+app/static/eda/        # committed PNG artefacts served by the Market tab
+app/logic/viewdata/    # live echarts helpers used by Home / Market / Results / Your risk
 ```
 
-Scope: **Categories A and B only.**
+Scope: **Categories A and B only.** Market "Deeper context" shows the **gallery** figures (`g1_`...`g6_`).
 
-Regenerate static figures from the repo root:
+Regenerate from the repo root:
 
 ```r
-source("app/logic/eda/render_static.R")
+source("app/logic/eda/render_gallery.R")   # preferred (live Market charts)
+source("app/logic/eda/render_static.R")    # legacy artefacts
 ```
+
+Needs `ggplot2`, `scales`, `patchwork`, and `ggridges` on `.libPaths()`.

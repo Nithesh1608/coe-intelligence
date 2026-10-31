@@ -1,0 +1,510 @@
+---
+title: "COE Market: What the Data Says"
+subtitle: "DBA3702 Group 6 | Improved EDA, 6 charts from the R Graph Gallery"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: flatly
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.width = 10, fig.height = 5.6, dpi = 130)
+```
+
+```{r packages}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(readr)
+library(ggplot2)
+library(scales)
+library(patchwork)
+library(ggridges)   # ridgeline plots
+
+candidates <- c(
+  "data/processed/", "data/", "../data/processed/", "../../data/processed/",
+  "Final Group Project/data/", "../data/", "processed/", "./"
+)
+needed <- c("coe_results.rds", "dereg_lta.rds", "revalidation.rds", "pop_by_age.rds", "pqp.rds")
+found <- candidates[sapply(candidates, function(d) all(file.exists(paste0(d, needed))))]
+if (length(found) == 0) {
+  stop("Clean data not found. Prefer data/processed/ from the repo root, or source('app/logic/eda/render_gallery.R').")
+}
+data_dir <- found[1]
+
+coe   <- read_rds(paste0(data_dir, "coe_results.rds"))
+dereg <- read_rds(paste0(data_dir, "dereg_lta.rds"))
+reval <- read_rds(paste0(data_dir, "revalidation.rds"))
+age   <- read_rds(paste0(data_dir, "pop_by_age.rds"))
+pqp   <- read_rds(paste0(data_dir, "pqp.rds"))
+
+# One look for every chart
+cat_colours <- c(A = "#1f77b4", B = "#d6404e")
+cat_labels  <- c(A = "Cat A (smaller cars)", B = "Cat B (bigger cars)")
+theme_coe <- theme_minimal(base_size = 12.5) +
+  theme(legend.position = "top", legend.justification = "left",
+        plot.title = element_text(face = "bold", size = 14),
+        plot.title.position = "plot",
+        plot.subtitle = element_text(colour = "grey30"),
+        plot.caption = element_text(colour = "grey40", hjust = 0, size = 10),
+        plot.caption.position = "plot",
+        strip.text = element_text(face = "bold", hjust = 0),
+        panel.grid.minor = element_blank())
+src <- function(...) paste0("Source: ", ..., ". Analysis: DBA3702 Group 6.")
+
+n0 <- function(x) comma(round(x))
+pc <- function(x) percent(x, accuracy = 1)
+dl <- function(x) dollar(round(x), prefix = "S$")
+dk <- function(x) paste0(ifelse(x < 0, "-", "+"), "S$", round(abs(x) / 1000), "k")
+
+# LTA quota quarters run Feb-Apr, May-Jul, Aug-Oct, Nov-Jan
+quota_quarter <- function(m) floor_date(m %m-% months(1), "quarter") %m+% months(1)
+regime_of <- function(m) case_when(m < as.Date("2014-02-01") ~ "R1 (to Jan 2014)",
+                                   m < as.Date("2022-05-01") ~ "R2 (Feb 2014 to Apr 2022)",
+                                   TRUE ~ "R3 (May 2022 on)")
+r3_start <- as.Date("2022-05-01")
+
+# Complete quota quarters (all six rounds), Cat A and B
+quarters <- coe |>
+  filter(category %in% c("A", "B"), !is.na(premium)) |>
+  mutate(q_start = quota_quarter(month)) |>
+  group_by(category, q_start) |>
+  summarise(quota = sum(quota), bids = sum(bids_received), premium = mean(premium),
+            rounds = n(), .groups = "drop") |>
+  filter(rounds == 6) |>
+  mutate(bids_per_coe = bids / quota)
+```
+
+```{r findings-prep, include = FALSE}
+# ---- Chart 1: quota vs the 25% rule ----
+last12 <- dereg |>
+  filter(category %in% c("A", "B")) |>
+  arrange(category, month) |>
+  group_by(category) |>
+  mutate(last12 = cumsum(deregistrations_lta) - lag(cumsum(deregistrations_lta), 12)) |>
+  ungroup() |>
+  mutate(q_start = month %m+% months(2)) |>        # 12 months ending 2 months before the quarter
+  select(q_start, category, last12)
+
+rule <- quarters |>
+  inner_join(last12, by = c("q_start", "category")) |>
+  filter(q_start >= as.Date("2023-02-01")) |>
+  mutate(rule = 0.9 * 0.25 * last12)                 # less ~10% that goes to Cat E
+
+rule_q <- rule |>
+  group_by(q_start) |>
+  summarise(actual = sum(quota), rule = sum(rule), .groups = "drop") |>
+  mutate(extra_share = (actual - rule) / actual)
+extra_share_all <- sum(rule_q$actual - rule_q$rule) / sum(rule_q$actual)
+peak_extra <- rule_q |> slice_max(extra_share, n = 1)
+last_extra <- rule_q |> slice_max(q_start, n = 1)
+
+# ---- Chart 2: cars by age ----
+latest_month <- max(age$month)
+ly <- year(latest_month)
+cars_age <- age |>
+  filter(vehicle_type == "Cars", month == latest_month) |>
+  arrange(age_lower) |>
+  mutate(short = ifelse(age_lower >= 20, "20+", as.character(age_lower)),
+         reg   = ifelse(age_lower >= 20, paste0("pre-", ly - 20), as.character(ly - age_lower)),
+         label = factor(paste0(short, "\n", reg), levels = paste0(short, "\n", reg)),
+         group = case_when(age_lower %in% 7:9 ~ "Reach year 10 by 2029",
+                           age_lower %in% 2:4 ~ "Bought in the 2021-24 shortage",
+                           TRUE ~ "Other ages"),
+         group = factor(group, levels = c("Reach year 10 by 2029", "Bought in the 2021-24 shortage", "Other ages")))
+aged_7_10 <- sum(cars_age$population[cars_age$age_lower %in% 7:9])
+aged_2_5  <- sum(cars_age$population[cars_age$age_lower %in% 2:4])
+
+aug <- age |>
+  filter(vehicle_type == "Cars", month(month) == 8) |>
+  transmute(year = year(month), a = pmin(age_lower, 20), population) |>
+  group_by(year, a) |> summarise(pop = sum(population), .groups = "drop")
+scrap10 <- aug |>
+  filter(a == 9) |> transmute(year = year + 1, start = pop) |>
+  inner_join(aug |> filter(a == 10) |> transmute(year, end = pop), by = "year") |>
+  mutate(q = (start - end) / start)
+scrap10_last <- scrap10$q[scrap10$year == max(scrap10$year)]
+
+# ---- Chart 3: renewals by type ----
+renew_type <- reval |>
+  filter(category %in% c("A", "B")) |>
+  group_by(year = year(month), tenure_years) |>
+  summarise(n = sum(revalidations), months = n_distinct(month), .groups = "drop") |>
+  filter(months == 12)
+r5 <- renew_type |> filter(tenure_years == 5)
+r5_peak <- mean(r5$n[r5$year %in% 2016:2019])
+r5_low  <- mean(r5$n[r5$year %in% 2021:2023])
+
+# ---- Chart 4: renewal rate vs PQP ----
+turning <- function(a) {
+  age |> filter(vehicle_type == "Cars", age_lower == a, month(month) == 12) |>
+    transmute(year = year(month) + 1, population)
+}
+renewal <- renew_type |>
+  group_by(year) |> summarise(renew = sum(n), .groups = "drop") |>
+  inner_join(turning(9)  |> rename(t10 = population), by = "year") |>
+  left_join(turning(19) |> rename(t20 = population), by = "year") |>
+  inner_join(pqp |> filter(category %in% c("A", "B"), !is.na(pqp)) |>
+               group_by(year = year(month)) |> summarise(pqp = mean(pqp), .groups = "drop"), by = "year") |>
+  mutate(high = renew / t10, low = renew / (t10 + coalesce(t20, 0)), mid = (high + low) / 2) |>
+  arrange(year)
+ct <- cor.test(renewal$mid, renewal$pqp)
+ren_cheap <- renewal |> filter(year %in% 2019:2021)
+ren_dear  <- renewal |> filter(year %in% 2022:2025)
+
+# ---- Chart 5: quota change vs premium change ----
+qd <- quarters |>
+  arrange(category, q_start) |>
+  group_by(category) |>
+  mutate(ok = lag(q_start, 4) == q_start %m-% months(12),
+         quota_change = quota / lag(quota, 4) - 1,
+         premium_change = premium / lag(premium, 4) - 1) |>
+  ungroup() |>
+  filter(ok %in% TRUE) |>
+  mutate(regime = regime_of(q_start))
+r2_of <- function(d) summary(lm(premium_change ~ quota_change, data = d))$r.squared
+by_regime <- qd |> group_by(category, regime) |>
+  summarise(n = n(), r2 = r2_of(cur_data()), .groups = "drop")
+pooled <- qd |> filter(q_start >= as.Date("2015-01-01")) |> group_by(category) |>
+  summarise(r = cor(quota_change, premium_change), .groups = "drop")
+rg <- function(cat, reg, v) by_regime[[v]][by_regime$category == cat & startsWith(by_regime$regime, reg)]
+
+# ---- Chart 6: bids per COE vs premium ----
+bpc_band <- quantile(quarters$bids_per_coe, c(0.1, 0.9))
+prem_rng <- range(quarters$premium)
+rounds <- coe |>
+  filter(category %in% c("A", "B"), !is.na(premium), month >= as.Date("2014-02-01")) |>
+  arrange(category, month, bidding_no) |>
+  group_by(category) |>
+  mutate(next_change = lead(premium) / premium - 1,
+         pressure = ntile(bid_quota_ratio, 3)) |>
+  ungroup() |>
+  filter(!is.na(next_change))
+warn <- rounds |> group_by(pressure) |> summarise(up = mean(next_change > 0), med = median(next_change))
+
+# ---- Chart 7: premium change 3 or 6 months after an order ----
+all_rounds <- coe |>
+  filter(category %in% c("A", "B"), !is.na(premium)) |>
+  arrange(category, month, bidding_no)
+now_prem <- all_rounds |> group_by(category) |> slice_tail(n = 1) |> select(category, now = premium)
+
+moves <- lapply(c(6, 12), function(h) {
+  all_rounds |>
+    group_by(category) |>
+    mutate(future = lead(premium, h), future_month = lead(month, h)) |>
+    ungroup() |>
+    filter(!is.na(future), interval(month, future_month) %/% months(1) <= h / 2 + 1) |>  # no jump over 2020 gap
+    transmute(category, month, horizon = paste(h / 2, "months"), pct = future / premium - 1)
+}) |> bind_rows()
+
+scen <- bind_rows(moves |> mutate(period = "All rounds, 2010 to 2026"),
+                  moves |> filter(month >= r3_start) |> mutate(period = "Current rules, May 2022 on")) |>
+  group_by(period, category, horizon) |>
+  summarise(n = n(), p10 = quantile(pct, 0.1), p50 = median(pct), p90 = quantile(pct, 0.9), .groups = "drop") |>
+  left_join(now_prem, by = "category") |>
+  mutate(across(c(p10, p50, p90), ~ .x * now, .names = "{.col}_d"))
+sc <- function(per, cat, hz, v) scen[[v]][startsWith(scen$period, per) & scen$category == cat & scen$horizon == hz]
+```
+
+```{r gallery-prep, include = FALSE}
+# S$ thousands with a sign; zero shown as S$0
+dk <- function(x) ifelse(round(abs(x) / 1000) == 0, "S$0",
+                         paste0(ifelse(x < 0, "-", "+"), "S$", round(abs(x) / 1000), "k"))
+how <- function(txt) paste0("*How to read it:* ", txt)
+
+# ---- Chart 1: latest top-up share per category ----
+last_share <- rule |>
+  group_by(category) |>
+  slice_max(q_start, n = 1) |>
+  mutate(share = (quota - rule) / quota) |>
+  ungroup()
+held_back <- rule |> filter(quota < rule) |> nrow()
+
+# ---- Chart 2: heatmap of cars by age, every month (ages 0-15) ----
+heat <- age |>
+  filter(vehicle_type == "Cars", age_lower <= 15)
+
+# ---- Chart 3: guaranteed exits by the year they fall due ----
+exits <- r5 |>
+  transmute(due = year + 5, cars = n) |>
+  mutate(when = ifelse(due <= year(latest_month) - 1, "Already happened", "Still to come"))
+due_peak   <- exits |> filter(due %in% 2021:2024) |> summarise(m = mean(cars)) |> pull(m)
+due_trough <- exits |> filter(due %in% 2026:2028) |> summarise(m = mean(cars)) |> pull(m)
+
+# ---- Chart 4: owners' scrapping decisions vs price (years to August) ----
+prem_sa <- coe |>
+  filter(category %in% c("A", "B"), !is.na(premium)) |>
+  mutate(year = year(month %m+% months(4))) |>
+  group_by(year) |> summarise(premium = mean(premium), quota = sum(quota), .groups = "drop")
+pqp_sa <- pqp |>
+  filter(category %in% c("A", "B"), !is.na(pqp)) |>
+  mutate(year = year(month %m+% months(4))) |>
+  group_by(year) |> summarise(pqp = mean(pqp), .groups = "drop")
+drivers <- aug |>
+  mutate(year = year + 1, a_next = pmin(a + 1, 20)) |>
+  group_by(year, a_next) |> summarise(start = sum(pop), .groups = "drop") |>
+  inner_join(aug |> rename(a_next = a, end = pop), by = c("year", "a_next")) |>
+  group_by(year) |>
+  summarise(early = sum(start[a_next %in% 1:9] - end[a_next %in% 1:9]) / sum(start[a_next %in% 1:9]),
+            early_n = sum(start[a_next %in% 1:9] - end[a_next %in% 1:9]),
+            y10 = 1 - end[a_next == 10] / start[a_next == 10],
+            reach10 = start[a_next == 10], .groups = "drop") |>
+  inner_join(prem_sa, by = "year") |>
+  inner_join(pqp_sa, by = "year")
+ct_early <- cor.test(drivers$early, drivers$premium)
+ct_y10   <- cor.test(drivers$y10, drivers$pqp)
+early_hi <- drivers |> slice_max(early, n = 1)
+early_lo <- drivers |> slice_min(early, n = 1)
+fmt_r <- function(ct) paste0("r = ", sprintf("%.2f", ct$estimate), ", p = ", signif(ct$p.value, 2))
+
+# ---- Chart 5: bids per COE at different price levels ----
+bands <- quarters |>
+  mutate(band = cut(premium, c(0, 50000, 100000, Inf),
+                    labels = c("Under S$50k", "S$50k to 100k", "Over S$100k")))
+band_med <- bands |> group_by(band) |> summarise(med = median(bids_per_coe), n = n(), .groups = "drop")
+spikes <- bands |> filter(bids_per_coe > 2.2)
+
+# ---- Chart 6: price change after 1, 3 and 6 months, current rules ----
+moves_all <- lapply(c(2, 6, 12), function(h) {
+  all_rounds |>
+    group_by(category) |>
+    mutate(future = lead(premium, h), future_month = lead(month, h)) |>
+    ungroup() |>
+    filter(!is.na(future), interval(month, future_month) %/% months(1) <= h / 2 + 1) |>
+    transmute(category, month, horizon = ifelse(h == 2, "1 month", paste(h / 2, "months")),
+              pct = future / premium - 1)
+}) |>
+  bind_rows() |>
+  filter(month >= r3_start) |>
+  left_join(now_prem, by = "category") |>
+  mutate(change = pct * now,
+         horizon = factor(horizon, levels = c("6 months", "3 months", "1 month")))
+ridge_q <- moves_all |>
+  group_by(category, horizon) |>
+  summarise(p50 = median(change), p90 = quantile(change, 0.9), up = mean(change > 0),
+            lo = quantile(change, 0.01), n = n(), .groups = "drop")
+rq <- function(cat, hz, v) ridge_q[[v]][ridge_q$category == cat & ridge_q$horizon == hz]
+# Trim the most extreme 1% on the low side so one outlier does not stretch the axis
+moves_plot <- moves_all |>
+  left_join(ridge_q |> select(category, horizon, lo), by = c("category", "horizon")) |>
+  filter(change >= lo)
+```
+
+# Key findings
+
+- **The next supply wave is already on the road.** `r n0(aged_7_10)` cars reach their 10-year COE expiry by 2029, against only `r n0(aged_2_5)` in the group behind them. Expect more COEs to 2029 and a squeeze in the early 2030s.
+- **LTA's top-ups are fading.** `r pc(extra_share_all)` of Cat A and B COEs since 2023 came on top of LTA's own 25% rule. The share peaked at `r pc(peak_extra$extra_share)` and is now `r pc(last_extra$extra_share)`.
+- **Guaranteed exits have dried up.** Cars forced off the road by 5-year renewals fall from about `r n0(round(due_peak, -2))` a year (2021–24) to about `r n0(round(due_trough, -2))` (2026–28).
+- **The price feedback runs through early scrapping.** When COEs are cheap, owners scrap young cars; when they are dear, they hold on (`r fmt_r(ct_early)`). That keeps supply low when prices are high.
+- **Dealer risk is large and cannot be timed.** Bids per COE stays near `r round(median(quarters$bids_per_coe), 1)` at every price level. At today's prices, 1 in 10 Cat A orders held 3 months costs `r dk(rq("A", "3 months", "p90"))` or more per car.
+
+*Chart types follow the [R Graph Gallery](https://r-graph-gallery.com/all-graphs.html). Blue is always Cat A and red is always Cat B.*
+
+# 1. Where supply comes from (stacked area chart)
+
+`r how("each quarter's quota is split into two layers. Grey is what LTA's 25% rule gives from past deregistrations. Blue is what LTA added on top. The total height is the quota.")`
+
+```{r chart1, fig.height = 5}
+area <- rule |>
+  transmute(category, q_start,
+            `From the 25% rule` = pmin(quota, rule),
+            `LTA top-up`        = pmax(quota - rule, 0)) |>
+  pivot_longer(-c(category, q_start), names_to = "part", values_to = "coes") |>
+  mutate(part = factor(part, levels = c("LTA top-up", "From the 25% rule")))
+
+layer_lab <- rule |>
+  filter(q_start == as.Date("2024-08-01")) |>
+  transmute(category, x = q_start, grey_y = rule / 2, blue_y = rule + (quota - rule) / 2)
+
+p1 <- ggplot(area, aes(q_start, coes, fill = part)) +
+  geom_area(stat = "identity", position = "stack", colour = NA) +
+  geom_text(data = layer_lab, aes(x, grey_y, label = "From the\n25% rule"), inherit.aes = FALSE,
+            size = 3.6, colour = "grey15", lineheight = 0.9) +
+  geom_text(data = layer_lab, aes(x, blue_y, label = "LTA top-up"), inherit.aes = FALSE,
+            size = 3.6, colour = "white", fontface = "bold") +
+  geom_text(data = last_share, aes(q_start, quota, label = paste0("Top-up now\n", pc(pmax(share, 0)))),
+            inherit.aes = FALSE, hjust = 1, vjust = -0.4, size = 3.3, lineheight = 0.9, colour = "grey20") +
+  geom_vline(xintercept = as.Date(c("2023-05-01", "2025-02-01")), linetype = "dotted", colour = "grey30") +
+  geom_text(data = tibble::tibble(x = as.Date(c("2023-05-01", "2025-02-01")), lab = c("Cut and fill", "Extra COEs")),
+            aes(x = x, y = Inf, label = lab), inherit.aes = FALSE, vjust = 1.4, hjust = -0.05, size = 3.2, colour = "grey25") +
+  facet_wrap(~ category, labeller = labeller(category = cat_labels)) +
+  scale_fill_manual(values = c("From the 25% rule" = "grey75", "LTA top-up" = "#2b8cbe"), guide = "none") +
+  scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.15))) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(title = paste0("LTA top-ups peaked at ", pc(peak_extra$extra_share), " of Cat A + B supply and are now ",
+                      pc(last_extra$extra_share)),
+       subtitle = "COEs per quota quarter, split into what LTA's 25% rule gives and what LTA added on top",
+       x = NULL, y = "COEs per quarter",
+       caption = src("LTA COE results and deregistrations. Rule = 25% of the last 12 months' deregistrations, less ~10% to Cat E")) +
+  theme_coe
+p1
+```
+
+- **Finding.** The grey layer, supply set by deregistrations, has roughly doubled since 2023. The blue top-up layer swelled in 2024–25 and is now thin.
+- **Why.** LTA topped up supply while deregistrations were low. As the big wave of cars reaches year 10, the rule does the work again.
+- **For dealers.** Recent supply growth is now structural and can be forecast. Do not count on more top-ups.
+- **Caveat.** The Cat E share is assumed. In `r held_back` quarter`r ifelse(held_back == 1, "", "s")`, mostly late Cat B, the quota sat slightly below the rule; the chart shows these as no top-up.
+
+# 2. The wave moving through the car population (heatmap)
+
+`r how("each row is an age, each column a month. Brighter means more cars. A group of cars bought together moves up one row each year, so it shows as a diagonal band. The white arrows follow two groups. Above the white line, cars have passed their 10-year COE expiry.")`
+
+```{r chart2, fig.height = 5.4}
+lab_big   <- paste0("Bought 2017-19: ", n0(aged_7_10), " cars")
+lab_small <- paste0("Bought 2022-24: ", n0(aged_2_5), " cars")
+
+p2 <- ggplot(heat, aes(month, age_lower + 0.5, fill = population / 1000)) +
+  geom_tile(width = 33, height = 1) +
+  geom_hline(yintercept = 10, colour = "white", linewidth = 1.1) +
+  annotate("text", x = as.Date("2016-03-01"), y = 10.55, label = "Year 10: COE expires",
+           colour = "white", hjust = 0, fontface = "bold", size = 3.5) +
+  annotate("segment", x = as.Date("2018-01-01"), xend = as.Date("2026-04-01"), y = 0.6, yend = 8.6,
+           colour = "white", linewidth = 0.9, arrow = arrow(length = unit(0.3, "cm"), type = "closed")) +
+  annotate("text", x = as.Date("2021-09-01"), y = 5.7, label = lab_big, angle = 21, colour = "white",
+           fontface = "bold", size = 3.5) +
+  annotate("segment", x = as.Date("2023-01-01"), xend = as.Date("2026-04-01"), y = 0.6, yend = 3.6,
+           colour = "white", linewidth = 0.9, arrow = arrow(length = unit(0.3, "cm"), type = "closed")) +
+  annotate("text", x = as.Date("2024-02-01"), y = 3.3, label = lab_small, angle = 21, colour = "white",
+           fontface = "bold", size = 3.2) +
+  scale_fill_viridis_c(option = "magma", name = "Cars\n(thousands)") +
+  scale_y_continuous(breaks = seq(0, 15, 1), expand = c(0, 0)) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y", expand = c(0, 0)) +
+  labs(title = paste0(n0(aged_7_10), " cars bought in 2017-19 reach year 10 by 2029; half as many follow"),
+       subtitle = "Cars on the road by age, every month 2016-2026, ages 0 to 15",
+       x = NULL, y = "Age of car (years)", caption = src("LTA, cars on the road by age (Cat A + B combined)")) +
+  theme_coe + theme(legend.position = "right", panel.grid = element_blank())
+p2
+```
+
+- **Finding.** The bright band of cars bought in 2017–19 now sits just below the year-10 line. Above the line the colours fade fast: `r pc(scrap10_last)` of cars left the road at year 10 last year.
+- **Why.** Cars bought together age together. An earlier band crossed year 10 around 2016–18, which is why deregistrations peaked then.
+- **For dealers.** Supply should rise to 2029, then tighten from about 2031 as the thinner band arrives. Fleets should avoid a large replacement in the early 2030s.
+- **Caveat.** The data does not split Cat A from Cat B, and not every car reaching year 10 is scrapped.
+
+# 3. Guaranteed exits by the year they fall due (lollipop chart)
+
+`r how("each stem is the number of cars on a 5-year COE renewal whose COE runs out that year. These cars cannot renew again, so their exit is known years in advance.")`
+
+```{r chart3, fig.height = 4.8}
+cut_x <- which(sort(exits$due) == year(latest_month)) - 0.5
+p3 <- ggplot(exits, aes(factor(due), cars, colour = when)) +
+  annotate("rect", xmin = cut_x, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "#fff1e6") +
+  geom_segment(aes(xend = factor(due), y = 0, yend = cars), linewidth = 1.3) +
+  geom_point(size = 5) +
+  geom_text(aes(label = comma(round(cars, -2))), vjust = -1.2, size = 3.3, colour = "grey20") +
+  geom_vline(xintercept = cut_x, linetype = "dashed", colour = "grey40") +
+  annotate("text", x = cut_x - 0.15, y = max(exits$cars) * 1.17, label = "Already happened",
+           hjust = 1, size = 3.8, colour = "grey45", fontface = "bold") +
+  annotate("text", x = cut_x + 0.15, y = max(exits$cars) * 1.17, label = "Still to come, but already fixed",
+           hjust = 0, size = 3.8, colour = "#a63603", fontface = "bold") +
+  scale_x_discrete() +
+  scale_colour_manual(values = c("Already happened" = "grey65", "Still to come" = "#e6550d"), guide = "none") +
+  scale_y_continuous(labels = comma, limits = c(0, max(exits$cars) * 1.22)) +
+  labs(title = paste0("Guaranteed exits fall from ~", n0(round(due_peak, -2)), " a year to ~",
+                      n0(round(due_trough, -2)), " in 2026-28"),
+       subtitle = "Cars on a 5-year COE renewal, by the year their COE runs out (renewal year + 5), Cat A + B",
+       x = "Year the 5-year renewal runs out", y = "Cars",
+       caption = src("LTA COE revalidations")) +
+  theme_coe + theme(panel.grid.major.x = element_blank())
+p3
+```
+
+- **Finding.** The guaranteed exits that propped up supply in 2021–24 have almost vanished for 2026–28, before recovering slightly from 2029.
+- **Why.** Few cars reached year 10 in 2021–23 (the dark gap in chart 2), so few could take a 5-year renewal. Cohort size, not owner behaviour, emptied the pipeline.
+- **For dealers.** Supply in 2026–28 rests on the year-10 choices of the big wave in chart 2, so plan with scenarios, not one number.
+- **Caveat.** Some 5-year renewers scrap early, and LTA's cut-and-fill may already have released some of these COEs.
+
+# 4. How owners react to price (scatterplots)
+
+`r how("each dot is one year (September to August). The line is the average trend. Left: the share of cars aged 1 to 9 that were scrapped, against the COE price. Right: the share of cars scrapped at year 10, against the price to renew.")`
+
+```{r chart4, fig.height = 5}
+p4a <- ggplot(drivers, aes(premium / 1000, early)) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, colour = "grey30", fill = "grey88") +
+  geom_point(size = 3, colour = "#54278f") +
+  geom_text(aes(label = year), vjust = -1, size = 3.2) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), expand = expansion(mult = c(0.05, 0.12))) +
+  labs(title = "Young cars scrapped vs COE premium", subtitle = fmt_r(ct_early),
+       x = "Average COE premium (S$ thousands)", y = "Share of cars aged 1-9 scrapped") +
+  theme_coe + theme(plot.title = element_text(size = 12))
+
+p4b <- ggplot(drivers, aes(pqp / 1000, y10)) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, colour = "grey30", fill = "grey88") +
+  geom_point(size = 3, colour = "#54278f") +
+  geom_text(aes(label = year), vjust = -1, size = 3.2) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), expand = expansion(mult = c(0.05, 0.12))) +
+  labs(title = "Cars scrapped at year 10 vs renewal price", subtitle = fmt_r(ct_y10),
+       x = "Average PQP, the price to renew (S$ thousands)", y = "Share scrapped at year 10") +
+  theme_coe + theme(plot.title = element_text(size = 12))
+
+(p4a | p4b) + plot_annotation(
+  title = "When COEs are dear, owners keep young cars; at year 10, a dear renewal pushes them to scrap",
+  caption = src("LTA cars on the road by age and COE results; SingStat PQP. Years to August 2017-2026"),
+  theme = theme_coe)
+```
+
+- **Finding.** The link with early scrapping is strong (`r fmt_r(ct_early)`): in `r early_hi$year`, `r percent(early_hi$early, accuracy = 0.1)` of cars aged 1–9 were scrapped (`r n0(early_hi$early_n)` cars); in `r early_lo$year`, only `r percent(early_lo$early, accuracy = 0.1)` (`r n0(early_lo$early_n)`). The link at year 10 is weaker (`r fmt_r(ct_y10)`).
+- **Why.** Scrapping early returns part of the registration tax and the unused COE value, so cheap COEs make switching cheap. At year 10, a dear PQP makes renewing less worth it.
+- **For dealers.** High prices stop early scrapping, which cuts supply and keeps prices high. This loop is the stronger of the two, so price swings tend to last rather than correct quickly.
+- **Caveat.** Ten yearly points only, and both measures trend over time. Treat these as directions to test.
+
+# 5. Bidding pressure does not follow the price (violin plot)
+
+`r how("each dot is one quota quarter, grouped by how expensive COEs were that quarter. The grey shape shows where most quarters fall; the black bar is the median. The dashed line marks 1.5 bids per COE.")`
+
+```{r chart5, fig.height = 4.8}
+p5 <- ggplot(bands, aes(band, bids_per_coe)) +
+  geom_hline(yintercept = 1.5, linetype = "dashed", colour = "grey45") +
+  geom_violin(fill = "grey92", colour = "grey65", width = 0.8) +
+  geom_jitter(width = 0.12, height = 0, alpha = 0.6, size = 1.8, colour = "grey35") +
+  geom_point(data = band_med, aes(band, med), shape = 95, size = 16, colour = "black") +
+  geom_text(data = band_med, aes(band, med, label = paste0("median ", sprintf("%.2f", med), "\n(", n, " quarters)")),
+            nudge_x = 0.42, size = 3.2, lineheight = 0.9) +
+  annotate("text", x = 2.12, y = max(spikes$bids_per_coe), hjust = 0, size = 3.1, colour = "grey25",
+           label = "Early 2013: rush before\nthe car-loan curbs") +
+  labs(title = paste0("Bids per COE sits near ", round(median(quarters$bids_per_coe), 1),
+                      " whether a COE costs S$30k or S$130k"),
+       subtitle = "Bids received per COE in each quota quarter, Cat A and B, grouped by the quarter's average premium, 2010-2026",
+       x = "Average premium in the quarter", y = "Bids per COE",
+       caption = src("LTA COE results")) +
+  theme_coe + theme(panel.grid.major.x = element_blank())
+p5
+```
+
+- **Finding.** The median bids per COE is `r paste(sprintf("%.2f", band_med$med), collapse = ", ")` in cheap, middle and expensive quarters. After the busiest third of rounds, the premium rose next round `r pc(warn$up[3])` of the time; after the quietest, `r pc(warn$up[1])`.
+- **Why.** Bidders who lose simply bid again, so the number of bids tracks the quota. The price adjusts; the number of bidders does not.
+- **For dealers.** Bidding pressure gives no warning of the next price move. Watch supply and the price level instead.
+- **Caveat.** Bids received is not all demand: buyers priced out never bid.
+
+# 6. The dealer's risk between order and COE (ridgeline plot)
+
+`r how("each hill shows how often the premium moved by each amount between an order and the COE being won, since May 2022, applied to today's price. Right of zero, the dealer pays more. The two lines mark the typical change and the 1-in-10 bad case.")`
+
+```{r chart6, fig.height = 5.4}
+p6 <- ggplot(moves_plot, aes(change, horizon, fill = category)) +
+  geom_density_ridges(scale = 1.2, rel_min_height = 0.01, colour = "grey30", alpha = 0.55,
+                      quantile_lines = TRUE, quantiles = c(0.5, 0.9)) +
+  geom_vline(xintercept = 0, colour = "grey20") +
+  geom_label(data = ridge_q, aes(x = p90, y = horizon, label = paste0("1 in 10: ", dk(p90), "\ntypical: ", dk(p50))),
+             inherit.aes = FALSE, vjust = -0.25, hjust = -0.08, size = 3, lineheight = 0.9,
+             label.size = 0, fill = "white", alpha = 0.85) +
+  facet_wrap(~ category, labeller = labeller(category = cat_labels)) +
+  scale_fill_manual(values = cat_colours, guide = "none") +
+  scale_x_continuous(labels = dk, expand = expansion(mult = c(0.02, 0.18))) +
+  labs(title = paste0("The longer the wait, the bigger the bad case: ", dk(rq("A", "6 months", "p90")),
+                      " per Cat A car after 6 months"),
+       subtitle = "Change in premium per car since May 2022, at today's premium.\nLeft line in each hill: typical change. Right line: 1-in-10 bad case.",
+       x = "Change per car (right of zero: dealer pays more)", y = "Order to COE",
+       caption = src("LTA COE results. Percentage changes between rounds, applied to the latest premium; lowest 1% trimmed")) +
+  theme_coe + theme(panel.grid.major.y = element_blank())
+p6
+```
+
+- **Finding.** The premium rose in `r pc(rq("A", "3 months", "up"))` of 3-month windows for Cat A. The bad case (1 in 10) grows from `r dk(rq("A", "1 month", "p90"))` per car after 1 month to `r dk(rq("A", "6 months", "p90"))` after 6.
+- **Why.** Premiums have mostly risen since 2022, so the hills lean right of zero.
+- **For dealers.** On a 50-car Cat A book held 3 months, the bad case is about `r dollar(50 * rq("A", "3 months", "p90") / 1e6, prefix = "S$", suffix = "m", accuracy = 0.01)`. Shorter quote validity or a COE price adjustment clause cuts this directly.
+- **Caveat.** These are past outcomes, not a forecast, and overlapping windows make the sample look larger than it is.

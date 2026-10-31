@@ -169,104 +169,86 @@ ui <- function(id) {
     tags$p(class = "nx-kicker", "Deeper context"),
     tags$p(
       class = "lede lede--wide",
-      "Extra market background: supply shape, age structure, renewals, and how quota has been set."
+      "Six improved market charts: where supply comes from, the age wave on the road, locked exits, ",
+      "how owners react to price, bidding pressure, and dealer timing risk."
     ),
     div(
       class = "eda-spine",
-      tags$span("Supply shape"),
+      tags$span("Formula vs top-up"),
       tags$span(class = "eda-spine__dot", "->"),
-      tags$span("Season & cycles"),
+      tags$span("Age wave"),
       tags$span(class = "eda-spine__dot", "->"),
-      tags$span("Deregistrations -> quota"),
+      tags$span("Locked exits"),
       tags$span(class = "eda-spine__dot", "->"),
-      tags$span("Age & lock-in"),
+      tags$span("Owner response"),
       tags$span(class = "eda-spine__dot", "->"),
-      tags$span("Renewals"),
+      tags$span("Bidding pressure"),
       tags$span(class = "eda-spine__dot", "->"),
-      tags$span("Formula & price")
+      tags$span("Dealer risk")
     ),
 
     eda_section(
-      1, "How much supply is there?",
-      "Certificate supply moves in multi-year waves",
+      1, "Where supply comes from",
+      "Formula quota versus LTA top-ups since 2023",
       paste(
-        "A and B quotas rise and fall for years at a time.",
-        "Plan packages against that cycle, not against a flat average."
+        "Grey is what LTA's 25% rule gives from past deregistrations; blue is what LTA added on top.",
+        "Top-ups peaked and are thinning - recent supply growth is more structural. Stress policy levers in Scenarios."
       ),
-      c("01_COE_supply_over_time.png", "02_COE_supply_volatility.png"),
-      "Level and volatility of released certificates."
+      "g1_quota_rule_topup.png",
+      "Stacked area by category and quota quarter."
     ),
 
     eda_section(
-      2, "Within the year and across years",
-      "The multi-year cycle matters more than the calendar month",
+      2, "The wave on the road",
+      "A large 2017-19 cohort reaches year 10 by 2029; a thinner cohort follows",
       paste(
-        "Month-of-year patterns are mild. The longer boom-bust is what shapes fleet replacement windows."
+        "Each row is age, each column a month. Bright bands move up the heatmap as cars age.",
+        "Expect more certificates into 2029, then a tighter early-2030s window for fleets."
       ),
-      c("04_Monthly_patterns.png", "05_Long_term_movements.png"),
-      "Monthly patterns and annual averages."
+      "g2_age_heatmap.png",
+      "Cars on the road by age, monthly, ages 0-15."
     ),
 
     eda_section(
-      3, "The link to next quota",
-      "When more cars leave, more certificates usually follow",
-      paste(
-        "Recent deregistrations feed the next quota. Rising exits are an early signal for looser certificate supply."
-      ),
-      "03_Deregistrations_and_supply.png",
-      "Prior 12-month deregistrations vs subsequent quarterly quota."
-    ),
-
-    eda_section(
-      4, "What is already on the road",
-      "A large age cliff is due by ~2029; a thinner cohort follows",
-      paste(
-        "Cars aged 7-9 hit the year-10 decision soon. Ages 2-4 were bought in tight-quota years and leave a thinner pipeline behind."
-      ),
-      c("e1_02_age_profile.png", "08_Vehicle_age_distribution.png"),
-      "Two views of the same age snapshot."
-    ),
-
-    eda_section(
-      5, "Some exits are already booked",
+      3, "Some exits are already booked",
       "Five-year renewals lock scrap dates years ahead",
       paste(
-        "Those cars cannot renew again. That locked cushion was thicker in 2021-24 than in 2026-28 - useful for planning today."
+        "Those cars cannot renew again. The locked cushion that propped supply in 2021-24 is much thinner in 2026-28."
       ),
-      "e1_04_locked_exits.png",
-      "Deregistrations implied by completed 5-year revalidations."
+      "g3_locked_exits_lollipop.png",
+      "Lollipop of exits by the year the 5-year renewal runs out."
     ),
 
     eda_section(
-      6, "Renewals and price",
-      "When renewing gets expensive, more owners leave instead",
+      4, "How owners react to price",
+      "Dear COEs slow early scrapping; dear PQP pushes more year-10 exits",
       paste(
-        "Renewal activity and the renewal-PQP link show how price behaviour can free certificates for the market."
+        "Left: share of cars aged 1-9 scrapped vs premium. Right: share scrapped at year 10 vs renewal price.",
+        "High prices can cut early exits and keep supply tight - a feedback loop, not a quick mean reversion."
       ),
-      c("06_Renewal_activity.png", "e1_05_renewal_pqp.png"),
-      "Renewal activity and renewal share vs PQP."
+      "g4_owner_price_response.png",
+      "Two yearly scatterplots with trend lines."
     ),
 
     eda_section(
-      7, "How quota has been set",
-      "Formula supply versus LTA adjustments since 2023",
+      5, "Bidding pressure vs price",
+      "Bids per COE sits near the same level whether premiums are cheap or dear",
       paste(
-        "Grey is the replacement rule; blue is extra certificates added; red is held back.",
-        "Useful context when you stress policy levers in Scenarios."
+        "Pressure does not warn you about the next price move. Watch supply and the price level instead."
       ),
-      "e1_03_quota_rule.png",
-      "Quarterly stacked bars from Feb 2023."
+      "g5_bids_per_coe_violin.png",
+      "Violin of bids per COE by premium band."
     ),
 
     eda_section(
-      8, "Premiums in context",
-      "Supply timing shows up in clearing prices",
+      6, "Dealer risk between order and COE",
+      "The longer the wait, the larger the 1-in-10 bad case",
       paste(
-        "Long premium history and supply-price charts explain why a locked order book cares about certificate timing.",
-        "Price your book in Your risk."
+        "Hills show how often the premium moved by each amount since May 2022, scaled to today's price.",
+        "Price the open book in Your risk."
       ),
-      c("e1_01_premiums.png", "07_Supply_and_premiums.png", "e1_06_supply_price.png"),
-      "Premium history and supply-price relationships."
+      "g6_dealer_risk_ridges.png",
+      "Ridgeline distributions at 1, 3 and 6 months."
     ),
 
     tags$p(
