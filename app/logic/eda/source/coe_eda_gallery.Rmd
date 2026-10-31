@@ -1,6 +1,6 @@
 ---
 title: "COE Market: What the Data Says"
-subtitle: "DBA3702 Group 6 | Improved EDA, 6 charts from the R Graph Gallery"
+subtitle: "DBA3702 Group 6 | Market gallery (g0–g7) — single source for app/static/eda/"
 date: "`r format(Sys.Date(), '%d %B %Y')`"
 output:
   html_document:
@@ -29,18 +29,19 @@ candidates <- c(
   "data/processed/", "data/", "../data/processed/", "../../data/processed/",
   "Final Group Project/data/", "../data/", "processed/", "./"
 )
-needed <- c("coe_results.rds", "dereg_lta.rds", "revalidation.rds", "pop_by_age.rds", "pqp.rds")
+needed <- c("coe_results.rds", "singstat_coe.rds", "dereg_lta.rds", "revalidation.rds", "pop_by_age.rds", "pqp.rds")
 found <- candidates[sapply(candidates, function(d) all(file.exists(paste0(d, needed))))]
 if (length(found) == 0) {
   stop("Clean data not found. Prefer data/processed/ from the repo root, or source('app/logic/eda/render_gallery.R').")
 }
 data_dir <- found[1]
 
-coe   <- read_rds(paste0(data_dir, "coe_results.rds"))
-dereg <- read_rds(paste0(data_dir, "dereg_lta.rds"))
-reval <- read_rds(paste0(data_dir, "revalidation.rds"))
-age   <- read_rds(paste0(data_dir, "pop_by_age.rds"))
-pqp   <- read_rds(paste0(data_dir, "pqp.rds"))
+coe      <- read_rds(paste0(data_dir, "coe_results.rds"))
+singstat <- read_rds(paste0(data_dir, "singstat_coe.rds"))
+dereg    <- read_rds(paste0(data_dir, "dereg_lta.rds"))
+reval    <- read_rds(paste0(data_dir, "revalidation.rds"))
+age      <- read_rds(paste0(data_dir, "pop_by_age.rds"))
+pqp      <- read_rds(paste0(data_dir, "pqp.rds"))
 
 # One look for every chart
 cat_colours <- c(A = "#1f77b4", B = "#d6404e")
@@ -67,6 +68,15 @@ regime_of <- function(m) case_when(m < as.Date("2014-02-01") ~ "R1 (to Jan 2014)
                                    m < as.Date("2022-05-01") ~ "R2 (Feb 2014 to Apr 2022)",
                                    TRUE ~ "R3 (May 2022 on)")
 r3_start <- as.Date("2022-05-01")
+regimes <- tibble::tibble(
+  start  = as.Date(c("2002-01-01", "2014-02-01", "2022-05-01")),
+  end    = as.Date(c("2014-01-31", "2022-04-30", "2026-12-31")),
+  regime = c("R1: Cat A = up to 1,600cc", "R2: plus a 97 kW power cap", "R3: EVs sorted by a 110 kW cap")
+)
+policy <- tibble::tibble(
+  date  = as.Date(c("2013-03-01", "2018-02-01", "2020-04-01", "2023-05-01", "2025-02-01")),
+  label = c("Loan curbs", "0% car growth", "COVID pause", "Cut and fill", "Extra COEs")
+)
 
 # Complete quota quarters (all six rounds), Cat A and B
 quarters <- coe |>
@@ -302,7 +312,46 @@ moves_plot <- moves_all |>
 - **The price feedback runs through early scrapping.** When COEs are cheap, owners scrap young cars; when they are dear, they hold on (`r fmt_r(ct_early)`). That keeps supply low when prices are high.
 - **Dealer risk is large and cannot be timed.** Bids per COE stays near `r round(median(quarters$bids_per_coe), 1)` at every price level. At today's prices, 1 in 10 Cat A orders held 3 months costs `r dk(rq("A", "3 months", "p90"))` or more per car.
 
-*Chart types follow the [R Graph Gallery](https://r-graph-gallery.com/all-graphs.html). Blue is always Cat A and red is always Cat B.*
+*Chart types follow the [R Graph Gallery](https://r-graph-gallery.com/all-graphs.html). Blue is always Cat A and red is always Cat B. Market PNGs are written only by `source("app/logic/eda/render_gallery.R")`.*
+
+# 0. Premium backdrop (line chart)
+
+`r how("each line is the COE premium every bidding round. Shading marks how Cat A was defined; dotted lines are policy changes.")`
+
+```{r chart0, fig.height = 6.2}
+premiums <- bind_rows(
+  singstat |> filter(category %in% c("A", "B"), month < as.Date("2010-01-01")) |>
+    select(month, bidding_no, category, premium),
+  coe |> filter(category %in% c("A", "B")) |> select(month, bidding_no, category, premium)
+) |>
+  filter(!is.na(premium)) |>
+  mutate(round_date = month + days(if_else(bidding_no == 1, 0L, 14L)))
+lo <- premiums |> filter(category == "A") |> slice_min(premium, n = 1, with_ties = FALSE)
+hi <- premiums |> filter(category == "B") |> slice_max(premium, n = 1, with_ties = FALSE)
+p0 <- ggplot(premiums, aes(round_date, premium)) +
+  geom_rect(data = regimes, aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf, fill = regime),
+            inherit.aes = FALSE, alpha = 0.22) +
+  geom_vline(data = policy, aes(xintercept = date), linetype = "dotted", colour = "grey40") +
+  geom_text(data = policy, aes(x = date, y = Inf, label = label), inherit.aes = FALSE,
+            angle = 90, hjust = 1.1, vjust = -0.4, size = 3.3, colour = "grey30") +
+  geom_line(aes(colour = category), linewidth = 0.6) +
+  scale_colour_manual(values = cat_colours, labels = cat_labels) +
+  scale_fill_manual(values = c("grey60", "#9ecae1", "#fcbba1")) +
+  scale_y_continuous(labels = dollar_format(prefix = "S$")) +
+  scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+  labs(title = paste0("Premiums have ranged from ", dl(lo$premium), " (Cat A, ", year(lo$month), ") to ",
+                      dl(hi$premium), " (Cat B, ", year(hi$month), ")"),
+       subtitle = "Every bidding round. Shading shows how Cat A was defined; dotted lines are policy changes.",
+       x = NULL, y = "COE premium", colour = NULL, fill = NULL,
+       caption = src("SingStat (2002 to 2009) and LTA (2010 onwards) COE bidding results")) +
+  guides(fill = guide_legend(nrow = 1), colour = guide_legend(nrow = 1)) +
+  theme_coe + theme(legend.box = "vertical")
+p0
+```
+
+- **Finding.** Premiums move in long waves. Category definitions change, so a long Cat A line is not one product.
+- **For dealers.** Use this as backdrop before reading supply mechanics below.
+- **PNG.** `g0_premium_history.png`
 
 # 1. Where supply comes from (stacked area chart)
 
@@ -451,6 +500,62 @@ p4b <- ggplot(drivers, aes(pqp / 1000, y10)) +
 - **Why.** Scrapping early returns part of the registration tax and the unused COE value, so cheap COEs make switching cheap. At year 10, a dear PQP makes renewing less worth it.
 - **For dealers.** High prices stop early scrapping, which cuts supply and keeps prices high. This loop is the stronger of the two, so price swings tend to last rather than correct quickly.
 - **Caveat.** Ten yearly points only, and both measures trend over time. Treat these as directions to test.
+
+# 5b. Supply and clearing prices (scatter by regime)
+
+`r how("each point compares one quota quarter with the same quarter a year earlier. Facets are the three Cat A definition regimes.")`
+
+```{r chart7, fig.height = 6.2}
+qd <- coe |>
+  filter(category %in% c("A", "B"), !is.na(premium)) |>
+  mutate(q_start = quota_quarter(month)) |>
+  group_by(category, q_start) |>
+  summarise(quota = sum(quota, na.rm = TRUE), premium = mean(premium, na.rm = TRUE), .groups = "drop") |>
+  group_by(category) |>
+  mutate(
+    quota_change = quota - lag(quota, 4),
+    premium_change = premium - lag(premium, 4),
+    regime = case_when(
+      q_start < as.Date("2014-02-01") ~ "R1",
+      q_start < as.Date("2022-05-01") ~ "R2",
+      TRUE ~ "R3"
+    )
+  ) |>
+  ungroup() |>
+  filter(is.finite(quota_change), is.finite(premium_change))
+fit_sp <- function(df) {
+  m <- lm(premium_change ~ quota_change, data = df)
+  tibble(r2 = summary(m)$r.squared, n = nrow(df))
+}
+by_regime <- qd |> group_by(category, regime) |> group_modify(~ fit_sp(.x)) |> ungroup()
+rg <- function(cat, reg, col) {
+  v <- by_regime[[col]][by_regime$category == cat & by_regime$regime == reg]
+  if (!length(v) || is.na(v[[1]])) NA_real_ else v[[1]]
+}
+strip_lab <- c(
+  R1 = paste0("R1  (A R²=", percent(rg("A", "R1", "r2"), 1), ", B R²=", percent(rg("B", "R1", "r2"), 1), ")"),
+  R2 = paste0("R2  (A R²=", percent(rg("A", "R2", "r2"), 1), ", B R²=", percent(rg("B", "R2", "r2"), 1), ")"),
+  R3 = paste0("R3  (A R²=", percent(rg("A", "R3", "r2"), 1), ", B R²=", percent(rg("B", "R3", "r2"), 1), ")")
+)
+p7 <- ggplot(qd, aes(quota_change, premium_change, colour = category)) +
+  geom_hline(yintercept = 0, colour = "grey60") +
+  geom_vline(xintercept = 0, colour = "grey60") +
+  geom_point(alpha = 0.7, size = 2) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, alpha = 0.15) +
+  facet_wrap(~ regime, scales = "free_x", labeller = labeller(regime = strip_lab)) +
+  scale_colour_manual(values = cat_colours, labels = cat_labels) +
+  labs(title = paste0("Since May 2022, quota changes explain ", pc(rg("A", "R3", "r2")),
+                      " of Cat A premium changes and ", pc(rg("B", "R3", "r2")), " of Cat B"),
+       subtitle = "Each dot is one quota quarter vs the same quarter a year earlier",
+       x = "Change in quarterly quota", y = "Change in average premium", colour = NULL,
+       caption = src("LTA COE results")) +
+  theme_coe
+p7
+```
+
+- **Finding.** Supply timing shows up in prices, especially in the current regime, but not one-for-one.
+- **For dealers.** Certificate timing matters for a locked book; it is not a full price forecast.
+- **PNG.** `g7_supply_price.png`
 
 # 5. Bidding pressure does not follow the price (violin plot)
 

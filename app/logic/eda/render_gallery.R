@@ -1,5 +1,6 @@
-# Render the improved 6-chart EDA gallery into app/static/eda/.
+# Render the Market EDA gallery into app/static/eda/ (one place, one script).
 # Source notebook: app/logic/eda/source/coe_eda_gallery.Rmd
+# Outputs: g0_premium_history … g7_supply_price (Market Deeper context).
 # Run from repo root:
 #   source("app/logic/eda/render_gallery.R")
 
@@ -22,11 +23,12 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 data_dir <- file.path(root, "data", "processed")
 rds <- function(name) read_rds(file.path(data_dir, name))
 
-coe   <- rds("coe_results.rds")
-dereg <- rds("dereg_lta.rds")
-reval <- rds("revalidation.rds")
-age   <- rds("pop_by_age.rds")
-pqp   <- rds("pqp.rds")
+coe      <- rds("coe_results.rds")
+singstat <- rds("singstat_coe.rds")
+dereg    <- rds("dereg_lta.rds")
+reval    <- rds("revalidation.rds")
+age      <- rds("pop_by_age.rds")
+pqp      <- rds("pqp.rds")
 
 cat_colours <- c(A = "#1f77b4", B = "#d6404e")
 cat_labels  <- c(A = "Cat A (smaller cars)", B = "Cat B (bigger cars)")
@@ -56,11 +58,55 @@ regime_of <- function(m) case_when(
   TRUE ~ "R3 (May 2022 on)"
 )
 r3_start <- as.Date("2022-05-01")
+regimes <- tibble::tibble(
+  start  = as.Date(c("2002-01-01", "2014-02-01", "2022-05-01")),
+  end    = as.Date(c("2014-01-31", "2022-04-30", "2026-12-31")),
+  regime = c("R1: Cat A = up to 1,600cc", "R2: plus a 97 kW power cap", "R3: EVs sorted by a 110 kW cap")
+)
+policy <- tibble::tibble(
+  date  = as.Date(c("2013-03-01", "2018-02-01", "2020-04-01", "2023-05-01", "2025-02-01")),
+  label = c("Loan curbs", "0% car growth", "COVID pause", "Cut and fill", "Extra COEs")
+)
 
 save_p <- function(p, name, w = 11, h = 5.6) {
   ggsave(file.path(out_dir, name), p, width = w, height = h, dpi = 140, bg = "white")
   cat("wrote", name, "\n")
 }
+
+# ---- 0 premium history (restored into gallery) ----
+premiums <- bind_rows(
+  singstat |> filter(category %in% c("A", "B"), month < as.Date("2010-01-01")) |>
+    select(month, bidding_no, category, premium),
+  coe |> filter(category %in% c("A", "B")) |> select(month, bidding_no, category, premium)
+) |>
+  filter(!is.na(premium)) |>
+  mutate(round_date = month + days(if_else(bidding_no == 1, 0L, 14L)))
+lo <- premiums |> filter(category == "A") |> slice_min(premium, n = 1, with_ties = FALSE)
+hi <- premiums |> filter(category == "B") |> slice_max(premium, n = 1, with_ties = FALSE)
+p0 <- ggplot(premiums, aes(round_date, premium)) +
+  geom_rect(data = regimes, aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf, fill = regime),
+            inherit.aes = FALSE, alpha = 0.22) +
+  geom_vline(data = policy, aes(xintercept = date), linetype = "dotted", colour = "grey40") +
+  geom_text(data = policy, aes(x = date, y = Inf, label = label), inherit.aes = FALSE,
+            angle = 90, hjust = 1.1, vjust = -0.4, size = 3.3, colour = "grey30") +
+  geom_line(aes(colour = category), linewidth = 0.6) +
+  scale_colour_manual(values = cat_colours, labels = cat_labels) +
+  scale_fill_manual(values = c("grey60", "#9ecae1", "#fcbba1")) +
+  scale_y_continuous(labels = dollar_format(prefix = "S$")) +
+  scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+  labs(
+    title = paste0(
+      "Premiums have ranged from ", dl(lo$premium), " (Cat A, ", year(lo$month), ") to ",
+      dl(hi$premium), " (Cat B, ", year(hi$month), ")"
+    ),
+    subtitle = "Every bidding round. Shading shows how Cat A was defined; dotted lines are policy changes.",
+    x = NULL, y = "COE premium", colour = NULL, fill = NULL,
+    caption = src("SingStat (2002 to 2009) and LTA (2010 onwards) COE bidding results")
+  ) +
+  guides(fill = guide_legend(nrow = 1), colour = guide_legend(nrow = 1)) +
+  theme_coe +
+  theme(legend.box = "vertical")
+save_p(p0, "g0_premium_history.png", 11, 6.5)
 
 quarters <- coe |>
   filter(category %in% c("A", "B"), !is.na(premium)) |>
@@ -253,6 +299,56 @@ p4 <- (p4a | p4b) + plot_annotation(
   theme = theme_coe
 )
 save_p(p4, "g4_owner_price_response.png", 11, 5.4)
+
+# ---- 7 supply vs price (restored into gallery; numbered to match Market story) ----
+qd <- coe |>
+  filter(category %in% c("A", "B"), !is.na(premium)) |>
+  mutate(q_start = quota_quarter(month)) |>
+  group_by(category, q_start) |>
+  summarise(quota = sum(quota, na.rm = TRUE), premium = mean(premium, na.rm = TRUE), .groups = "drop") |>
+  group_by(category) |>
+  mutate(
+    quota_change = quota - lag(quota, 4),
+    premium_change = premium - lag(premium, 4),
+    regime = case_when(
+      q_start < as.Date("2014-02-01") ~ "R1",
+      q_start < as.Date("2022-05-01") ~ "R2",
+      TRUE ~ "R3"
+    )
+  ) |>
+  ungroup() |>
+  filter(is.finite(quota_change), is.finite(premium_change))
+fit_sp <- function(df) {
+  m <- lm(premium_change ~ quota_change, data = df)
+  tibble(r2 = summary(m)$r.squared, n = nrow(df))
+}
+by_regime <- qd |> group_by(category, regime) |> group_modify(~ fit_sp(.x)) |> ungroup()
+rg <- function(cat, reg, col) {
+  v <- by_regime[[col]][by_regime$category == cat & by_regime$regime == reg]
+  if (!length(v) || is.na(v[[1]])) NA_real_ else v[[1]]
+}
+strip_lab <- c(
+  R1 = paste0("R1  (A R²=", percent(rg("A", "R1", "r2"), 1), ", B R²=", percent(rg("B", "R1", "r2"), 1), ")"),
+  R2 = paste0("R2  (A R²=", percent(rg("A", "R2", "r2"), 1), ", B R²=", percent(rg("B", "R2", "r2"), 1), ")"),
+  R3 = paste0("R3  (A R²=", percent(rg("A", "R3", "r2"), 1), ", B R²=", percent(rg("B", "R3", "r2"), 1), ")")
+)
+p7 <- ggplot(qd, aes(quota_change, premium_change, colour = category)) +
+  geom_hline(yintercept = 0, colour = "grey60") +
+  geom_vline(xintercept = 0, colour = "grey60") +
+  geom_point(alpha = 0.7, size = 2) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, alpha = 0.15) +
+  facet_wrap(~ regime, scales = "free_x", labeller = labeller(regime = strip_lab)) +
+  scale_colour_manual(values = cat_colours, labels = cat_labels) +
+  labs(
+    title = paste0(
+      "Since May 2022, quota changes explain ", pc(rg("A", "R3", "r2")),
+      " of Cat A premium changes and ", pc(rg("B", "R3", "r2")), " of Cat B"
+    ),
+    subtitle = "Each dot is one quota quarter vs the same quarter a year earlier",
+    x = "Change in quarterly quota", y = "Change in average premium", colour = NULL,
+    caption = src("LTA COE results")
+  ) + theme_coe
+save_p(p7, "g7_supply_price.png", 11, 6.5)
 
 # ---- 5 bids per COE violin ----
 bands <- quarters |>

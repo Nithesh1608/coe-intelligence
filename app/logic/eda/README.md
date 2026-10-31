@@ -1,28 +1,30 @@
 # EDA charts
 
-All EDA visualisation code for the desk lives here — static ggplot sources next to the render entrypoint. Interactive echarts used in the Shiny app stay under `app/logic/viewdata/` (`proposal_viz.R`, `eda_story.R`, `charts.R`).
+Market Deeper context uses **one notebook**, **one render script**, **one PNG folder**.
 
 ```
 app/logic/eda/
   README.md
-  render_static.R      # earlier static PNGs (e1_*, 01_* ...)
-  render_gallery.R     # improved 6-chart gallery (g1_* ... g6_*)
+  render_gallery.R                 # writes Market gallery PNGs
   source/
-    EDA1.Rmd           # exploratory notebook (Cat A/B)
-    EDA2.R             # exploratory script (Cat A/B)
-    coe_eda_gallery.Rmd  # improved gallery notebook (R Graph Gallery styles)
+    coe_eda_gallery.Rmd            # Market gallery source (g0–g7)
 
-app/static/eda/        # committed PNG artefacts served by the Market tab
-app/logic/viewdata/    # live echarts helpers used by Home / Market / Results / Your risk
+app/static/eda/                    # g0_… g7_ only
 ```
 
-Scope: **Categories A and B only.** Market "Deeper context" shows the **gallery** figures (`g1_`...`g6_`).
-
-Regenerate from the repo root:
+| File | Story |
+|---|---|
+| `g0_premium_history.png` | Long premium backdrop |
+| `g1_quota_rule_topup.png` | Formula vs LTA top-up |
+| `g2_age_heatmap.png` | Age wave on the road |
+| `g3_locked_exits_lollipop.png` | Locked 5y exits |
+| `g4_owner_price_response.png` | Owner response to price |
+| `g7_supply_price.png` | Quota change vs premium change |
+| `g5_bids_per_coe_violin.png` | Bidding pressure |
+| `g6_dealer_risk_ridges.png` | Dealer wait risk |
 
 ```r
-source("app/logic/eda/render_gallery.R")   # preferred (live Market charts)
-source("app/logic/eda/render_static.R")    # legacy artefacts
+source("app/logic/eda/render_gallery.R")
 ```
 
-Needs `ggplot2`, `scales`, `patchwork`, and `ggridges` on `.libPaths()`.
+Needs `ggplot2`, `scales`, `patchwork`, `ggridges`. Scope: **Cat A/B only.**

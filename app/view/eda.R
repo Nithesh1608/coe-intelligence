@@ -154,11 +154,13 @@ ui <- function(id) {
     tags$p(class = "nx-kicker", "Deeper context"),
     tags$p(
       class = "lede lede--wide",
-      "Six improved market charts: where supply comes from, the age wave on the road, locked exits, ",
-      "how owners react to price, bidding pressure, and dealer timing risk."
+      "Long premium history and the supply-price link, then the gallery: formula top-ups, the age wave, ",
+      "locked exits, owner response, bidding pressure, and dealer timing risk."
     ),
     div(
       class = "eda-spine",
+      tags$span("Premium history"),
+      tags$span(class = "eda-spine__dot", "->"),
       tags$span("Formula vs top-up"),
       tags$span(class = "eda-spine__dot", "->"),
       tags$span("Age wave"),
@@ -167,13 +169,26 @@ ui <- function(id) {
       tags$span(class = "eda-spine__dot", "->"),
       tags$span("Owner response"),
       tags$span(class = "eda-spine__dot", "->"),
-      tags$span("Bidding pressure"),
+      tags$span("Supply vs price"),
+      tags$span(class = "eda-spine__dot", "->"),
+      tags$span("Bidding"),
       tags$span(class = "eda-spine__dot", "->"),
       tags$span("Dealer risk")
     ),
 
     eda_section(
-      1, "Where supply comes from",
+      1, "Premium backdrop",
+      "Cat A and B premiums across every bidding round",
+      paste(
+        "Clearing prices move in long waves, not a flat trend. Shading marks how Cat A was defined;",
+        "dotted lines are policy changes. Use this as context before you read supply mechanics below."
+      ),
+      "g0_premium_history.png",
+      "SingStat (to 2009) and LTA (2010 onwards)."
+    ),
+
+    eda_section(
+      2, "Where supply comes from",
       "Formula quota versus LTA top-ups since 2023",
       paste(
         "Grey is what LTA's 25% rule gives from past deregistrations; blue is what LTA added on top.",
@@ -184,7 +199,7 @@ ui <- function(id) {
     ),
 
     eda_section(
-      2, "The wave on the road",
+      3, "The wave on the road",
       "A large 2017-19 cohort reaches year 10 by 2029; a thinner cohort follows",
       paste(
         "Each row is age, each column a month. Bright bands move up the heatmap as cars age.",
@@ -195,7 +210,7 @@ ui <- function(id) {
     ),
 
     eda_section(
-      3, "Some exits are already booked",
+      4, "Some exits are already booked",
       "Five-year renewals lock scrap dates years ahead",
       paste(
         "Those cars cannot renew again. The locked cushion that propped supply in 2021-24 is much thinner in 2026-28."
@@ -205,7 +220,7 @@ ui <- function(id) {
     ),
 
     eda_section(
-      4, "How owners react to price",
+      5, "How owners react to price",
       "Dear COEs slow early scrapping; dear PQP pushes more year-10 exits",
       paste(
         "Left: share of cars aged 1-9 scrapped vs premium. Right: share scrapped at year 10 vs renewal price.",
@@ -216,7 +231,18 @@ ui <- function(id) {
     ),
 
     eda_section(
-      5, "Bidding pressure vs price",
+      6, "Supply and clearing prices",
+      "When quota loosens year-on-year, premiums often ease - but not one-for-one",
+      paste(
+        "Each point compares a quota quarter with the same quarter a year earlier.",
+        "Supply timing shows up in prices; it does not fully explain them. Price a locked book in Your risk."
+      ),
+      "g7_supply_price.png",
+      "Year-on-year quota change vs premium change, by category regime."
+    ),
+
+    eda_section(
+      7, "Bidding pressure vs price",
       "Bids per COE sits near the same level whether premiums are cheap or dear",
       paste(
         "Pressure does not warn you about the next price move. Watch supply and the price level instead."
@@ -226,7 +252,7 @@ ui <- function(id) {
     ),
 
     eda_section(
-      6, "Dealer risk between order and COE",
+      8, "Dealer risk between order and COE",
       "The longer the wait, the larger the 1-in-10 bad case",
       paste(
         "Hills show how often the premium moved by each amount since May 2022, scaled to today's price.",
@@ -234,7 +260,7 @@ ui <- function(id) {
       ),
       "g6_dealer_risk_ridges.png",
       "Ridgeline distributions at 1, 3 and 6 months."
-    ),
+    )
 
   )
 }
