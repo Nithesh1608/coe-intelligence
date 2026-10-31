@@ -443,13 +443,8 @@ chart_g2_heatmap <- function(prep) {
     ) |>
     arrange(month_ord, age_n)
   ages <- as.character(0:15)
-  d$age <- factor(d$age, levels = ages)
-  month_labs <- unique(d$month_lab)
-  snap_m <- function(ym) {
-    target <- as.Date(paste0(ym, "-01"))
-    dates <- as.Date(paste0(month_labs, "-01"))
-    month_labs[[which.min(abs(as.numeric(dates - target)))]]
-  }
+  # Keep age as character (not factor) — factor levels can break e_heatmap + marks
+  d$age <- as.character(d$age)
   lab_big <- paste0(
     "Bought 2017-19: ",
     format(round(prep$aged_7_10), big.mark = ",", trim = TRUE),
@@ -469,16 +464,16 @@ chart_g2_heatmap <- function(prep) {
       calculable = TRUE,
       orient = "vertical",
       right = 4,
-      top = 48,
+      top = 56,
       inRange = list(color = c("#1a1a1a", "#7c2d12", "#ff5c1a", "#c8f542")),
       textStyle = list(color = "#a3a3a3")
     ) |>
-    e_grid(left = 56, right = 80, top = 28, bottom = 48, containLabel = TRUE) |>
+    e_grid(left = 64, right = 88, top = 36, bottom = 56, containLabel = TRUE) |>
     e_tooltip() |>
     e_x_axis(
       name = "Month",
       nameLocation = "middle",
-      nameGap = 28,
+      nameGap = 30,
       nameTextStyle = list(color = "#d4d4d4"),
       axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono", interval = 11)
     ) |>
@@ -487,86 +482,76 @@ chart_g2_heatmap <- function(prep) {
       data = ages,
       name = "Age of car (years)",
       nameLocation = "middle",
-      nameGap = 36,
+      nameGap = 40,
       nameTextStyle = list(color = "#d4d4d4"),
       axisLabel = list(color = "#a3a3a3")
     ) |>
     e_datazoom(type = "inside", x_index = 0)
-  # Year-10 line + diagonal cohort arrows + labels (same as ggplot annotate)
+  # Year-10 line only via markLine (coord arrows crash some echarts heatmap builds)
   series <- p$x$opts$series
   if (length(series)) {
     series[[1]]$markLine <- list(
-      animation = FALSE,
-      data = list(
-        list(
-          yAxis = "10",
-          label = list(
-            formatter = "Year 10: COE expires",
-            color = "#fafafa",
-            fontWeight = "bold",
-            fontSize = 12,
-            position = "insideStartTop"
-          ),
-          lineStyle = list(color = "#fafafa", width = 2, type = "solid"),
-          symbol = "none"
-        ),
-        # Big 2017-19 cohort arrow (2018 age~1 -> 2026 age~9)
-        list(
-          list(coord = list(snap_m("2018-01"), "1"), symbol = "none"),
-          list(
-            coord = list(snap_m("2026-04"), "9"),
-            symbol = "arrow",
-            symbolSize = 10
-          ),
-          lineStyle = list(color = "#fafafa", width = 2)
-        ),
-        # Thin 2022-24 cohort arrow
-        list(
-          list(coord = list(snap_m("2023-01"), "1"), symbol = "none"),
-          list(
-            coord = list(snap_m("2026-04"), "4"),
-            symbol = "arrow",
-            symbolSize = 10
-          ),
-          lineStyle = list(color = "#fafafa", width = 2)
-        )
-      )
-    )
-    series[[1]]$markPoint <- list(
+      silent = TRUE,
       symbol = "none",
-      data = list(
-        list(
-          coord = list(snap_m("2021-09"), "6"),
-          name = lab_big,
-          label = list(
-            show = TRUE,
-            formatter = lab_big,
-            color = "#fafafa",
-            fontWeight = "bold",
-            fontSize = 13,
-            backgroundColor = "rgba(0,0,0,0.45)",
-            padding = c(3, 6),
-            rotate = 21
-          )
+      animation = FALSE,
+      data = list(list(
+        yAxis = "10",
+        label = list(
+          formatter = "Year 10: COE expires",
+          color = "#fafafa",
+          fontWeight = "bold",
+          fontSize = 12,
+          position = "insideStartTop"
         ),
-        list(
-          coord = list(snap_m("2024-02"), "3"),
-          name = lab_small,
-          label = list(
-            show = TRUE,
-            formatter = lab_small,
-            color = "#fafafa",
-            fontWeight = "bold",
-            fontSize = 12,
-            backgroundColor = "rgba(0,0,0,0.45)",
-            padding = c(3, 6),
-            rotate = 21
-          )
-        )
-      )
+        lineStyle = list(color = "#fafafa", width = 2, type = "solid")
+      ))
     )
     p$x$opts$series <- series
   }
+  # Cohort arrows + labels as % graphic overlays (same story as ggplot annotate).
+  # Percent placement survives resize; coord markLines on heatmaps were crashing.
+  arrow_group <- function(left, top, dx, dy, label, label_dx, label_dy, rot = -0.36) {
+    list(
+      type = "group",
+      left = left,
+      top = top,
+      children = list(
+        list(
+          type = "line",
+          shape = list(x1 = 0, y1 = 0, x2 = dx, y2 = dy),
+          style = list(stroke = "#fafafa", lineWidth = 2.2)
+        ),
+        list(
+          type = "polygon",
+          shape = list(points = list(
+            c(dx, dy),
+            c(dx - 12, dy + 6),
+            c(dx - 5, dy + 14)
+          )),
+          style = list(fill = "#fafafa")
+        ),
+        list(
+          type = "text",
+          style = list(
+            text = label,
+            fill = "#fafafa",
+            font = "bold 13px sans-serif",
+            textRotation = rot,
+            backgroundColor = "rgba(0,0,0,0.45)",
+            padding = c(4, 6)
+          ),
+          x = label_dx,
+          y = label_dy
+        )
+      )
+    )
+  }
+  p$x$opts$graphic <- list(
+    # Big 2017-19 cohort arrow (up-right toward year 10)
+    arrow_group("14%", "72%", 340, -160, lab_big, 70, -40, -0.36),
+    # Thin 2022-24 cohort arrow
+    arrow_group("55%", "78%", 180, -70, lab_small, 20, -10, -0.30)
+  )
   p
 }
 

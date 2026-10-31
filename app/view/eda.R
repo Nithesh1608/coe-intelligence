@@ -211,7 +211,7 @@ ui <- function(id) {
       "g0_premium_history.png",
       list(
         uiOutput(ns("g0_title")),
-        echart_card(ns("g0"), height = "440px")
+        echart_card(ns("g0"), height = "560px")
       ),
       "SingStat (to 2009) and LTA (2010 onwards)."
     ),
@@ -231,7 +231,7 @@ ui <- function(id) {
           choices = c("Category A" = "A", "Category B" = "B"),
           selected = "A", width = "180px"
         ),
-        echart_card(ns("g1"), height = "360px")
+        echart_card(ns("g1"), height = "480px")
       ),
       "Stacked area by category and quota quarter."
     ),
@@ -247,7 +247,7 @@ ui <- function(id) {
       list(
         uiOutput(ns("g2_title")),
         uiOutput(ns("g2_note")),
-        echart_card(ns("g2"), height = "420px")
+        echart_card(ns("g2"), height = "580px")
       ),
       "Cars on the road by age, monthly, ages 0-15."
     ),
@@ -264,8 +264,8 @@ ui <- function(id) {
         uiOutput(ns("g4_title")),
         div(
           class = "eda-compare__pair",
-          div(uiOutput(ns("g4a_title")), echart_card(ns("g4a"), height = "340px")),
-          div(uiOutput(ns("g4b_title")), echart_card(ns("g4b"), height = "340px"))
+          div(uiOutput(ns("g4a_title")), echart_card(ns("g4a"), height = "440px")),
+          div(uiOutput(ns("g4b_title")), echart_card(ns("g4b"), height = "440px"))
         )
       ),
       "Two yearly scatterplots with trend lines."
@@ -281,7 +281,7 @@ ui <- function(id) {
       "g7_supply_price.png",
       list(
         uiOutput(ns("g7_title")),
-        echart_card(ns("g7"), height = "400px")
+        echart_card(ns("g7"), height = "520px")
       ),
       "Year-on-year % change in quota vs premium, Cat A and B."
     ),
@@ -296,7 +296,7 @@ ui <- function(id) {
       "g5_bids_per_coe_violin.png",
       list(
         uiOutput(ns("g5_title")),
-        echart_card(ns("g5"), height = "380px")
+        echart_card(ns("g5"), height = "500px")
       ),
       "Violin of bids per COE by premium band."
     ),
@@ -316,7 +316,7 @@ ui <- function(id) {
           choices = c("Category A" = "A", "Category B" = "B"),
           selected = "A", width = "180px"
         ),
-        echart_card(ns("g6"), height = "400px")
+        echart_card(ns("g6"), height = "520px")
       ),
       "Ridgeline distributions at 1, 3 and 6 months."
     )
