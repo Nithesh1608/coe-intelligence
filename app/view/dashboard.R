@@ -51,14 +51,14 @@ ui <- function(id) {
       ),
       div(
         class = "nx-metric nx-metric--accent",
-        tags$span(class = "nx-kicker", "Typical accuracy"),
+        tags$span(class = "nx-kicker", "Typical error"),
         div(class = "nx-num", shiny::textOutput(ns("kpi_mape"), inline = TRUE)),
-        tags$span(class = "nx-hint", "Versus released quota")
+        tags$span(class = "nx-hint", "MAPE vs released quota")
       ),
       div(
         class = "nx-metric",
         tags$span(class = "nx-kicker", "What you get"),
-        div(class = "nx-num nx-num--sm", "A range"),
+        div(class = "nx-num nx-num--sm", "A  Range"),
         tags$span(class = "nx-hint", "Central path plus bands")
       )
     ),
@@ -79,7 +79,7 @@ ui <- function(id) {
     tags$p(class = "footnote", shiny::textOutput(ns("supply_note"), inline = TRUE)),
     card(
       class = "desk-card",
-      card_header("Quarterly outlook"),
+      card_header(uiOutput(ns("qtr_header"))),
       card_body(uiOutput(ns("qtr_table")))
     ),
     tags$p(
@@ -131,9 +131,19 @@ server <- function(id, store) {
       prep <- supply_prep()
       if (is.null(prep)) return("Outlook unavailable - rebuild the forward artefacts, then reload.")
       sprintf(
-        "Category %s  |  outlook from %s  |  %d months ahead  |  released through %s.",
-        prep$category, format(prep$as_of, "%b %Y"), prep$horizon, format(prep$last_published, "%b %Y")
+        "Category %s  |  model outlook from Sep 2022  |  training ends %s  |  %d months ahead  |  released through %s.",
+        prep$category, format(prep$train_end, "%b %Y"), prep$horizon, format(prep$last_published, "%b %Y")
       )
+    })
+
+    output$qtr_header <- renderUI({
+      prep <- supply_prep()
+      when <- if (!is.null(prep) && length(prep$last_published) && is.finite(prep$last_published)) {
+        format(as.Date(prep$last_published), "%b %Y")
+      } else {
+        "latest release"
+      }
+      paste0("Quarterly outlook - after ", when)
     })
 
     output$qtr_table <- renderUI({
@@ -143,14 +153,12 @@ server <- function(id, store) {
         tags$tr(
           tags$td(quarter_label(q$quarter[i])),
           tags$td(fmt_int(q$mid[i])),
-          tags$td(paste0(fmt_int(q$lo80[i]), " - ", fmt_int(q$hi80[i]))),
-          tags$td(if (is.finite(q$published[i])) fmt_int(q$published[i]) else "-")
+          tags$td(paste0(fmt_int(q$lo80[i]), " - ", fmt_int(q$hi80[i])))
         )
       })
       tags$table(
-        class = "table table-sm",
-        style = "color:#fafafa;",
-        tags$thead(tags$tr(tags$th("Quarter"), tags$th("Central"), tags$th("80% band"), tags$th("Published so far"))),
+        class = "desk-table",
+        tags$thead(tags$tr(tags$th("Quarter"), tags$th("Central"), tags$th("80% band"))),
         tags$tbody(rows)
       )
     })

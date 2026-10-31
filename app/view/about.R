@@ -93,7 +93,7 @@ ui <- function(id) {
         class = "about-list",
         tags$li(
           tags$strong("Home. "),
-          "Released certificates against the outlook, then ~36 months forward with 50% and 80% bands and a quarterly table."
+          "Released certificates against the model outlook from Sep 2022, then ~36 months forward with 50% and 80% bands and a quarterly table."
         ),
         tags$li(
           tags$strong("Scenarios. "),
@@ -211,6 +211,11 @@ ui <- function(id) {
     ),
 
     section(
+      "Train, test, and accuracy",
+      uiOutput(ns("accuracy_block"))
+    ),
+
+    section(
       "Modelling",
       uiOutput(ns("model_block"))
     ),
@@ -285,6 +290,69 @@ server <- function(id, store) {
       as.numeric(a$alpha[as.character(a$category) == cat][[1]])
     }
 
+    tt_mape <- function(cat, window) {
+      d <- store$quota_train_test
+      if (is.null(d) || !nrow(d)) return(NA_real_)
+      v <- d$MAPE[as.character(d$category) == cat & as.character(d$window) == window]
+      if (length(v)) as.numeric(v[[1]]) else NA_real_
+    }
+    tt_n <- function(cat, window) {
+      d <- store$quota_train_test
+      if (is.null(d) || !nrow(d)) return(NA_integer_)
+      v <- d$n[as.character(d$category) == cat & as.character(d$window) == window]
+      if (length(v)) as.integer(v[[1]]) else NA_integer_
+    }
+
+    output$accuracy_block <- renderUI({
+      train_end <- format(as.Date(spec$train_end %||% "2024-08-01"), "%b %Y")
+      test_start <- format(as.Date(spec$test_start %||% "2024-09-01"), "%b %Y")
+      tags$div(
+        tags$p(
+          "Accuracy is reported as ",
+          tags$strong("MAPE"),
+          " (mean absolute percentage error) against published monthly quota: the average percentage the outlook is off the released figure. ",
+          "Lower is better. Home's \"typical error\" is this held-out MAPE rounded to the nearest percent."
+        ),
+        tags$ul(
+          class = "about-list",
+          tags$li(
+            tags$strong("Training window. "),
+            sprintf(
+              "Jan 2018 through %s. The evaluation model is fit only on these months. In-sample one-step quota MAPE over that window is %s on Category A and %s on Category B (%s months each).",
+              train_end,
+              pct(tt_mape("A", "train"), 1), pct(tt_mape("B", "train"), 1),
+              tt_n("A", "train")
+            )
+          ),
+          tags$li(
+            tags$strong("Test (held-out) window. "),
+            sprintf(
+              "%s onward for 24 months, never used to choose coefficients. This is the desk's headline track record: quota MAPE %s on A and %s on B, versus %s and %s for a trailing twelve-month average baseline.",
+              test_start,
+              pct(score_of("core_forecast", "A")), pct(score_of("core_forecast", "B")),
+              pct(score_of("simple_average", "A")), pct(score_of("simple_average", "B"))
+            )
+          ),
+          tags$li(
+            tags$strong("Why training starts in 2018. "),
+            "Registration and tender history go back further, but the live features need a complete age stock and short memory of exits. ",
+            "LTA age-band population is solid from 2016; after building due-stock and twelve-month lags, January 2018 is the first month where every predictor used by the model is trustworthy. ",
+            "Earlier months are kept for feature construction, not for fitting or scoring."
+          ),
+          tags$li(
+            tags$strong("How to read train versus test. "),
+            "Train MAPE is optimistic: those months were available to the fit. Test MAPE is the fair score. ",
+            "A good desk report shows both; decisions should lean on the held-out number."
+          ),
+          tags$li(
+            tags$strong("What Home shows. "),
+            "The orange outlook on Home starts in Sep 2022 so the chart stays readable next to recent releases and the forward fan. ",
+            "That display choice does not change the training window or the held-out scores above."
+          )
+        )
+      )
+    })
+
     output$model_block <- renderUI({
       tags$ul(
         class = "about-list",
@@ -297,7 +365,7 @@ server <- function(id, store) {
         tags$li(
           tags$strong("Two fits. "),
           sprintf(
-            "An evaluation fit trained to %s and scored on %s onward (24 months), and a production fit on every month through %s that drives the forward path.",
+            "An evaluation fit trained Jan 2018 through %s and scored on the held-out window from %s, and a production fit on every month through %s that drives the forward path.",
             format(as.Date(spec$train_end %||% "2024-08-01"), "%b %Y"),
             format(as.Date(spec$test_start %||% "2024-09-01"), "%b %Y"),
             format(as.Date(spec$last_observed_month %||% "2026-08-01"), "%b %Y")
@@ -318,7 +386,7 @@ server <- function(id, store) {
         tags$li(
           tags$strong("One-step held-out quota error. "),
           sprintf(
-            "Elastic net %s (A) and %s (B) against %s and %s for the trailing-average baseline.",
+            "Elastic net %s (A) and %s (B) against %s and %s for the trailing-average baseline. Full train and test windows are summarised under Train, test, and accuracy.",
             pct(score_of("core_forecast", "A")), pct(score_of("core_forecast", "B")),
             pct(score_of("simple_average", "A")), pct(score_of("simple_average", "B"))
           )

@@ -124,6 +124,7 @@ load_store <- function(root = project_root()) {
   two_quota_scores <- drop_momentum(read_csv_safe(file.path(exp, "two_models_quota_scores.csv")))
   quota_outlook <- read_csv_safe(file.path(exp, "quota_outlook_calibrated.csv"))
   quota_scores <- read_csv_safe(file.path(exp, "quota_outlook_scores.csv"))
+  quota_train_test <- read_csv_safe(file.path(exp, "quota_train_test_mape.csv"))
 
   # Forward path (production fit rolled 36 months ahead with bootstrap bands),
   # recursive backtest, scenario presets and the renewal response.
@@ -177,6 +178,7 @@ load_store <- function(root = project_root()) {
     two_quota_scores = two_quota_scores,
     quota_outlook = quota_outlook,
     quota_scores = quota_scores,
+    quota_train_test = quota_train_test,
     forward_quota = forward_quota,
     forward_dereg = forward_dereg,
     forward_scenarios = forward_scenarios,
