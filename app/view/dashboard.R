@@ -76,15 +76,10 @@ ui <- function(id) {
         echarts4rOutput(ns("supply"), height = "440px", width = "100%")
       )
     ),
-    tags$p(class = "footnote", shiny::textOutput(ns("supply_note"), inline = TRUE)),
     card(
       class = "desk-card",
       card_header(uiOutput(ns("qtr_header"))),
       card_body(uiOutput(ns("qtr_table")))
-    ),
-    tags$p(
-      class = "footnote",
-      "Stress this path in Scenarios. Price a locked book in Your risk. Method detail lives in About."
     )
   )
 }
@@ -124,15 +119,6 @@ server <- function(id, store) {
           warning("Supply chart failed: ", conditionMessage(e))
           NULL
         }
-      )
-    })
-
-    output$supply_note <- renderText({
-      prep <- supply_prep()
-      if (is.null(prep)) return("Outlook unavailable - rebuild the forward artefacts, then reload.")
-      sprintf(
-        "Category %s  |  model outlook from Sep 2022  |  training ends %s  |  %d months ahead  |  released through %s.",
-        prep$category, format(prep$train_end, "%b %Y"), prep$horizon, format(prep$last_published, "%b %Y")
       )
     })
 
