@@ -4,7 +4,7 @@
   if (is.null(a) || (length(a) == 1L && is.na(a))) b else a
 }
 
-clip <- function(x, n = 7000L) {
+clip <- function(x, n = 14000L) {
   x <- paste(x, collapse = "\n")
   if (nchar(x) <= n) return(x)
   paste0(substr(x, 1L, n), "\n\n[…truncated…]")
@@ -30,8 +30,9 @@ system_prompt <- function() {
     "Answer ONLY from PROJECT CONTEXT below. Be precise, useful, and compact.",
     "No fluff, no marketing, no NVIDIA/API/key talk, no inventing metrics or dates.",
     "Core product forecasts deregistrations / quota supply — not clearing premiums.",
-    "When asked for outlook, quote Forward quota mid / lo80 / hi80 exactly; prefer short markdown tables.",
-    "FORMAT: GitHub-flavoured markdown. Use ## headings for multi-part answers.",
+    "When asked for a past held-out month (e.g. Jan 2025), quote published and outlook from the held-out monthly table.",
+    "When asked for the live forward outlook, quote Forward monthly mid / lo80 / hi80 (or quarterly sums) exactly.",
+    "Prefer short markdown tables. FORMAT: GitHub-flavoured markdown with ## headings for multi-part answers.",
     "Short paragraphs, bullets, tables. Aim under ~280 words unless the user asks for depth.",
     "Always finish the full answer. Keep numbers exact. If not in context, say so briefly.",
     sep = " "
@@ -61,7 +62,7 @@ compact_brief <- function() {
 #' @export
 build_project_context <- function(store = NULL, root = NULL) {
   box::use(
-    app/logic/chat/desk_answers[forecast_context_block]
+    app/logic/chat/desk_answers[forecast_context_block, heldout_quota_context_block]
   )
 
   score_bits <- character()
@@ -71,13 +72,15 @@ build_project_context <- function(store = NULL, root = NULL) {
       fmt_scores(store$two_hits, "Deregistration hit rates (held-out)"),
       if (!is.null(store$meta$train_end)) {
         sprintf(
-          "## Fit window\ntrain_end=%s | test_start=%s | live_model=%s | lambda=%s",
+          "## Fit window\ntrain_end=%s | test_start=%s | live_model=%s | lambda=%s | latest_bid_month=%s",
           as.character(store$meta$train_end),
           as.character(store$meta$test_start),
           store$meta$live_model %||% "core_forecast",
-          store$meta$spec$lambda_rule %||% "lambda.1se"
+          store$meta$spec$lambda_rule %||% "lambda.1se",
+          as.character(store$latest_bid_month %||% NA)
         )
       },
+      heldout_quota_context_block(store),
       forecast_context_block(store)
     )
   }
