@@ -348,7 +348,7 @@ server <- function(id, store) {
       if (nvidia_key_ok()) {
         tags$p(
           class = "coe-bot-status coe-bot-status--ok",
-          paste0("Model live · ", nim_model_label(), " · every answer from NIM")
+          paste0("Model live · ", nim_model_label())
         )
       } else {
         tags$p(
