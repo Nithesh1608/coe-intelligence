@@ -247,7 +247,7 @@ ui <- function(id) {
       list(
         uiOutput(ns("g2_title")),
         uiOutput(ns("g2_note")),
-        echart_card(ns("g2"), height = "580px")
+        echart_card(ns("g2"), height = "720px")
       ),
       "Cars on the road by age, monthly, ages 0-15."
     ),
@@ -296,7 +296,7 @@ ui <- function(id) {
       "g5_bids_per_coe_violin.png",
       list(
         uiOutput(ns("g5_title")),
-        echart_card(ns("g5"), height = "500px")
+        echart_card(ns("g5"), height = "680px")
       ),
       "Violin of bids per COE by premium band."
     ),

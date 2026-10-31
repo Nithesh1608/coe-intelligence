@@ -443,8 +443,13 @@ chart_g2_heatmap <- function(prep) {
     ) |>
     arrange(month_ord, age_n)
   ages <- as.character(0:15)
-  # Keep age as character (not factor) — factor levels can break e_heatmap + marks
   d$age <- as.character(d$age)
+  month_labs <- unique(as.character(d$month_lab))
+  snap_m <- function(ym) {
+    target <- as.Date(paste0(ym, "-01"))
+    dates <- as.Date(paste0(month_labs, "-01"))
+    month_labs[[which.min(abs(as.numeric(dates - target)))]]
+  }
   lab_big <- paste0(
     "Bought 2017-19: ",
     format(round(prep$aged_7_10), big.mark = ",", trim = TRUE),
@@ -455,27 +460,47 @@ chart_g2_heatmap <- function(prep) {
     format(round(prep$aged_2_5), big.mark = ",", trim = TRUE),
     " cars"
   )
+  # Same annotate endpoints as render_gallery.R
+  a1 <- list(x = snap_m("2018-01"), y = "1", x2 = snap_m("2026-04"), y2 = "9")
+  a2 <- list(x = snap_m("2023-01"), y = "1", x2 = snap_m("2026-04"), y2 = "4")
+  t1 <- list(x = snap_m("2021-09"), y = "6")
+  t2 <- list(x = snap_m("2024-02"), y = "3")
+  vmax <- max(d$value, na.rm = TRUE)
+  vmin <- max(0, stats::quantile(d$value, 0.02, na.rm = TRUE))
+
   p <- d |>
     e_charts(month_lab) |>
     e_heatmap(age, value, name = "Cars (thousands)") |>
     e_visual_map(
-      min = 0,
-      max = max(d$value, na.rm = TRUE),
-      calculable = TRUE,
+      min = vmin,
+      max = vmax,
+      calculable = FALSE,
       orient = "vertical",
-      right = 4,
-      top = 56,
-      inRange = list(color = c("#1a1a1a", "#7c2d12", "#ff5c1a", "#c8f542")),
+      right = 8,
+      top = 80,
+      bottom = 80,
+      # magma-like (matches ggplot viridis magma feel on dark)
+      inRange = list(color = c(
+        "#0b0920", "#3b0f70", "#8c2981", "#de4968", "#fe9f6d", "#fcfdbf"
+      )),
+      text = list("Cars", "(thousands)"),
       textStyle = list(color = "#a3a3a3")
     ) |>
-    e_grid(left = 64, right = 88, top = 36, bottom = 56, containLabel = TRUE) |>
+    e_grid(left = 72, right = 96, top = 28, bottom = 48, containLabel = TRUE) |>
     e_tooltip() |>
     e_x_axis(
-      name = "Month",
-      nameLocation = "middle",
-      nameGap = 30,
-      nameTextStyle = list(color = "#d4d4d4"),
-      axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono", interval = 11)
+      axisLabel = list(
+        color = "#a3a3a3",
+        fontFamily = "IBM Plex Mono",
+        # Show year only (January ticks) — same readability as ggplot %Y
+        formatter = htmlwidgets::JS(
+          "function(v){return (v&&v.slice(5)==='01') ? v.slice(0,4) : '';}"
+        ),
+        interval = 0
+      ),
+      axisTick = list(show = FALSE),
+      axisLine = list(show = FALSE),
+      splitLine = list(show = FALSE)
     ) |>
     e_y_axis(
       type = "category",
@@ -484,10 +509,11 @@ chart_g2_heatmap <- function(prep) {
       nameLocation = "middle",
       nameGap = 40,
       nameTextStyle = list(color = "#d4d4d4"),
-      axisLabel = list(color = "#a3a3a3")
-    ) |>
-    e_datazoom(type = "inside", x_index = 0)
-  # Year-10 line only via markLine (coord arrows crash some echarts heatmap builds)
+      axisLabel = list(color = "#a3a3a3"),
+      axisTick = list(show = FALSE),
+      axisLine = list(show = FALSE),
+      splitLine = list(show = FALSE)
+    )
   series <- p$x$opts$series
   if (length(series)) {
     series[[1]]$markLine <- list(
@@ -503,56 +529,103 @@ chart_g2_heatmap <- function(prep) {
           fontSize = 12,
           position = "insideStartTop"
         ),
-        lineStyle = list(color = "#fafafa", width = 2, type = "solid")
+        lineStyle = list(color = "#fafafa", width = 2.2, type = "solid")
       ))
     )
     p$x$opts$series <- series
   }
-  # Cohort arrows + labels as % graphic overlays (same story as ggplot annotate).
-  # Percent placement survives resize; coord markLines on heatmaps were crashing.
-  arrow_group <- function(left, top, dx, dy, label, label_dx, label_dy, rot = -0.36) {
-    list(
-      type = "group",
-      left = left,
-      top = top,
-      children = list(
-        list(
-          type = "line",
-          shape = list(x1 = 0, y1 = 0, x2 = dx, y2 = dy),
-          style = list(stroke = "#fafafa", lineWidth = 2.2)
-        ),
-        list(
-          type = "polygon",
-          shape = list(points = list(
-            c(dx, dy),
-            c(dx - 12, dy + 6),
-            c(dx - 5, dy + 14)
-          )),
-          style = list(fill = "#fafafa")
-        ),
-        list(
-          type = "text",
-          style = list(
-            text = label,
-            fill = "#fafafa",
-            font = "bold 13px sans-serif",
-            textRotation = rot,
-            backgroundColor = "rgba(0,0,0,0.45)",
-            padding = c(4, 6)
-          ),
-          x = label_dx,
-          y = label_dy
-        )
-      )
-    )
-  }
-  p$x$opts$graphic <- list(
-    # Big 2017-19 cohort arrow (up-right toward year 10)
-    arrow_group("14%", "72%", 340, -160, lab_big, 70, -40, -0.36),
-    # Thin 2022-24 cohort arrow
-    arrow_group("55%", "78%", 180, -70, lab_small, 20, -10, -0.30)
+
+  # Place arrows in data coordinates after render (percent graphics sat in the margin)
+  js <- sprintf(
+    "function(el, x) {
+      function getChart(node) {
+        if (!window.echarts) return null;
+        var c = window.echarts.getInstanceByDom(node);
+        if (c) return c;
+        var kids = node.querySelectorAll('div');
+        for (var i = 0; i < kids.length; i++) {
+          c = window.echarts.getInstanceByDom(kids[i]);
+          if (c) return c;
+        }
+        return null;
+      }
+      var chart = getChart(el);
+      if (!chart) return;
+      var labBig = %s;
+      var labSmall = %s;
+      var a1 = %s;
+      var a2 = %s;
+      var t1 = %s;
+      var t2 = %s;
+      function arrow(p0, p1, label, tp, rot) {
+        var dx = p1[0] - p0[0], dy = p1[1] - p0[1];
+        var len = Math.sqrt(dx*dx + dy*dy) || 1;
+        var ux = dx / len, uy = dy / len;
+        var hx = p1[0], hy = p1[1];
+        var bx = hx - ux * 12, by = hy - uy * 12;
+        var px = -uy * 6, py = ux * 6;
+        return {
+          type: 'group',
+          children: [
+            {
+              type: 'line',
+              shape: {x1: p0[0], y1: p0[1], x2: p1[0], y2: p1[1]},
+              style: {stroke: '#fafafa', lineWidth: 2.2}
+            },
+            {
+              type: 'polygon',
+              shape: {points: [[hx, hy], [bx + px, by + py], [bx - px, by - py]]},
+              style: {fill: '#fafafa'}
+            },
+            {
+              type: 'text',
+              style: {
+                text: label,
+                fill: '#fafafa',
+                font: 'bold 13px sans-serif',
+                textRotation: rot,
+                backgroundColor: 'rgba(0,0,0,0.45)',
+                padding: [3, 6]
+              },
+              x: tp[0],
+              y: tp[1]
+            }
+          ]
+        };
+      }
+      function draw() {
+        try {
+          var ax = {xAxisIndex: 0, yAxisIndex: 0};
+          var p0 = chart.convertToPixel(ax, [a1.x, a1.y]);
+          var p1 = chart.convertToPixel(ax, [a1.x2, a1.y2]);
+          var p2 = chart.convertToPixel(ax, [a2.x, a2.y]);
+          var p3 = chart.convertToPixel(ax, [a2.x2, a2.y2]);
+          var tp1 = chart.convertToPixel(ax, [t1.x, t1.y]);
+          var tp2 = chart.convertToPixel(ax, [t2.x, t2.y]);
+          if (!p0 || !p1 || !p2 || !p3) return;
+          chart.setOption({
+            graphic: [
+              arrow(p0, p1, labBig, tp1, -0.36),
+              arrow(p2, p3, labSmall, tp2, -0.30)
+            ]
+          }, {replaceMerge: ['graphic']});
+        } catch (e) {}
+      }
+      draw();
+      chart.off('finished');
+      chart.on('finished', draw);
+      if (window.ResizeObserver) {
+        new ResizeObserver(function(){ draw(); }).observe(el);
+      }
+    }",
+    jsonlite::toJSON(lab_big, auto_unbox = TRUE),
+    jsonlite::toJSON(lab_small, auto_unbox = TRUE),
+    jsonlite::toJSON(a1, auto_unbox = TRUE),
+    jsonlite::toJSON(a2, auto_unbox = TRUE),
+    jsonlite::toJSON(t1, auto_unbox = TRUE),
+    jsonlite::toJSON(t2, auto_unbox = TRUE)
   )
-  p
+  htmlwidgets::onRender(p, js)
 }
 
 #' @export
@@ -655,6 +728,7 @@ violin_poly <- function(vals, center, width = 0.38) {
 #' @export
 chart_g5_bids <- function(prep) {
   levels_b <- c("Under S$50k", "S$50k to 100k", "Over S$100k")
+  set.seed(1L) # stable jitter for compare
   d <- prep$bands |>
     filter(!is.na(band)) |>
     mutate(
@@ -668,32 +742,39 @@ chart_g5_bids <- function(prep) {
       band_i = as.numeric(factor(band, levels = levels_b)),
       label = paste0("median ", sprintf("%.2f", med), "\n(", n, " quarters)")
     )
+  spikes <- d |> filter(bids_per_coe > 2.2)
+  ymax <- max(d$bids_per_coe, na.rm = TRUE) * 1.08
   # Seed chart with scatter, then inject true violin polygons as line+area series
   p <- d |>
     e_charts(x) |>
     e_scatter(bids_per_coe, symbolSize = 7, name = "Quarter") |>
     e_color(pal[["A"]]) |>
-    gallery_grid(top = 36, bottom = 64) |>
+    gallery_grid(top = 28, bottom = 72, left = 20, right = 28) |>
     e_x_axis(
+      type = "value",
       min = 0.5, max = 3.5,
+      interval = 1,
       name = "Average premium in the quarter",
       nameLocation = "middle",
-      nameGap = 32,
+      nameGap = 36,
       nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
       axisLabel = list(
         color = "#a3a3a3",
-        fontSize = 11,
+        fontSize = 12,
+        # Only exact band centres — stops duplicate labels from fractional ticks
         formatter = htmlwidgets::JS(
-          "function(v){var m={1:'Under S$50k',2:'S$50k to 100k',3:'Over S$100k'}; return m[Math.round(v)] || '';}"
+          "function(v){var m={'1':'Under S$50k','2':'S$50k to 100k','3':'Over S$100k'}; return m[String(v)] || '';}"
         )
       ),
       axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
       splitLine = list(show = FALSE)
     ) |>
     e_y_axis(
+      min = 0,
+      max = ymax,
       name = "Bids per COE",
       nameLocation = "middle",
-      nameGap = 40,
+      nameGap = 44,
       nameTextStyle = list(color = "#d4d4d4", fontSize = 12),
       axisLabel = list(color = "#a3a3a3", fontFamily = "IBM Plex Mono"),
       axisLine = list(show = TRUE, lineStyle = list(color = "rgba(255,255,255,0.25)")),
@@ -726,23 +807,42 @@ chart_g5_bids <- function(prep) {
     lineStyle = list(type = "dashed", color = "rgba(255,255,255,0.45)"),
     label = list(color = "#d4d4d4", formatter = "1.5")
   )
-  series[[1]]$markPoint <- list(
-    data = lapply(seq_len(nrow(med)), function(i) {
-      list(
-        coord = c(med$band_i[[i]], med$med[[i]]),
-        value = med$label[[i]],
-        name = med$label[[i]]
+  med_pts <- lapply(seq_len(nrow(med)), function(i) {
+    list(
+      coord = c(med$band_i[[i]], med$med[[i]]),
+      value = med$label[[i]],
+      name = med$label[[i]],
+      symbol = "rect",
+      symbolSize = c(40, 5),
+      itemStyle = list(color = "#fafafa"),
+      label = list(
+        show = TRUE, formatter = "{b}", color = "#fafafa",
+        fontSize = 11, position = "right", distance = 8,
+        lineHeight = 14
       )
-    }),
-    symbol = "rect",
-    symbolSize = c(40, 5),
-    itemStyle = list(color = "#fafafa"),
-    label = list(
-      show = TRUE, formatter = "{b}", color = "#fafafa",
-      fontSize = 11, position = "right", distance = 8,
-      lineHeight = 14
     )
-  )
+  })
+  # Same callout as render_gallery: Early 2013 rush before car-loan curbs
+  if (nrow(spikes)) {
+    sp_y <- max(spikes$bids_per_coe, na.rm = TRUE)
+    med_pts <- c(med_pts, list(list(
+      coord = c(2.12, sp_y),
+      name = "Early 2013: rush before\nthe car-loan curbs",
+      symbol = "circle",
+      symbolSize = 6,
+      itemStyle = list(color = "#fafafa"),
+      label = list(
+        show = TRUE,
+        formatter = "Early 2013: rush before\nthe car-loan curbs",
+        color = "#d4d4d4",
+        fontSize = 11,
+        position = "right",
+        distance = 10,
+        lineHeight = 14
+      )
+    )))
+  }
+  series[[1]]$markPoint <- list(data = med_pts)
   p$x$opts$series <- c(violins, series)
   # Hide violin entries in legend (keep Cat scatter only)
   p$x$opts$legend <- list(
