@@ -1,5 +1,5 @@
 box::use(
-  shiny[NS, moduleServer, div, tags, addResourcePath, selectInput, reactive, uiOutput, renderUI],
+  shiny[NS, moduleServer, div, tags, selectInput, reactive, uiOutput, renderUI],
   bslib[card, card_header, card_body],
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
@@ -21,42 +21,7 @@ box::use(
   if (is.null(a) || !length(a) || (length(a) == 1L && is.na(a))) b else a
 }
 
-eda_fig <- function(file, alt = "") {
-  tags$figure(
-    class = "eda-fig",
-    tags$img(src = file.path("eda-assets", file), alt = alt, class = "eda-fig__img")
-  )
-}
-
-# Temporary compare layout: ggplot PNG (top) | black-orange echarts (bottom).
-eda_compare <- function(n, kicker, title, body, png, charts, aside = NULL) {
-  div(
-    class = "eda-beat eda-beat--full",
-    div(
-      class = "eda-beat__copy eda-beat__copy--wide",
-      tags$span(class = "eda-beat__num", sprintf("%02d", n)),
-      tags$span(class = "nx-kicker", kicker),
-      tags$h3(title),
-      tags$p(body),
-      if (!is.null(aside)) tags$p(class = "eda-beat__aside", aside)
-    ),
-    div(
-      class = "eda-compare eda-compare--stack",
-      div(
-        class = "eda-compare__pane",
-        tags$span(class = "eda-compare__tag", "ggplot (current)"),
-        eda_fig(png, alt = title)
-      ),
-      div(
-        class = "eda-compare__pane",
-        tags$span(class = "eda-compare__tag eda-compare__tag--accent", "echarts (compare)"),
-        div(class = "eda-compare__charts", charts)
-      )
-    )
-  )
-}
-
-viz_block <- function(num, kicker, title, body, bullets, controls = NULL, charts) {
+viz_block <- function(num, kicker, title, body, bullets = list(), controls = NULL, charts) {
   div(
     class = "eda-beat eda-beat--full viz-proposal",
     div(
@@ -74,12 +39,11 @@ viz_block <- function(num, kicker, title, body, bullets, controls = NULL, charts
 
 echart_card <- function(outputId, height = "520px", title = NULL, note = NULL) {
   card(
-    class = "desk-card eda-compare__card",
-    if (!is.null(title)) card_header(class = "eda-compare__chart-title", title),
-    if (!is.null(note)) tags$p(class = "eda-compare__chart-note", note),
-    # Do not use chart-frame--tall: it hard-caps height at 400px and flattens every twin.
+    class = "desk-card eda-chart-card",
+    if (!is.null(title)) card_header(class = "eda-chart-card__title", title),
+    if (!is.null(note)) tags$p(class = "eda-chart-card__note", note),
     card_body(
-      class = "chart-frame eda-compare__frame",
+      class = "chart-frame eda-chart-card__frame",
       style = sprintf("height:%s;min-height:%s;", height, height),
       echarts4rOutput(outputId, height = height, width = "100%")
     )
@@ -91,10 +55,6 @@ echart_card <- function(outputId, height = "520px", title = NULL, note = NULL) {
 ui <- function(id) {
   ns <- NS(id)
   root <- tryCatch(project_root(), error = function(e) getwd())
-  tryCatch(
-    addResourcePath("eda-assets", file.path(root, "app", "static", "eda")),
-    error = function(e) NULL
-  )
   cy <- tryCatch(
     cohort_year_choices(root),
     error = function(e) list(choices = stats::setNames(2024L, "2024"), selected = 2024L)
@@ -120,7 +80,6 @@ ui <- function(id) {
         "Cars registered about ten years ago are reaching their COE decision now.",
         "This view shows that pipeline: who renews, who leaves, and how that feeds A and B quota."
       ),
-      list(),
       controls = selectInput(
         ns("cohort_year"), "Exit year (year-10 decision)",
         choices = cy$choices,
@@ -141,7 +100,6 @@ ui <- function(id) {
         "You quote a package, then bid twice a month. This chart shows the largest premium swing inside each quarter -",
         "the move your open book is exposed to until it clears."
       ),
-      list(),
       controls = selectInput(
         ns("swing_cat"), "Category",
         choices = c("Category A" = "A", "Category B" = "B"),
@@ -164,7 +122,6 @@ ui <- function(id) {
         "When the A/B premium gap narrows, buyers can shift between categories.",
         "Watch the spread and the certificate mix together when you allocate inventory."
       ),
-      list(),
       charts = div(
         class = "timing-compare",
         style = "grid-template-columns: 1fr;",
@@ -187,8 +144,7 @@ ui <- function(id) {
       class = "lede lede--wide",
       "Start from the price backdrop, then the cars aging into certificates, how LTA builds quota, ",
       "whether supply eases premiums, how owners respond, why bidding pressure is a weak signal, ",
-      "and finally the cost of waiting ? which leads into Your risk. ",
-      "Each beat shows the ggplot PNG above a black/orange echarts twin (same prep) for comparison."
+      "and finally the cost of waiting ? which leads into Your risk."
     ),
     div(
       class = "eda-spine",
@@ -207,132 +163,116 @@ ui <- function(id) {
       tags$span("Dealer risk")
     ),
 
-    eda_compare(
-      1, "Premium backdrop",
+    viz_block(
+      4, "Premium backdrop",
       "Cat A and B premiums across every bidding round",
       paste(
         "Clearing prices move in long waves, not a flat trend. Shading marks how Cat A was defined;",
         "dotted lines are policy changes. Use this as context before you read supply mechanics below."
       ),
-      "g0_premium_history.png",
-      list(
+      charts = list(
         uiOutput(ns("g0_title")),
         echart_card(ns("g0"), height = "620px")
-      ),
-      "SingStat (to 2009) and LTA (2010 onwards)."
+      )
     ),
 
-    eda_compare(
-      2, "The wave on the road",
+    viz_block(
+      5, "The wave on the road",
       "A large 2017-19 cohort reaches year 10 by 2029; a thinner cohort follows",
       paste(
         "Each row is age, each column a month. Bright bands move up the heatmap as cars age.",
         "Expect more certificates into 2029, then a tighter early-2030s window for fleets."
       ),
-      "g2_age_heatmap.png",
-      list(
+      charts = list(
         uiOutput(ns("g2_title")),
         uiOutput(ns("g2_note")),
         echart_card(ns("g2"), height = "640px")
-      ),
-      "Cars on the road by age, monthly, ages 0-15."
+      )
     ),
 
-    eda_compare(
-      3, "Where supply comes from",
+    viz_block(
+      6, "Where supply comes from",
       "Formula quota versus LTA top-ups since 2023",
       paste(
-        "Grey / muted is the 25% rule; orange is LTA top-up. Same split as the PNG.",
+        "Muted area is the 25% rule; orange is LTA top-up.",
         "Top-ups peaked and are thinning - recent supply growth is more structural."
       ),
-      "g1_quota_rule_topup.png",
-      list(
-        uiOutput(ns("g1_title")),
-        selectInput(
-          ns("g1_cat"), "Category (echarts)",
-          choices = c("Category A" = "A", "Category B" = "B"),
-          selected = "A", width = "180px"
-        ),
-        echart_card(ns("g1"), height = "560px")
+      controls = selectInput(
+        ns("g1_cat"), "Category",
+        choices = c("Category A" = "A", "Category B" = "B"),
+        selected = "A", width = "180px"
       ),
-      "Stacked area by category and quota quarter."
+      charts = list(
+        uiOutput(ns("g1_title")),
+        echart_card(ns("g1"), height = "560px")
+      )
     ),
 
-    eda_compare(
-      4, "Supply and clearing prices",
+    viz_block(
+      7, "Supply and clearing prices",
       "When the quota rises, do premiums fall? Only partly",
       paste(
         "Each point is one quarter versus the same quarter a year earlier (percent changes).",
         "More certificates often go with softer premiums, but only partly. Price a locked book in Your risk."
       ),
-      "g7_supply_price.png",
-      list(
+      charts = list(
         uiOutput(ns("g7_title")),
         echart_card(ns("g7"), height = "540px")
-      ),
-      "Year-on-year % change in quota vs premium, Cat A and B."
+      )
     ),
 
-    eda_compare(
-      5, "How owners react to price",
+    viz_block(
+      8, "How owners react to price",
       "Dear COEs slow early scrapping; dear PQP pushes more year-10 exits",
       paste(
         "Left: share of cars aged 1-9 scrapped vs premium. Right: share scrapped at year 10 vs renewal price.",
         "High prices can cut early exits and keep supply tight - a feedback loop, not a quick mean reversion."
       ),
-      "g4_owner_price_response.png",
-      list(
+      charts = list(
         uiOutput(ns("g4_title")),
         div(
-          class = "eda-compare__pair",
+          class = "eda-chart-pair",
           div(uiOutput(ns("g4a_title")), echart_card(ns("g4a"), height = "480px")),
           div(uiOutput(ns("g4b_title")), echart_card(ns("g4b"), height = "480px"))
         )
-      ),
-      "Two yearly scatterplots with trend lines."
+      )
     ),
 
-    eda_compare(
-      6, "Bidding pressure vs price",
+    viz_block(
+      9, "Bidding pressure vs price",
       "Bids per COE sits near the same level whether premiums are cheap or dear",
       paste(
         "Orange band = 10th-90th percentile of bids per COE in that premium band; white bar = median.",
         "Pressure does not warn you about the next price move."
       ),
-      "g5_bids_per_coe_violin.png",
-      list(
+      charts = list(
         uiOutput(ns("g5_title")),
         echart_card(ns("g5"), height = "580px")
-      ),
-      "Violin of bids per COE by premium band."
+      )
     ),
 
-    eda_compare(
-      7, "Dealer risk between order and COE",
+    viz_block(
+      10, "Dealer risk between order and COE",
       "The longer the wait, the larger the 1-in-10 bad case",
       paste(
-        "Cat A and Cat B side by side, same as the PNG. Hills show how often the premium moved since May 2022,",
+        "Cat A and Cat B side by side. Hills show how often the premium moved since May 2022,",
         "scaled to today's price. Price the open book in Your risk."
       ),
-      "g6_dealer_risk_ridges.png",
-      list(
+      charts = list(
         uiOutput(ns("g6_title")),
         div(
-          class = "eda-compare__pair",
+          class = "eda-chart-pair",
           echart_card(ns("g6a"), height = "520px"),
           echart_card(ns("g6b"), height = "520px")
         )
-      ),
-      "Ridgeline distributions at 1, 3 and 6 months."
+      )
     )
-
   )
 }
 
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
-    addResourcePath("eda-assets", file.path(project_root(), "app", "static", "eda"))
     root <- project_root()
     pm <- load_premium_moves(root)
 
@@ -349,7 +289,7 @@ server <- function(id, store) {
         g <- gallery()
         txt <- if (!is.null(g) && !is.null(g$titles[[key]])) g$titles[[key]] else NULL
         if (is.null(txt) || !nzchar(txt)) return(NULL)
-        tags$h4(class = "eda-compare__chart-title", txt)
+        tags$h4(class = "eda-chart-card__title", txt)
       })
     }
     output$g0_title <- gallery_title("g0")
@@ -359,7 +299,7 @@ server <- function(id, store) {
       g <- gallery()
       txt <- if (!is.null(g)) g$titles$g2_note else NULL
       if (is.null(txt)) return(NULL)
-      tags$p(class = "eda-compare__chart-note", txt)
+      tags$p(class = "eda-chart-card__note", txt)
     })
     output$g4_title <- gallery_title("g4")
     output$g4a_title <- gallery_title("g4a")
@@ -461,8 +401,5 @@ server <- function(id, store) {
       if (is.null(g)) return(NULL)
       chart_g6_risk(g, category = "B")
     })
-
-    # Do not force-render EDA charts while Home is open - heavy prep + echarts
-    # init on hidden panels can crash the client and blank Home charts.
   })
 }

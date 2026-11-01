@@ -1,6 +1,5 @@
-# Black/orange echarts twins of Market Deeper-context gallery charts.
-# Prep pipelines are copied from app/logic/eda/render_gallery.R (same values).
-# PNGs stay; these sit beside them for comparison.
+# Market Deeper-context gallery: prep + black/orange echarts charts.
+# Used by app/view/eda.R (Market tab).
 
 box::use(
   dplyr[
@@ -76,7 +75,7 @@ quota_quarter <- function(m) {
   floor_date(shift_mo(m, -1L), "quarter") |> shift_mo(1L)
 }
 
-#' Load the same objects render_gallery.R uses and build the same frames.
+#' Load Market deeper-context frames (premiums, age stock, quota, bids, moves).
 #' @export
 prep_gallery <- function(root = project_root()) {
   data_dir <- file.path(root, "data", "processed")
