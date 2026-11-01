@@ -18,13 +18,13 @@ fmt_int <- function(x) {
   format(round(as.numeric(x)), big.mark = ",", scientific = FALSE, trim = TRUE)
 }
 
-#' Results - one-step track record for exits and quota
+#' Track record - one-step held-out exits and quota vs releases
 #' @export
 ui <- function(id) {
   ns <- NS(id)
   div(
     class = "page-stack desk",
-    tags$p(class = "eyebrow", "Results"),
+    tags$p(class = "eyebrow", "Track record"),
     tags$h2("How the outlook held up against real releases"),
     tags$p(
       class = "lede lede--wide",

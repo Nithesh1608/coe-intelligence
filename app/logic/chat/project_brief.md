@@ -3,7 +3,7 @@
 ## Product
 DBA3702 dealer/fleet **COE supply** desk (Rhino/Shiny). Forecasts Cat A/B **deregistrations** and implied **quota** 36 months ahead with bootstrap bands. Does **not** forecast premiums. **Your risk** = exposure calculator for a locked dealer book / fleet schedule (simulated premium paths, optional supply tilt from the forward quota path under a chosen scenario). Category E is out of scope.
 
-Tabs: Home, Scenarios, Market, Results, Your risk, COE bot, About.
+Tabs: Home, Scenarios, Market, Track record, Your risk, COE bot, About.
 
 ## Cleaning
 Sources: LTA DataMall + SingStat/data.gov.sg. `scripts/acquire_data.R` pulls the data.gov.sg tables via httr2.
@@ -23,7 +23,7 @@ Unit: category-month SingStat deregistrations, predictors dated strictly before 
 - Evaluation window: train 2018-01 … 2024-08; held-out 2024-09 onward (24 m). Production fit on the shipped panel rolls ~36–40 months forward (`scripts/rebuild_forward_from_shipped.R`).
 - Bands: recursive residual bootstrap + refits + PQP walk + quota-mapping residual.
 - Quota: α = train median(published monthly quota / trailing-12m dereg). Outlook = α × D₁₂.
-- Recursive backtest with MAPE / bias / 80% coverage is on Results.
+- Recursive backtest with MAPE / bias / 80% coverage is on Track record.
 
 ## Scenarios
 Renewal share ~ log(PQP) fitted per category on 2015–2026 revalidations: slope ≈ −0.17 (A), −0.12 (B) — dearer PQP means fewer renewals. Presets: baseline, +750 injection/qtr, premium → $80k, premium → $160k, clawback of brought-forward stock over 8 quarters, renewal +5 pts. Merged A+B view available.

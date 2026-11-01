@@ -105,8 +105,8 @@ ui <- function(id) {
           "Cohort flow, within-quarter premium swings, the A/B spread and volume shares, plus supporting EDA."
         ),
         tags$li(
-          tags$strong("Results. "),
-          "One-step held-out track record: monthly exits and quota vs released figures, plus period totals that compare our outlook to a 12-month average."
+          tags$strong("Track record. "),
+          "One-step held-out scores: monthly exits and quota vs released figures, plus period totals that compare our outlook to a 12-month average."
         ),
         tags$li(
           tags$strong("Your risk. "),
@@ -400,9 +400,9 @@ server <- function(id, store) {
           " LTA discretion over that formula is the mapping residual, resampled into Home's quota bands."
         ),
         tags$li(
-          tags$strong("Walk-forward lab check (not on Results). "),
+          tags$strong("Walk-forward lab check (not on Track record). "),
           sprintf(
-            "A separate 24-month roll from the training end is kept in the artefacts for method honesty. At 13-24 months: exits MAPE %s (A, bias %+.0f%%) and %s (B, bias %+.0f%%); quota MAPE %s (A) and %s (B). The live Results tab sticks to the clearer one-step charts.",
+            "A separate 24-month roll from the training end is kept in the artefacts for method honesty. At 13-24 months: exits MAPE %s (A, bias %+.0f%%) and %s (B, bias %+.0f%%); quota MAPE %s (A) and %s (B). The live Track record tab sticks to the clearer one-step charts.",
             pct(cal_of("A", "13-24 months", "dereg_mape")), cal_of("A", "13-24 months", "dereg_bias_pct"),
             pct(cal_of("B", "13-24 months", "dereg_mape")), cal_of("B", "13-24 months", "dereg_bias_pct"),
             pct(cal_of("A", "13-24 months", "quota_mape")), pct(cal_of("B", "13-24 months", "quota_mape"))
@@ -468,7 +468,7 @@ server <- function(id, store) {
         tags$li(
           tags$strong("Where the model is weak. "),
           sprintf(
-            "On the one-step held-out window (Results), watch periods where we miss the naive average. In a separate walk-forward lab check, the 80%% quota band covered %s (A) and %s (B) of months at 1-6 months when LTA's 2024-25 releases ran above the formula; Category B exits were under-called by %+.0f%% in months 7-12 of that roll. Numbers live here and in the calibration artefacts, not as a second Results chart.",
+            "On the one-step held-out window (Track record), watch periods where we miss the naive average. In a separate walk-forward lab check, the 80%% quota band covered %s (A) and %s (B) of months at 1-6 months when LTA's 2024-25 releases ran above the formula; Category B exits were under-called by %+.0f%% in months 7-12 of that roll. Numbers live here and in the calibration artefacts, not as a second Track record chart.",
             pct(cal_of("A", "1-6 months", "quota_cover80")), pct(cal_of("B", "1-6 months", "quota_cover80")),
             cal_of("B", "7-12 months", "dereg_bias_pct")
           )

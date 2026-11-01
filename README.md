@@ -16,7 +16,7 @@ rhino::app()
 | Home | Supply pipeline | Released quota vs the held-out model, then the production model rolled 36 months forward with 50% / 80% bootstrap bands and a quarterly table |
 | Scenarios | Feedback and scenarios | Renewal share as a fitted function of PQP, renewal lever, premium glides, LTA injection or clawback, merged A+B |
 | Market | Category dynamics | Cohort flow, within-quarter premium swings, A/B spread and volume shares, supporting EDA |
-| Results | Calibration | One-step held-out scores, period totals where the model missed, 24-month recursive backtest with 80% coverage |
+| Track record | Calibration | One-step held-out scores, period totals where the model missed, 24-month recursive backtest with 80% coverage |
 | Your risk | Exposure calculator | Dealer book and fleet schedule priced on simulated premium paths, optionally tilted by the forward quota path |
 | COE bot | | Instant desk answers on forward quota / accuracy; optional NIM for open phrasing |
 | About | | Data, cleaning, features, model, scenarios, exposure, limits |

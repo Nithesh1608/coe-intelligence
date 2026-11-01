@@ -139,7 +139,7 @@ desk <- desk[desk$model == "core_forecast", c("category", "MAE", "MAPE")]
 
 cat("\nQuota MAPE (one-step):\n")
 print(mape_tab, row.names = FALSE)
-cat("\nShipped desk test KPI (Home / Results; unchanged):\n")
+cat("\nShipped desk test KPI (Home / Track record; unchanged):\n")
 print(desk, row.names = FALSE)
 cat("\nTrain = in-sample from production start; Home orange still from Sep 2022.\n")
 cat("The ~14.6% A figure is calibrated-outlook MAPE on the same held-out months;\n")

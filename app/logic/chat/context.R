@@ -79,7 +79,7 @@ compact_brief <- function() {
     c(
       "## Product",
       "DBA3702 COE supply desk (Rhino/Shiny). Forecasts Cat A/B deregistrations and implied quota ~36 months with bootstrap bands. Does not forecast premiums. Your risk prices a locked dealer book / fleet schedule on simulated premium paths (optional supply tilt from forward quota).",
-      "Tabs: Home, Scenarios, Market, Results, Your risk, COE bot, About.",
+      "Tabs: Home, Scenarios, Market, Track record, Your risk, COE bot, About.",
       "",
       "## Model",
       "Live supply model: elastic net (mixing alpha=0.5, lambda by 1-SE rule) on SingStat VQS deregistrations.",

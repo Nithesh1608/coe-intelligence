@@ -68,7 +68,7 @@ ui <- function(id) {
     nav_panel("Home", dashboard$ui(ns("dashboard"))),
     nav_panel("Scenarios", scenarios$ui(ns("scenarios"))),
     nav_panel("Market", eda$ui(ns("eda"))),
-    nav_panel("Results", forecast$ui(ns("forecast"))),
+    nav_panel("Track record", forecast$ui(ns("forecast"))),
     nav_panel("Your risk", exposure$ui(ns("exposure"))),
     nav_panel("COE bot", coe_bot$ui(ns("coe_bot"))),
     nav_panel("About", about$ui(ns("about"))),

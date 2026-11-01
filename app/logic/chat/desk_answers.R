@@ -111,7 +111,7 @@ answer_accuracy <- function(store) {
         format(store$meta$test_start, "%b %Y")
       ),
       "",
-      "Full period misses and the recursive backtest are on the **Results** tab."
+      "Full period misses and the recursive backtest are on the **Track record** tab."
     ),
     collapse = "\n"
   )
