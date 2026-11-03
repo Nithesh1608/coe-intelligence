@@ -162,12 +162,18 @@ detect_desk_intent <- function(q, pending = NULL) {
   if (!is.null(refuse)) return("refuse")
 
   ql <- tolower(q)
+  # Explanatory questions stay with the live model — never canned desk replies.
+  if (grepl("^(what does|what is|how does|how do|explain|tell me about)\\b", ql) &&
+        !grepl("\\brun\\b|inject|price \\d|orders? at", ql)) {
+    return("chat")
+  }
   if (grepl("scenario|inject|clawback|stress (renew|quota|supply)|pqp (to|at|falls|rises)|what if .{0,40}(renew|inject|pqp|quota)", ql) ||
         (!is.null(detect_preset(q)) && grepl("run|show|apply|compare|quota|dereg", ql))) {
     return("scenario")
   }
-  if (grepl("\\b(price|price my|exposure|your risk|dealer (pnl|p&l)|var95|bad-?case|pooled book)\\b", ql) ||
-        (grepl("\\b(orders?|cars?)\\b", ql) && grepl("\\b(quote|quoted|premium|risk|cost|loss)\\b", ql))) {
+  if (grepl("\\b(price|price my|var95|bad-?case|pooled book)\\b", ql) ||
+        (grepl("\\b(orders?|cars?)\\b", ql) && grepl("\\b(quote|quoted|premium|risk|cost|loss)\\b", ql)) ||
+        (grepl("\\b(exposure|your risk)\\b", ql) && grepl("\\b(price|run|simulate|for \\d|orders?)\\b", ql))) {
     return("exposure")
   }
   "chat"
@@ -270,11 +276,12 @@ slot_prompt <- function(kind, missing, store = NULL, slots = NULL) {
   "I need one more detail to run that on the desk."
 }
 
-format_scenario_answer <- function(prep) {
+#' Compact engine facts for the live model — not a user-facing canned answer.
+desk_scenario_facts <- function(prep) {
   q <- prep$quarters
   rows <- apply(utils::head(q, 8L), 1L, function(r) {
     sprintf(
-      "| %s | %s | %s | %+s |",
+      "%s baseline=%s scenario=%s delta=%s",
       r[["label"]],
       fmt_int(r[["quota_base"]]),
       fmt_int(r[["quota_scenario"]]),
@@ -283,34 +290,30 @@ format_scenario_answer <- function(prep) {
   })
   paste(
     c(
-      "## Scenario result",
+      "# DESK RUN FACTS (authoritative — quote these numbers; do not invent)",
       sprintf(
-        "**Cat %s** · preset **%s** · renewal shift %+0.1f pts · injection %s / quarter",
+        "kind=scenario | category=%s | preset=%s | renewal_shift_pts=%s | injection_per_qtr=%s",
         prep$category,
         prep$preset$label,
-        100 * as.numeric(prep$renewal_shift),
+        format(round(100 * as.numeric(prep$renewal_shift), 1), trim = TRUE),
         fmt_int(prep$injection_per_qtr)
       ),
-      "",
-      "| Quarter | Baseline quota | Scenario quota | Delta |",
-      "| --- | ---: | ---: | ---: |",
-      rows,
-      "",
-      "Chart: baseline vs scenario certificate supply (same engine as the **Scenarios** tab).",
-      "Defaults only — I do not invent extra levers. Open **Scenarios** to fine-tune sliders live."
+      "note=Injection presets split A/B by recent published shares.",
+      "quarterly_quota:",
+      rows
     ),
     collapse = "\n"
   )
 }
 
-format_exposure_answer <- function(res) {
+desk_exposure_facts <- function(res) {
   s <- res$base$summary
   sh <- as.data.frame(res$shifts)
   timing_lines <- character()
   if (nrow(sh)) {
     timing_lines <- apply(sh, 1L, function(r) {
       sprintf(
-        "- **+%sQ:** expected dealer P&L %s · VaR95 loss %s",
+        "+%sQ expected_dealer_pnl=%s var95_loss=%s",
         as.character(r[["shift_quarters"]]),
         fmt_sgd(r[["expected_dealer_pnl"]]),
         fmt_sgd(r[["var95_loss"]])
@@ -319,9 +322,9 @@ format_exposure_answer <- function(res) {
   }
   paste(
     c(
-      "## Your risk (pooled book)",
+      "# DESK RUN FACTS (authoritative — quote these numbers; do not invent)",
       sprintf(
-        "**%s** Cat %s orders · quoted **%s** · win rate %s · vol %sx · tilt %s (%s) · %s sims",
+        "kind=pooled_exposure | orders=%s | category=%s | quoted=%s | win_rate=%s | vol=%sx | tilt=%s | tilt_scn=%s | nsim=%s",
         fmt_int(res$n_orders),
         res$category,
         fmt_sgd(res$quoted_premium),
@@ -331,23 +334,18 @@ format_exposure_answer <- function(res) {
         res$tilt_scn,
         fmt_int(res$nsim)
       ),
-      "",
-      sprintf("- **Expected COE cost:** %s", fmt_sgd(s$expected_cost)),
-      sprintf("- **Bad-case loss (VaR95):** %s", fmt_sgd(s$var95_loss)),
-      sprintf("- **Chance book loses:** %s", fmt_pct(s$prob_loss)),
-      sprintf("- **Expected customer top-up:** %s", fmt_sgd(s$expected_customer_topup)),
-      "",
-      "### Timing shifts",
-      timing_lines,
-      "",
-      "Computed with `make_pooled_book` + the same simulate / dealer_exposure engines as **Your risk**.",
-      "Optional knobs defaulted (not guessed). For uploads or A+B example books, use the tab."
+      sprintf("expected_coe_cost=%s", fmt_sgd(s$expected_cost)),
+      sprintf("var95_loss=%s", fmt_sgd(s$var95_loss)),
+      sprintf("prob_loss=%s", fmt_pct(s$prob_loss)),
+      sprintf("expected_customer_topup=%s", fmt_sgd(s$expected_customer_topup)),
+      "timing:",
+      timing_lines
     ),
     collapse = "\n"
   )
 }
 
-#' Execute a completed desk run. Returns list(ok, text, viz).
+#' Execute a completed desk run. Returns list(ok, facts, viz) — facts feed the LLM.
 #' @export
 execute_desk <- function(kind, slots, store) {
   if (identical(kind, "scenario")) {
@@ -364,11 +362,11 @@ execute_desk <- function(kind, slots, store) {
       error = function(e) NULL
     )
     if (is.null(prep) || is.null(prep$quarters) || !nrow(prep$quarters)) {
-      return(list(ok = FALSE, text = "Could not build that scenario from the live forward path.", viz = NULL))
+      return(list(ok = FALSE, facts = NULL, error = "Could not build that scenario from the live forward path.", viz = NULL))
     }
     return(list(
       ok = TRUE,
-      text = format_scenario_answer(prep),
+      facts = desk_scenario_facts(prep),
       viz = list(type = "scenario", prep = prep)
     ))
   }
@@ -384,7 +382,7 @@ execute_desk <- function(kind, slots, store) {
       error = function(e) list(.err = conditionMessage(e))
     )
     if (!is.null(res$.err)) {
-      return(list(ok = FALSE, text = paste("Could not price the book:", res$.err), viz = NULL))
+      return(list(ok = FALSE, facts = NULL, error = paste("Could not price the book:", res$.err), viz = NULL))
     }
     wf <- tryCatch(
       prep_exposure_waterfall(res$base$summary, res$shifts, res$quoted_total),
@@ -392,11 +390,11 @@ execute_desk <- function(kind, slots, store) {
     )
     return(list(
       ok = TRUE,
-      text = format_exposure_answer(res),
+      facts = desk_exposure_facts(res),
       viz = list(type = "exposure", result = res, waterfall = wf)
     ))
   }
-  list(ok = FALSE, text = "Unknown desk action.", viz = NULL)
+  list(ok = FALSE, facts = NULL, error = "Unknown desk action.", viz = NULL)
 }
 
 #' One shot: interpret message under optional pending slots.
@@ -449,12 +447,21 @@ handle_desk_turn <- function(q, store, pending = NULL) {
   }
 
   out <- execute_desk(kind, slots, store)
+  if (!isTRUE(out$ok)) {
+    return(list(
+      action = "reply",
+      clear_pending = TRUE,
+      text = out$error %||% "Desk run failed.",
+      viz = NULL,
+      ok = FALSE
+    ))
+  }
   list(
-    action = "reply",
+    action = "generate",
     clear_pending = TRUE,
-    text = out$text,
-    viz = if (isTRUE(out$ok)) out$viz else NULL,
-    ok = out$ok
+    facts = out$facts,
+    viz = out$viz,
+    ok = TRUE
   )
 }
 
@@ -462,20 +469,38 @@ handle_desk_turn <- function(q, store, pending = NULL) {
 #' @export
 desk_viz_chart <- function(viz) {
   if (is.null(viz) || is.null(viz$type)) return(NULL)
+  box::use(
+    echarts4r[e_charts, e_bar, e_line, e_tooltip, e_color, e_legend, e_grid, e_x_axis, e_y_axis]
+  )
   if (identical(viz$type, "scenario")) {
-    return(chart_scenario_quota(viz$prep))
+    # Prefer the shared Scenarios chart; fall back to a minimal line if datazoom fails.
+    ch <- tryCatch(chart_scenario_quota(viz$prep), error = function(e) NULL)
+    if (!is.null(ch)) return(ch)
+    d <- as.data.frame(viz$prep$quarters, stringsAsFactors = FALSE)
+    if (!nrow(d)) return(NULL)
+    d$label <- as.character(d$label)
+    d$quota_base <- suppressWarnings(as.numeric(d$quota_base))
+    d$quota_scenario <- suppressWarnings(as.numeric(d$quota_scenario))
+    return(
+      d |>
+        e_charts(label) |>
+        e_line(quota_base, name = "Baseline quota", symbol = "none") |>
+        e_line(quota_scenario, name = "Scenario quota", symbol = "circle", symbolSize = 5) |>
+        e_color(c("#d4d4d4", "#ff5c1a")) |>
+        e_tooltip(trigger = "axis") |>
+        e_legend(right = 8, top = 4) |>
+        e_grid(left = 12, right = 16, top = 48, bottom = 16, containLabel = TRUE)
+    )
   }
   if (identical(viz$type, "exposure") && !is.null(viz$waterfall)) {
-    return(chart_exposure_waterfall(viz$waterfall))
+    ch <- tryCatch(chart_exposure_waterfall(viz$waterfall), error = function(e) NULL)
+    if (!is.null(ch)) return(ch)
   }
   if (identical(viz$type, "exposure")) {
     r <- viz$result
     pnl <- as.numeric(r$base$portfolio$dealer_pnl) / 1000
     h <- graphics::hist(pnl, breaks = 24, plot = FALSE)
     df <- data.frame(mid = as.numeric(h$mids), n = as.numeric(h$counts))
-    box::use(
-      echarts4r[e_charts, e_bar, e_tooltip, e_color, e_legend, e_grid, e_x_axis, e_y_axis]
-    )
     return(
       df |>
         e_charts(mid) |>

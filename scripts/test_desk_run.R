@@ -33,17 +33,17 @@ ok("scenario asks category", identical(r2$action, "reply") && !is.null(r2$pendin
 
 r3 <- handle_desk_turn("A", store, pending = r2$pending)
 ok(
-  "scenario completes",
-  isTRUE(r3$ok) && !is.null(r3$viz) && identical(r3$viz$type, "scenario"),
-  substr(r3$text %||% "", 1, 80)
+  "scenario completes -> generate",
+  identical(r3$action, "generate") && isTRUE(r3$ok) && !is.null(r3$viz) && nzchar(r3$facts %||% ""),
+  substr(r3$facts %||% "", 1, 80)
 )
 
 # Exposure one-shot
 r4 <- handle_desk_turn("Price 30 Cat A orders at $130k", store)
 ok(
-  "exposure one-shot",
-  isTRUE(r4$ok) && !is.null(r4$viz) && identical(r4$viz$type, "exposure"),
-  substr(r4$text %||% r4$error %||% "", 1, 100)
+  "exposure one-shot -> generate",
+  identical(r4$action, "generate") && isTRUE(r4$ok) && !is.null(r4$viz),
+  substr(r4$facts %||% "", 1, 100)
 )
 
 # Exposure slot fill
@@ -54,9 +54,12 @@ ok("exposure asks quote", !is.null(r6$pending) && grepl("quoted premium", r6$tex
 r7 <- handle_desk_turn("145000", store, pending = r6$pending)
 ok(
   "exposure completes after slots",
-  isTRUE(r7$ok) && identical(r7$viz$type, "exposure"),
-  substr(r7$text %||% "", 1, 100)
+  identical(r7$action, "generate") && isTRUE(r7$ok) && identical(r7$viz$type, "exposure"),
+  substr(r7$facts %||% "", 1, 100)
 )
+
+r9 <- handle_desk_turn("What does Your risk do?", store)
+ok("explain your risk -> chat", identical(r9$action, "chat"))
 
 # Cancel
 r8 <- handle_desk_turn("cancel", store, pending = r5$pending)

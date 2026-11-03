@@ -8,7 +8,7 @@ box::use(
   echarts4r[renderEcharts4r, echarts4rOutput],
 )
 box::use(
-  app/logic/chat/provider[ensure_chat_env, chat_ready, chat_model_label, chat_complete],
+  app/logic/chat/provider[ensure_chat_env, chat_ready, chat_complete],
   app/logic/chat/context[system_prompt, build_project_context],
   app/logic/chat/desk_answers[suggestion_chips],
   app/logic/chat/desk_run[handle_desk_turn, desk_viz_chart],
@@ -203,7 +203,13 @@ ui <- function(id) {
     div(
       class = "coe-bot-shell",
       div(class = "coe-bot-thread", id = ns("thread_scroll"), uiOutput(ns("thread"))),
-      uiOutput(ns("desk_panel")),
+      # Keep echarts host in the initial UI — recreating it inside renderUI blanks the widget.
+      div(
+        id = ns("desk_wrap"),
+        class = "coe-bot-desk-panel coe-bot-desk-panel--hidden",
+        tags$span(class = "nx-kicker", id = ns("desk_title"), "Desk chart"),
+        echarts4rOutput(ns("desk_chart"), height = "320px")
+      ),
       div(
         class = "coe-bot-composer",
         textAreaInput(
@@ -227,6 +233,19 @@ ui <- function(id) {
     tags$script(HTML(sprintf(
       "(function(){
         var ns='%s';
+        if (window.Shiny) {
+          Shiny.addCustomMessageHandler('coe-bot-desk', function(msg) {
+            var wrap = document.getElementById(msg.id);
+            if (!wrap) return;
+            if (msg.show) wrap.classList.remove('coe-bot-desk-panel--hidden');
+            else wrap.classList.add('coe-bot-desk-panel--hidden');
+            var title = document.getElementById(msg.titleId);
+            if (title && msg.title) title.textContent = msg.title;
+            if (msg.show) {
+              setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 80);
+            }
+          });
+        }
         var gate=false;
         function threadHost(){ return document.getElementById(ns+'thread'); }
         function scrollThread(){
@@ -353,19 +372,11 @@ server <- function(id, store) {
 
     output$status <- renderUI({
       ensure_chat_env(root)
-      pend <- desk_pending()
-      bits <- character()
       if (chat_ready()) {
-        bits <- c(bits, paste0("Model live · ", chat_model_label()))
+        tags$p(class = "coe-bot-status coe-bot-status--ok", "Model live")
       } else {
-        bits <- c(bits, "Chat model keys missing (forecast Q&A offline)")
+        tags$p(class = "coe-bot-status coe-bot-status--bad", "Model offline")
       }
-      bits <- c(bits, "Desk engines on (Scenarios / pooled risk)")
-      if (!is.null(pend)) {
-        bits <- c(bits, paste0("Waiting for ", pend$kind, " details — say cancel to abort"))
-      }
-      cls <- if (chat_ready()) "coe-bot-status coe-bot-status--ok" else "coe-bot-status coe-bot-status--bad"
-      tags$p(class = cls, paste(bits, collapse = " · "))
     })
 
     output$thread <- renderUI({
@@ -381,28 +392,39 @@ server <- function(id, store) {
       }))
     })
 
-    output$desk_panel <- renderUI({
-      viz <- desk_viz()
-      if (is.null(viz)) return(NULL)
-      title <- if (identical(viz$type, "scenario")) {
+    show_desk_panel <- function(viz) {
+      title <- if (is.null(viz)) {
+        "Desk chart"
+      } else if (identical(viz$type, "scenario")) {
         "Desk chart · Scenarios"
       } else {
         "Desk chart · Your risk"
       }
-      div(
-        class = "coe-bot-desk-panel",
-        tags$span(class = "nx-kicker", title),
-        echarts4rOutput(session$ns("desk_chart"), height = "320px")
-      )
-    })
+      session$sendCustomMessage("coe-bot-desk", list(
+        id = session$ns("desk_wrap"),
+        titleId = session$ns("desk_title"),
+        show = !is.null(viz),
+        title = title
+      ))
+    }
 
     output$desk_chart <- renderEcharts4r({
       viz <- desk_viz()
       req(!is.null(viz))
-      ch <- desk_viz_chart(viz)
+      ch <- tryCatch(
+        desk_viz_chart(viz),
+        error = function(e) {
+          warning("Desk chart failed: ", conditionMessage(e))
+          NULL
+        }
+      )
       req(!is.null(ch))
       ch
     })
+
+    observeEvent(desk_viz(), {
+      show_desk_panel(desk_viz())
+    }, ignoreNULL = FALSE)
 
     observeEvent(input$clear, {
       if (isTRUE(busy())) return()
@@ -424,7 +446,7 @@ server <- function(id, store) {
       history(c(prior, list(list(role = "user", content = q))))
       updateTextAreaInput(session, "prompt", value = "")
 
-      # 1) Constrained desk runner first (existing R engines only).
+      # 1) Constrained desk runner (engines only) — may ask slots or supply facts.
       desk <- tryCatch(
         handle_desk_turn(q, store, pending = desk_pending()),
         error = function(e) list(action = "chat", error = conditionMessage(e))
@@ -433,12 +455,16 @@ server <- function(id, store) {
       if (identical(desk$action, "reply")) {
         if (isTRUE(desk$clear_pending)) desk_pending(NULL)
         if (!is.null(desk$pending)) desk_pending(desk$pending)
-        if (!is.null(desk$viz)) desk_viz(desk$viz)
         finish_turn(history, busy, session, list(ok = TRUE, text = desk$text %||% ""))
         return()
       }
 
-      # 2) Ordinary grounded chat via Bedrock/NIM.
+      if (identical(desk$action, "generate")) {
+        if (isTRUE(desk$clear_pending)) desk_pending(NULL)
+        if (!is.null(desk$viz)) desk_viz(desk$viz)
+      }
+
+      # 2) Live model always writes the user-facing answer (chips included).
       ensure_chat_env(root)
       if (!chat_ready()) {
         finish_turn(history, busy, session, list(ok = TRUE, text = key_missing_msg()))
@@ -447,6 +473,9 @@ server <- function(id, store) {
 
       turns <- utils::tail(prior, 4L)
       sys <- build_system(store, question = q)
+      if (identical(desk$action, "generate") && nzchar(desk$facts %||% "")) {
+        sys <- paste(sys, "\n\n", desk$facts, sep = "")
+      }
       api_msgs <- c(
         list(list(role = "system", content = sys)),
         turns,
