@@ -26,7 +26,7 @@ Unit: category-month SingStat deregistrations, predictors dated strictly before 
 - Recursive backtest with MAPE / bias / 80% coverage is on Track record.
 
 ## Scenarios
-Renewal share ~ log(PQP) fitted per category on 2015–2026 revalidations: slope ≈ −0.17 (A), −0.12 (B) — dearer PQP means fewer renewals. Presets: baseline, +750 injection/qtr, premium → $80k, premium → $160k, clawback of brought-forward stock over 8 quarters, renewal +5 pts. Merged A+B view available.
+Renewal share ~ log(PQP) fitted per category on 2015–2026 revalidations: slope ≈ −0.17 (A), −0.12 (B) — dearer PQP means fewer renewals. Presets: baseline, +750 injection/qtr, PQP → $80k, PQP → $160k, clawback of brought-forward stock over 8 quarters, renewal +5 pts. Merged A+B view available.
 
 ## Exposure
 Block-bootstrap premium paths; optional supply tilt with elasticity ≈ −0.22 A/B using the forward quota path. Dealer: guaranteed/capped/rebate, VaR/CVaR. Fleet: bid-new vs 5y/10y renew.

@@ -632,6 +632,7 @@ body {
 
 .cmp-wrap {
   margin-top: 0.35rem;
+  overflow-x: auto;
 }
 
 .cmp-summary {
@@ -640,6 +641,16 @@ body {
   font-size: 0.85rem;
   color: #c8f542;
   letter-spacing: 0.02em;
+}
+
+.cmp-table {
+  min-width: 720px;
+}
+
+.cmp-table th:nth-child(1),
+.cmp-table td:nth-child(1) {
+  white-space: nowrap;
+  min-width: 16rem;
 }
 
 .cmp-table th:nth-child(3),
