@@ -2061,8 +2061,15 @@ body {
   background: #0a0a0a;
 }
 
+/* visibility/height — not display:none — so echarts can measure on first paint */
 .coe-bot-desk-panel--hidden {
-  display: none;
+  visibility: hidden;
+  height: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+  border-top-color: transparent;
 }
 
 .coe-bot-desk-panel .nx-kicker {

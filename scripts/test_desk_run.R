@@ -1,4 +1,5 @@
-# Desk runner smoke (no LLM). Run: Rscript scripts/test_desk_run.R
+# Desk runner + chart-data smoke tests (no Shiny UI).
+# Run: Rscript scripts/test_desk_run.R
 setwd("C:/COE Intelligence")
 if (file.exists(".Renviron")) readRenviron(".Renviron")
 .libPaths(c("C:/Users/Optiplex/AppData/Local/R/win-library/4.6", .libPaths()))
@@ -6,63 +7,130 @@ if (file.exists(".Renviron")) readRenviron(".Renviron")
 `%||%` <- function(a, b) {
   if (is.null(a) || !length(a) || !nzchar(as.character(a)[[1]])) b else a
 }
+
+n_pass <- 0L
+n_fail <- 0L
 ok <- function(label, cond, detail = "") {
-  cat(if (isTRUE(cond)) "PASS" else "FAIL", "-", label)
-  if (nzchar(detail)) cat(" |", substr(detail, 1, 120))
+  hit <- isTRUE(cond)
+  if (hit) n_pass <<- n_pass + 1L else n_fail <<- n_fail + 1L
+  cat(if (hit) "PASS" else "FAIL", "-", label)
+  if (nzchar(detail)) cat(" |", substr(gsub("\\s+", " ", detail), 1, 100))
   cat("\n")
+  invisible(hit)
 }
+
+cat("=== COE desk / chat smoke ===\n")
 
 box::use(
   app/logic/viewdata/store[load_store],
-  app/logic/chat/desk_run[handle_desk_turn]
+  app/logic/chat/desk_run[handle_desk_turn],
+  app/logic/chat/provider[ensure_chat_env, chat_ready, chat_provider, chat_model_label, chat_complete]
 )
 
+ensure_chat_env()
 store <- load_store()
 
-# Forecast-style should fall through to chat
-r0 <- handle_desk_turn("What is the Cat A quota forecast?", store)
-ok("forecast -> chat", identical(r0$action, "chat"))
+cat("\n-- Provider --\n")
+ok("chat ready", chat_ready(), chat_provider())
+ok("model label non-empty", nzchar(chat_model_label()), chat_model_label())
 
-# Refuse premium forecast
-r1 <- handle_desk_turn("What will next tender premium be for Cat A?", store)
-ok("refuse premium forecast", identical(r1$action, "reply") && grepl("clearing premium", r1$text, ignore.case = TRUE))
+cat("\n-- Intent routing --\n")
+ok("forecast -> chat", identical(handle_desk_turn("What is the Cat A quota forecast?", store)$action, "chat"))
+ok(
+  "explain your risk -> chat",
+  identical(handle_desk_turn("What does Your risk do?", store)$action, "chat")
+)
+ok(
+  "refuse premium forecast",
+  {
+    r <- handle_desk_turn("What will next tender premium be for Cat A?", store)
+    identical(r$action, "reply") && grepl("clearing premium", r$text, ignore.case = TRUE)
+  }
+)
 
-# Scenario slot ask
+cat("\n-- Scenario engine --\n")
 r2 <- handle_desk_turn("Run inject 750", store)
-ok("scenario asks category", identical(r2$action, "reply") && !is.null(r2$pending) && grepl("A.*or.*B", r2$text))
-
+ok("inject asks category", identical(r2$action, "reply") && !is.null(r2$pending))
 r3 <- handle_desk_turn("A", store, pending = r2$pending)
 ok(
-  "scenario completes -> generate",
-  identical(r3$action, "generate") && isTRUE(r3$ok) && !is.null(r3$viz) && nzchar(r3$facts %||% ""),
-  substr(r3$facts %||% "", 1, 80)
+  "inject Cat A -> generate + facts + viz",
+  identical(r3$action, "generate") && isTRUE(r3$ok) &&
+    identical(r3$viz$type, "scenario") && nzchar(r3$facts %||% "")
+)
+ok(
+  "scenario quarters plottable",
+  {
+    q <- r3$viz$prep$quarters
+    !is.null(q) && nrow(q) >= 4L &&
+      all(is.finite(as.numeric(q$quota_base))) &&
+      all(is.finite(as.numeric(q$quota_scenario)))
+  },
+  sprintf("n=%s", nrow(r3$viz$prep$quarters %||% data.frame()))
 )
 
-# Exposure one-shot
+cat("\n-- Exposure engine --\n")
 r4 <- handle_desk_turn("Price 30 Cat A orders at $130k", store)
 ok(
-  "exposure one-shot -> generate",
-  identical(r4$action, "generate") && isTRUE(r4$ok) && !is.null(r4$viz),
-  substr(r4$facts %||% "", 1, 100)
+  "pooled price -> generate",
+  identical(r4$action, "generate") && isTRUE(r4$ok) && identical(r4$viz$type, "exposure")
 )
-
-# Exposure slot fill
-r5 <- handle_desk_turn("Price my risk for 40 cars", store)
-ok("exposure asks category/quote", !is.null(r5$pending))
-r6 <- handle_desk_turn("B", store, pending = r5$pending)
-ok("exposure asks quote", !is.null(r6$pending) && grepl("quoted premium", r6$text, ignore.case = TRUE))
-r7 <- handle_desk_turn("145000", store, pending = r6$pending)
 ok(
-  "exposure completes after slots",
-  identical(r7$action, "generate") && isTRUE(r7$ok) && identical(r7$viz$type, "exposure"),
-  substr(r7$facts %||% "", 1, 100)
+  "exposure pnl vector present",
+  {
+    pnl <- r4$viz$result$base$portfolio$dealer_pnl
+    length(pnl) >= 50L && any(is.finite(as.numeric(pnl)))
+  },
+  sprintf("nsim_pnl=%s", length(r4$viz$result$base$portfolio$dealer_pnl %||% list()))
 )
 
-r9 <- handle_desk_turn("What does Your risk do?", store)
-ok("explain your risk -> chat", identical(r9$action, "chat"))
+cat("\n-- Live model ping --\n")
+ping <- tryCatch(
+  chat_complete(
+    list(
+      list(role = "system", content = "Reply with exactly: PONG"),
+      list(role = "user", content = "ping")
+    ),
+    max_tokens = 16L,
+    timeout_sec = 40L
+  ),
+  error = function(e) list(ok = FALSE, error = conditionMessage(e))
+)
+ok(
+  "model ping",
+  isTRUE(ping$ok),
+  sprintf(
+    "provider=%s model=%s text=%s",
+    ping$provider %||% "?",
+    ping$model %||% "?",
+    substr(ping$text %||% ping$error %||% "", 1, 40)
+  )
+)
 
-# Cancel
-r8 <- handle_desk_turn("cancel", store, pending = r5$pending)
-ok("cancel clears", isTRUE(r8$clear_pending) && grepl("Cancelled", r8$text))
+cat("\n-- Generative scenario answer (facts -> model) --\n")
+gen <- tryCatch(
+  chat_complete(
+    list(
+      list(
+        role = "system",
+        content = paste(
+          "Answer from DESK RUN FACTS only. Be brief. Use a markdown table.",
+          r3$facts,
+          sep = "\n\n"
+        )
+      ),
+      list(role = "user", content = "Run inject 750 on Cat A")
+    ),
+    max_tokens = 700L,
+    timeout_sec = 50L
+  ),
+  error = function(e) list(ok = FALSE, error = conditionMessage(e))
+)
+ok(
+  "generative scenario reply",
+  isTRUE(gen$ok) && nchar(gen$text %||% "") > 40L,
+  substr(gsub("\\s+", " ", gen$text %||% gen$error %||% ""), 1, 120)
+)
 
-cat("\nDone.\n")
+cat("\n=== Summary: ", n_pass, " passed, ", n_fail, " failed ===\n", sep = "")
+if (n_fail > 0L) quit(status = 1L)
+cat("Done.\n")

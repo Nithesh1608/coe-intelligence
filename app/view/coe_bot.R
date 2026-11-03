@@ -5,13 +5,16 @@ box::use(
     reactiveVal, renderUI, uiOutput,
     updateTextAreaInput, updateActionButton
   ],
-  echarts4r[renderEcharts4r, echarts4rOutput],
+  echarts4r[
+    renderEcharts4r, echarts4rOutput, e_charts, e_line, e_bar,
+    e_tooltip, e_color, e_legend, e_grid, e_x_axis, e_y_axis
+  ],
 )
 box::use(
-  app/logic/chat/provider[ensure_chat_env, chat_ready, chat_complete],
+  app/logic/chat/provider[ensure_chat_env, chat_ready, chat_complete, chat_model_label],
   app/logic/chat/context[system_prompt, build_project_context],
   app/logic/chat/desk_answers[suggestion_chips],
-  app/logic/chat/desk_run[handle_desk_turn, desk_viz_chart],
+  app/logic/chat/desk_run[handle_desk_turn],
 )
 
 `%||%` <- function(a, b) {
@@ -373,7 +376,10 @@ server <- function(id, store) {
     output$status <- renderUI({
       ensure_chat_env(root)
       if (chat_ready()) {
-        tags$p(class = "coe-bot-status coe-bot-status--ok", "Model live")
+        tags$p(
+          class = "coe-bot-status coe-bot-status--ok",
+          paste0("Model live · ", chat_model_label())
+        )
       } else {
         tags$p(class = "coe-bot-status coe-bot-status--bad", "Model offline")
       }
@@ -396,9 +402,9 @@ server <- function(id, store) {
       title <- if (is.null(viz)) {
         "Desk chart"
       } else if (identical(viz$type, "scenario")) {
-        "Desk chart · Scenarios"
+        "Desk chart — Scenarios"
       } else {
-        "Desk chart · Your risk"
+        "Desk chart — Your risk"
       }
       session$sendCustomMessage("coe-bot-desk", list(
         id = session$ns("desk_wrap"),
@@ -408,18 +414,81 @@ server <- function(id, store) {
       ))
     }
 
+    # Plot-ready frames only — avoids echarts choking on full prep objects.
+    desk_chart_data <- function(viz) {
+      if (is.null(viz) || is.null(viz$type)) return(NULL)
+      if (identical(viz$type, "scenario")) {
+        q <- viz$prep$quarters
+        if (is.null(q) || !nrow(q)) return(NULL)
+        data.frame(
+          label = as.character(q$label),
+          baseline = suppressWarnings(as.numeric(q$quota_base)),
+          scenario = suppressWarnings(as.numeric(q$quota_scenario)),
+          stringsAsFactors = FALSE
+        )
+      } else if (identical(viz$type, "exposure")) {
+        r <- viz$result
+        if (is.null(r$base$portfolio$dealer_pnl)) return(NULL)
+        pnl <- as.numeric(r$base$portfolio$dealer_pnl) / 1000
+        h <- graphics::hist(pnl, breaks = 24, plot = FALSE)
+        data.frame(
+          mid = as.numeric(h$mids),
+          n = as.numeric(h$counts),
+          stringsAsFactors = FALSE
+        )
+      } else {
+        NULL
+      }
+    }
+
     output$desk_chart <- renderEcharts4r({
       viz <- desk_viz()
-      req(!is.null(viz))
-      ch <- tryCatch(
-        desk_viz_chart(viz),
-        error = function(e) {
-          warning("Desk chart failed: ", conditionMessage(e))
-          NULL
-        }
-      )
-      req(!is.null(ch))
-      ch
+      # cancelOutput avoids the red Shiny error banner when there is no desk run yet
+      req(!is.null(viz), cancelOutput = TRUE)
+      d <- tryCatch(desk_chart_data(viz), error = function(e) {
+        warning("desk_chart_data: ", conditionMessage(e))
+        NULL
+      })
+      req(!is.null(d), nrow(d) > 0L, cancelOutput = TRUE)
+      if (identical(viz$type, "scenario")) {
+        d |>
+          e_charts(label) |>
+          e_line(baseline, name = "Baseline quota", symbol = "none",
+                 lineStyle = list(width = 1.8, type = "dashed", color = "#d4d4d4")) |>
+          e_line(scenario, name = "Scenario quota", symbol = "circle", symbolSize = 5,
+                 lineStyle = list(width = 2.4, color = "#ff5c1a")) |>
+          e_color(c("#d4d4d4", "#ff5c1a")) |>
+          e_tooltip(trigger = "axis") |>
+          e_legend(right = 8, top = 4, textStyle = list(color = "#a3a3a3", fontSize = 11)) |>
+          e_grid(left = 12, right = 16, top = 48, bottom = 16, containLabel = TRUE) |>
+          e_x_axis(
+            axisLine = list(show = FALSE), axisTick = list(show = FALSE),
+            axisLabel = list(color = "#a3a3a3"), splitLine = list(show = FALSE)
+          ) |>
+          e_y_axis(
+            axisLine = list(show = FALSE), axisTick = list(show = FALSE),
+            axisLabel = list(color = "#a3a3a3"),
+            splitLine = list(lineStyle = list(color = "rgba(255,255,255,0.06)"))
+          )
+      } else {
+        d |>
+          e_charts(mid) |>
+          e_bar(n, name = "Simulations") |>
+          e_tooltip() |>
+          e_color("#ff5c1a") |>
+          e_legend(show = FALSE) |>
+          e_grid(left = 48, right = 16, top = 28, bottom = 48, containLabel = FALSE) |>
+          e_x_axis(
+            name = "Dealer P&L vs quote ($k)", nameLocation = "middle", nameGap = 28,
+            axisLabel = list(color = "#a3a3a3"), splitLine = list(show = FALSE),
+            axisLine = list(show = FALSE), axisTick = list(show = FALSE)
+          ) |>
+          e_y_axis(
+            name = "Count", nameLocation = "middle", nameGap = 36,
+            axisLabel = list(color = "#a3a3a3"), splitLine = list(show = FALSE),
+            axisLine = list(show = FALSE), axisTick = list(show = FALSE)
+          )
+      }
     })
 
     observeEvent(desk_viz(), {
