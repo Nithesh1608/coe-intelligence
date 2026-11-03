@@ -1,4 +1,5 @@
-# Chat backend selection: Bedrock (coeintel_cursor / Amazon Nova) first, NIM fallback.
+# Chat backend: Bedrock (coeintel_cursor / Amazon Nova) preferred.
+# When COE_CHAT_PROVIDER=bedrock, never fall back to NIM — status must match reality.
 
 `%||%` <- function(a, b) if (is.null(a) || !length(a) || !nzchar(as.character(a)[[1]])) b else a
 
@@ -13,6 +14,10 @@ ensure_chat_env <- function(root = NULL) {
   invisible(TRUE)
 }
 
+provider_pref <- function() {
+  tolower(Sys.getenv("COE_CHAT_PROVIDER", "bedrock"))
+}
+
 #' Resolved provider: "bedrock", "nim", or "none".
 #' @export
 chat_provider <- function() {
@@ -20,9 +25,16 @@ chat_provider <- function() {
     app/logic/chat/bedrock[bedrock_ok],
     app/logic/chat/nim[nvidia_key_ok]
   )
-  pref <- tolower(Sys.getenv("COE_CHAT_PROVIDER", "auto"))
-  if (identical(pref, "bedrock") && bedrock_ok()) return("bedrock")
-  if (identical(pref, "nim") && nvidia_key_ok()) return("nim")
+  pref <- provider_pref()
+  if (identical(pref, "bedrock")) {
+    if (bedrock_ok()) return("bedrock")
+    return("none")
+  }
+  if (identical(pref, "nim")) {
+    if (nvidia_key_ok()) return("nim")
+    return("none")
+  }
+  # auto
   if (bedrock_ok()) return("bedrock")
   if (nvidia_key_ok()) return("nim")
   "none"
@@ -31,7 +43,7 @@ chat_provider <- function() {
 #' @export
 chat_ready <- function() !identical(chat_provider(), "none")
 
-#' Human label for the live status line.
+#' Human label for the live status line (configured model — no silent NIM rename).
 #' @export
 chat_model_label <- function() {
   box::use(
@@ -40,13 +52,13 @@ chat_model_label <- function() {
   )
   switch(
     chat_provider(),
-    bedrock = paste0("Bedrock · ", bedrock_model_label()),
-    nim = paste0("NIM · ", nim_model_label()),
+    bedrock = bedrock_model_label(),
+    nim = nim_model_label(),
     "No model configured"
   )
 }
 
-#' Route a chat turn to Bedrock or NIM.
+#' Route a chat turn. No NIM fallback when COE_CHAT_PROVIDER=bedrock.
 #' @export
 chat_complete <- function(messages, temperature = 0.25, max_tokens = 1600L,
                           timeout_sec = 45L) {
@@ -55,6 +67,8 @@ chat_complete <- function(messages, temperature = 0.25, max_tokens = 1600L,
     app/logic/chat/nim[nim_chat]
   )
   prov <- chat_provider()
+  pref <- provider_pref()
+
   if (identical(prov, "bedrock")) {
     out <- tryCatch(
       bedrock_chat(
@@ -69,7 +83,12 @@ chat_complete <- function(messages, temperature = 0.25, max_tokens = 1600L,
       out$provider <- "bedrock"
       return(out)
     }
-    # Soft-fallback to NIM when Bedrock fails and a NIM key exists.
+    # Explicit bedrock preference: do not silently switch to Nemotron.
+    if (identical(pref, "bedrock")) {
+      out$provider <- "bedrock"
+      return(out)
+    }
+    # auto mode only: optional NIM fallback
     box::use(app/logic/chat/nim[nvidia_key_ok])
     if (nvidia_key_ok()) {
       fb <- tryCatch(
@@ -86,16 +105,10 @@ chat_complete <- function(messages, temperature = 0.25, max_tokens = 1600L,
         fb$fallback_from <- out$error %||% "bedrock"
         return(fb)
       }
-      return(list(
-        ok = FALSE,
-        error = paste0(
-          "Bedrock: ", out$error %||% "failed",
-          " | NIM: ", fb$error %||% "failed"
-        )
-      ))
     }
     return(out)
   }
+
   if (identical(prov, "nim")) {
     out <- nim_chat(
       messages,
@@ -106,11 +119,12 @@ chat_complete <- function(messages, temperature = 0.25, max_tokens = 1600L,
     out$provider <- "nim"
     return(out)
   }
+
   list(
     ok = FALSE,
     error = paste(
       "No chat backend configured.",
-      "Set COEINTEL_AWS_* for Bedrock (coeintel_cursor) or NVIDIA_API_KEY for NIM."
+      "Set COEINTEL_AWS_* and COE_CHAT_PROVIDER=bedrock for Amazon Nova."
     )
   )
 }

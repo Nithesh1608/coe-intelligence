@@ -315,31 +315,10 @@ ui <- function(id) {
   )
 }
 
-friendly_model_from_out <- function(out) {
-  if (is.null(out) || !isTRUE(out$ok)) return(NULL)
-  id <- as.character(out$model %||% "")
-  prov <- as.character(out$provider %||% "")
-  if (grepl("nova-pro", id, ignore.case = TRUE)) return("Amazon Nova Pro")
-  if (grepl("nova-2-lite", id, ignore.case = TRUE)) return("Amazon Nova 2 Lite")
-  if (grepl("nova-lite", id, ignore.case = TRUE)) return("Amazon Nova Lite")
-  if (grepl("nemotron-3\\.5-bolt|nemotron-3.5-bolt", id, ignore.case = TRUE)) return("Nemotron 3.5 Bolt")
-  if (grepl("nemotron", id, ignore.case = TRUE)) return("Nemotron")
-  if (nzchar(id)) {
-    base <- sub("^.*/", "", id)
-    base <- sub(":.*$", "", base)
-    return(gsub("[-_]+", " ", base))
-  }
-  if (identical(prov, "bedrock")) return("Amazon Nova Pro")
-  if (identical(prov, "nim")) return("NIM")
-  NULL
-}
-
-finish_turn <- function(history, busy, session, out, live_label = NULL) {
+finish_turn <- function(history, busy, session, out) {
   done <- Filter(function(m) !isTRUE(m$pending), history())
   if (isTRUE(out$ok)) {
     history(c(done, list(list(role = "assistant", content = as.character(out$text)))))
-    nm <- friendly_model_from_out(out)
-    if (!is.null(live_label) && !is.null(nm)) live_label(nm)
   } else {
     history(c(done, list(list(
       role = "assistant",
@@ -377,7 +356,12 @@ server <- function(id, store) {
     busy <- reactiveVal(FALSE)
     desk_pending <- reactiveVal(NULL)
     desk_viz <- reactiveVal(NULL)
-    live_label <- reactiveVal(NULL)
+    last_desk_facts <- reactiveVal(NULL)
+    # Lock status to configured Bedrock/Nova label — never rename to Nemotron after a turn.
+    live_label <- reactiveVal({
+      ensure_chat_env(root)
+      chat_model_label()
+    })
 
     output$status <- renderUI({
       ensure_chat_env(root)
@@ -385,12 +369,7 @@ server <- function(id, store) {
         return(tags$p(class = "coe-bot-status coe-bot-status--bad", "Model offline"))
       }
       nm <- live_label()
-      if (is.null(nm) || !nzchar(nm)) {
-        # Preferred configured model until the first successful reply.
-        lab <- chat_model_label()
-        nm <- sub("^Bedrock · ", "", lab)
-        nm <- sub("^NIM · ", "", nm)
-      }
+      if (is.null(nm) || !nzchar(nm)) nm <- chat_model_label()
       tags$p(class = "coe-bot-status coe-bot-status--ok", paste0("Live · ", nm))
     })
 
@@ -475,6 +454,7 @@ server <- function(id, store) {
       history(list())
       desk_pending(NULL)
       desk_viz(NULL)
+      last_desk_facts(NULL)
       updateTextAreaInput(session, "prompt", value = "")
     })
 
@@ -499,26 +479,28 @@ server <- function(id, store) {
       if (identical(desk$action, "reply")) {
         if (isTRUE(desk$clear_pending)) desk_pending(NULL)
         if (!is.null(desk$pending)) desk_pending(desk$pending)
-        finish_turn(history, busy, session, list(ok = TRUE, text = desk$text %||% ""), live_label)
+        finish_turn(history, busy, session, list(ok = TRUE, text = desk$text %||% ""))
         return()
       }
 
       if (identical(desk$action, "generate")) {
         if (isTRUE(desk$clear_pending)) desk_pending(NULL)
         if (!is.null(desk$viz)) desk_viz(desk$viz)
+        if (nzchar(desk$facts %||% "")) last_desk_facts(desk$facts)
       }
 
-      # 2) Live model always writes the user-facing answer (chips included).
+      # 2) Live model writes the answer; keep last desk facts for follow-ups.
       ensure_chat_env(root)
       if (!chat_ready()) {
-        finish_turn(history, busy, session, list(ok = TRUE, text = key_missing_msg()), live_label)
+        finish_turn(history, busy, session, list(ok = TRUE, text = key_missing_msg()))
         return()
       }
 
       turns <- utils::tail(prior, 4L)
       sys <- build_system(store, question = q)
-      if (identical(desk$action, "generate") && nzchar(desk$facts %||% "")) {
-        sys <- paste(sys, "\n\n", desk$facts, sep = "")
+      facts_now <- if (identical(desk$action, "generate")) desk$facts else last_desk_facts()
+      if (nzchar(facts_now %||% "")) {
+        sys <- paste(sys, "\n\n", facts_now, sep = "")
       }
       api_msgs <- c(
         list(list(role = "system", content = sys)),
@@ -526,10 +508,10 @@ server <- function(id, store) {
         list(list(role = "user", content = q))
       )
       out <- tryCatch(
-        chat_complete(api_msgs, max_tokens = 1600L, timeout_sec = 45L),
+        chat_complete(api_msgs, max_tokens = 1600L, timeout_sec = 50L),
         error = function(e) list(ok = FALSE, error = conditionMessage(e))
       )
-      finish_turn(history, busy, session, out, live_label)
+      finish_turn(history, busy, session, out)
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
   })
 }
