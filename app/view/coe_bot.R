@@ -5,11 +5,13 @@ box::use(
     reactiveVal, renderUI, uiOutput,
     updateTextAreaInput, updateActionButton
   ],
+  echarts4r[renderEcharts4r, echarts4rOutput],
 )
 box::use(
-  app/logic/chat/nim[nim_chat, nvidia_key_ok, ensure_nvidia_env, nim_model_label],
+  app/logic/chat/provider[ensure_chat_env, chat_ready, chat_model_label, chat_complete],
   app/logic/chat/context[system_prompt, build_project_context],
   app/logic/chat/desk_answers[suggestion_chips],
+  app/logic/chat/desk_run[handle_desk_turn, desk_viz_chart],
 )
 
 `%||%` <- function(a, b) {
@@ -184,7 +186,7 @@ ui <- function(id) {
     tags$h1("Ask about your supply outlook"),
     tags$p(
       class = "lede lede--wide",
-      "Answers come from the live model, grounded on the desk’s forecast and scores."
+      "Forecast Q&A from the live model. Scenarios and pooled Your risk runs use the same desk engines as those tabs — not free-form app control."
     ),
     uiOutput(ns("status")),
     div(
@@ -201,6 +203,7 @@ ui <- function(id) {
     div(
       class = "coe-bot-shell",
       div(class = "coe-bot-thread", id = ns("thread_scroll"), uiOutput(ns("thread"))),
+      uiOutput(ns("desk_panel")),
       div(
         class = "coe-bot-composer",
         textAreaInput(
@@ -326,36 +329,43 @@ finish_turn <- function(history, busy, session, out) {
 
 key_missing_msg <- function() {
   paste(
-    "The bot needs **NVIDIA_API_KEY** to answer (every reply is from the model).",
-    "Add it to `.Renviron` locally, or to Posit Connect Cloud Variables, then reload.",
+    "The bot needs a live model to answer.",
+    "Preferred: **COEINTEL_AWS_ACCESS_KEY_ID** / **COEINTEL_AWS_SECRET_ACCESS_KEY** (IAM `coeintel_cursor`) for Bedrock Amazon Nova.",
+    "Fallback: **NVIDIA_API_KEY** for NIM. Add keys to `.Renviron` (or Posit Variables), then reload.",
     sep = "\n\n"
   )
+}
+
+build_system <- function(store, question = NULL) {
+  ctx <- build_project_context(store, question = question)
+  paste(system_prompt(), "\n\n", ctx, sep = "")
 }
 
 #' @export
 server <- function(id, store) {
   moduleServer(id, function(input, output, session) {
     root <- if (!is.null(store$root)) store$root else NULL
-    ensure_nvidia_env(root)
+    ensure_chat_env(root)
     history <- reactiveVal(list())
     busy <- reactiveVal(FALSE)
-    # Compact context built once per session — enough numbers, low lag.
-    ctx <- build_project_context(store)
-    sys <- paste(system_prompt(), "\n\n", ctx, sep = "")
+    desk_pending <- reactiveVal(NULL)
+    desk_viz <- reactiveVal(NULL)
 
     output$status <- renderUI({
-      ensure_nvidia_env(root)
-      if (nvidia_key_ok()) {
-        tags$p(
-          class = "coe-bot-status coe-bot-status--ok",
-          paste0("Model live · ", nim_model_label())
-        )
+      ensure_chat_env(root)
+      pend <- desk_pending()
+      bits <- character()
+      if (chat_ready()) {
+        bits <- c(bits, paste0("Model live · ", chat_model_label()))
       } else {
-        tags$p(
-          class = "coe-bot-status coe-bot-status--bad",
-          "NVIDIA_API_KEY missing — set it in .Renviron (or Posit Variables) to use the bot."
-        )
+        bits <- c(bits, "Chat model keys missing (forecast Q&A offline)")
       }
+      bits <- c(bits, "Desk engines on (Scenarios / pooled risk)")
+      if (!is.null(pend)) {
+        bits <- c(bits, paste0("Waiting for ", pend$kind, " details — say cancel to abort"))
+      }
+      cls <- if (chat_ready()) "coe-bot-status coe-bot-status--ok" else "coe-bot-status coe-bot-status--bad"
+      tags$p(class = cls, paste(bits, collapse = " · "))
     })
 
     output$thread <- renderUI({
@@ -363,7 +373,7 @@ server <- function(id, store) {
       if (!length(msgs)) {
         return(div(
           class = "coe-bot-empty",
-          tags$p("Tap a chip, or ask for Cat A / B quota outlook, MAPE, or how Your risk works.")
+          tags$p("Try a forecast question, “Run inject 750 on Cat A”, or “Price 30 Cat A orders at $130k”.")
         ))
       }
       do.call(tagList, lapply(msgs, function(m) {
@@ -371,9 +381,34 @@ server <- function(id, store) {
       }))
     })
 
+    output$desk_panel <- renderUI({
+      viz <- desk_viz()
+      if (is.null(viz)) return(NULL)
+      title <- if (identical(viz$type, "scenario")) {
+        "Desk chart · Scenarios"
+      } else {
+        "Desk chart · Your risk"
+      }
+      div(
+        class = "coe-bot-desk-panel",
+        tags$span(class = "nx-kicker", title),
+        echarts4rOutput(session$ns("desk_chart"), height = "320px")
+      )
+    })
+
+    output$desk_chart <- renderEcharts4r({
+      viz <- desk_viz()
+      req(!is.null(viz))
+      ch <- desk_viz_chart(viz)
+      req(!is.null(ch))
+      ch
+    })
+
     observeEvent(input$clear, {
       if (isTRUE(busy())) return()
       history(list())
+      desk_pending(NULL)
+      desk_viz(NULL)
       updateTextAreaInput(session, "prompt", value = "")
     })
 
@@ -383,34 +418,42 @@ server <- function(id, store) {
       q <- if (is.list(ask)) trimws(ask$q %||% "") else trimws(ask %||% "")
       if (!nzchar(q)) return()
 
-      ensure_nvidia_env(root)
-      if (!nvidia_key_ok()) {
-        history(c(
-          history(),
-          list(list(role = "user", content = q)),
-          list(list(role = "assistant", content = key_missing_msg()))
-        ))
-        updateTextAreaInput(session, "prompt", value = "")
-        return()
-      }
-
       busy(TRUE)
       updateActionButton(session, "send", label = "Thinking…")
-      # JS already paints an optimistic pending bubble; keep server history clean
-      # of pending so we never need onFlushed (which has no reactive context).
       prior <- Filter(function(m) !isTRUE(m$pending), history())
       history(c(prior, list(list(role = "user", content = q))))
       updateTextAreaInput(session, "prompt", value = "")
 
-      turns <- utils::tail(prior, 3L)
+      # 1) Constrained desk runner first (existing R engines only).
+      desk <- tryCatch(
+        handle_desk_turn(q, store, pending = desk_pending()),
+        error = function(e) list(action = "chat", error = conditionMessage(e))
+      )
+
+      if (identical(desk$action, "reply")) {
+        if (isTRUE(desk$clear_pending)) desk_pending(NULL)
+        if (!is.null(desk$pending)) desk_pending(desk$pending)
+        if (!is.null(desk$viz)) desk_viz(desk$viz)
+        finish_turn(history, busy, session, list(ok = TRUE, text = desk$text %||% ""))
+        return()
+      }
+
+      # 2) Ordinary grounded chat via Bedrock/NIM.
+      ensure_chat_env(root)
+      if (!chat_ready()) {
+        finish_turn(history, busy, session, list(ok = TRUE, text = key_missing_msg()))
+        return()
+      }
+
+      turns <- utils::tail(prior, 4L)
+      sys <- build_system(store, question = q)
       api_msgs <- c(
         list(list(role = "system", content = sys)),
         turns,
         list(list(role = "user", content = q))
       )
-
       out <- tryCatch(
-        nim_chat(api_msgs, max_tokens = 1100L, timeout_sec = 35L),
+        chat_complete(api_msgs, max_tokens = 1600L, timeout_sec = 45L),
         error = function(e) list(ok = FALSE, error = conditionMessage(e))
       )
       finish_turn(history, busy, session, out)

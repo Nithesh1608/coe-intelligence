@@ -1,4 +1,4 @@
-# Live COE bot / NIM smoke tests. Run: Rscript scripts/test_coe_bot.R
+# Live COE bot smoke tests (Bedrock first, NIM fallback). Run: Rscript scripts/test_coe_bot.R
 setwd("C:/COE Intelligence")
 if (file.exists(".Renviron")) readRenviron(".Renviron")
 .libPaths(c("C:/Users/Optiplex/AppData/Local/R/win-library/4.6", .libPaths()))
@@ -14,54 +14,72 @@ ok <- function(label, cond, detail = "") {
   invisible(isTRUE(cond))
 }
 
-box::use(app/logic/chat/nim[nim_chat, nvidia_key_ok, nim_model_id, ensure_nvidia_env])
-box::use(app/logic/chat/context[system_prompt, build_project_context])
-box::use(app/logic/viewdata/store[load_store])
+box::use(
+  app/logic/chat/provider[ensure_chat_env, chat_ready, chat_provider, chat_model_label, chat_complete],
+  app/logic/chat/bedrock[bedrock_ok, bedrock_model_id],
+  app/logic/chat/context[system_prompt, build_project_context],
+  app/logic/viewdata/store[load_store]
+)
 
-ensure_nvidia_env()
-ok("API key present", nvidia_key_ok())
-ok("Model id set", nzchar(nim_model_id()), nim_model_id())
+ensure_chat_env()
+ok("Chat backend ready", chat_ready(), chat_provider())
+ok("Bedrock creds (coeintel_cursor)", bedrock_ok())
+ok("Bedrock model id", nzchar(bedrock_model_id()), bedrock_model_id())
+ok("Status label", nzchar(chat_model_label()), chat_model_label())
 
 store <- load_store()
-sys <- paste(system_prompt(), "\n\n", build_project_context(store), sep = "")
-ok("Context size under 8k chars", nchar(sys) < 8000L, paste0(nchar(sys), " chars"))
-ok("Context has forward quota", grepl("Forward quota", sys, fixed = TRUE))
-ok("Context has MAPE / scores", grepl("MAPE|Live quota scores", sys))
+sys_full <- paste(system_prompt(), "\n\n", build_project_context(store), sep = "")
+sys_q <- paste(
+  system_prompt(), "\n\n",
+  build_project_context(store, question = "What is the Cat A quota forecast?"),
+  sep = ""
+)
+ok("Full context under 60k", nchar(sys_full) < 60000L, paste0(nchar(sys_full), " chars"))
+ok("Smart context smaller or equal", nchar(sys_q) <= nchar(sys_full) + 50L, paste0(nchar(sys_q), " vs ", nchar(sys_full)))
+ok("Context has forward quota", grepl("Forward", sys_q, fixed = TRUE))
+ok("Context has MAPE / scores", grepl("MAPE|Live quota scores", sys_full))
+ok("Capability map present", grepl("App capability map", sys_full, fixed = TRUE))
 
 t0 <- Sys.time()
 ping <- tryCatch(
-  nim_chat(
+  chat_complete(
     list(
       list(role = "system", content = "Reply with exactly: PONG"),
       list(role = "user", content = "ping")
     ),
     max_tokens = 32L,
-    timeout_sec = 25L
+    timeout_sec = 40L
   ),
   error = function(e) list(ok = FALSE, error = conditionMessage(e))
 )
 ping_s <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
 ok(
-  "NIM ping ok",
+  "Chat ping ok",
   isTRUE(ping$ok),
-  sprintf("%.1fs model=%s %s", ping_s, ping$model %||% "?", substr(ping$text %||% ping$error %||% "", 1, 80))
+  sprintf(
+    "%.1fs provider=%s model=%s %s",
+    ping_s, ping$provider %||% "?", ping$model %||% "?",
+    substr(ping$text %||% ping$error %||% "", 1, 80)
+  )
 )
 
 qs <- c(
   "What is the Cat A quota forecast?",
   "How accurate is the model?",
+  "What can Scenarios stress?",
   "What does Your risk do?"
 )
 for (q in qs) {
   t1 <- Sys.time()
+  sys <- paste(system_prompt(), "\n\n", build_project_context(store, question = q), sep = "")
   out <- tryCatch(
-    nim_chat(
+    chat_complete(
       list(
         list(role = "system", content = sys),
         list(role = "user", content = q)
       ),
-      max_tokens = 900L,
-      timeout_sec = 35L
+      max_tokens = 1200L,
+      timeout_sec = 50L
     ),
     error = function(e) list(ok = FALSE, error = conditionMessage(e))
   )

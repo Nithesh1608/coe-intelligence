@@ -4,7 +4,7 @@ box::use(
 )
 box::use(
   app/logic/viewdata/store[load_store, project_root],
-  app/logic/chat/nim[ensure_nvidia_env],
+  app/logic/chat/provider[ensure_chat_env],
   app/view/dashboard,
   app/view/scenarios,
   app/view/forecast,
@@ -80,8 +80,8 @@ ui <- function(id) {
 #' @export
 server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    tryCatch(ensure_nvidia_env(project_root()), error = function(e) {
-      warning("NVIDIA env load skipped: ", conditionMessage(e))
+    tryCatch(ensure_chat_env(project_root()), error = function(e) {
+      warning("Chat env load skipped: ", conditionMessage(e))
     })
     store <- tryCatch(load_store(), error = function(e) {
       warning("Data load failed: ", conditionMessage(e))
