@@ -72,8 +72,15 @@ system_prompt <- function() {
     "The baseline comparator is the “12-month average”.",
     "MAPE and hit-rates in context are already percentages — quote them as 11.9%, not 0.119.",
     "Do not use LaTeX or $...$ math. Write plain text: alpha=0.5, lambda 1-SE rule.",
-    "When asked for a past held-out month (e.g. Jan 2025), quote published and outlook from the held-out monthly table.",
-    "When asked for the live forward outlook, quote Forward monthly mid / lo80 / hi80 (or quarterly sums) exactly.",
+    "DATA DISCIPLINE (marks-critical):",
+    "1) Obey TRUTH CUTOFFS. Never invent dates or published quotas.",
+    "2) heldout_published / heldout_outlook only for months listed under Held-out monthly quota.",
+    "3) For forward months use forward_mid / forward_lo80 / forward_hi80. Call them forecast / outlook — never ‘published’.",
+    "4) If published_status=NOT_RELEASED or published=NA, say ‘not released yet’. Do not fabricate a published number.",
+    "5) If a month is absent from both tables, say it is not in context.",
+    "6) When comparing months, keep columns honest: released vs forecast must not be mixed under one ‘published’ header.",
+    "When asked for a past held-out month, quote heldout_published and heldout_outlook only.",
+    "When asked for the live forward outlook, quote forward_mid / forward_lo80 / forward_hi80 (or quarterly sums) exactly.",
     "If DESK RUN FACTS appear below, treat them as authoritative live engine output and write a fresh answer from them — never paste a canned script.",
     "Exposure reading rules: Expected COE cost is the expected clearing spend (usually large and positive) — it is NOT ‘profit’.",
     "Dealer P&L vs quote is what matters for loss: negative expected dealer P&L / high prob_loss means the quote is cheap vs simulated premiums.",
@@ -229,14 +236,17 @@ intent_flags <- function(question = NULL) {
 #' @export
 build_project_context <- function(store = NULL, root = NULL, question = NULL) {
   box::use(
-    app/logic/chat/desk_answers[forecast_context_block, heldout_quota_context_block]
+    app/logic/chat/desk_answers[
+      forecast_context_block, heldout_quota_context_block, truth_cutoff_block
+    ]
   )
 
   flags <- intent_flags(question)
-  # Always include core score + forward path — that is the desk's spine.
+  # Always include cutoffs + core score + forward path — that is the desk's spine.
   score_bits <- character()
   if (!is.null(store)) {
     score_bits <- c(
+      truth_cutoff_block(store),
       fmt_scores(store$two_quota_scores, "Live quota scores (held-out)"),
       fmt_scores(store$two_hits, "Deregistration hit rates (held-out)"),
       if (!is.null(store$meta$train_end)) {

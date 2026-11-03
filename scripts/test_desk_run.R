@@ -131,6 +131,32 @@ ok(
   substr(gsub("\\s+", " ", gen$text %||% gen$error %||% ""), 1, 120)
 )
 
+cat("\n-- Published vs forward discipline --\n")
+box::use(
+  app/logic/chat/desk_answers[truth_cutoff_block, forecast_context_block, heldout_quota_context_block],
+  app/logic/chat/context[build_project_context]
+)
+cut <- truth_cutoff_block(store)
+fwd <- forecast_context_block(store)
+held <- heldout_quota_context_block(store)
+ctx <- build_project_context(store, question = "compare bidding in 2026-12")
+ok("truth cutoffs present", grepl("TRUTH CUTOFFS", cut, fixed = TRUE))
+ok("held-out ends Aug 2026", grepl("2026-08", cut) && !grepl("2026-12", held))
+ok(
+  "Sep 2026 marked RELEASED published",
+  grepl("2026-09 Cat A published_status=RELEASED published=2,388", fwd, fixed = TRUE)
+)
+ok(
+  "Dec 2026 marked NOT_RELEASED",
+  grepl("2026-12 Cat A published_status=NOT_RELEASED published=NA", fwd, fixed = TRUE)
+)
+ok(
+  "Dec 2026 has forward_mid only",
+  grepl("2026-12 Cat A .*forward_mid=", fwd) && !grepl("2026-12 Cat A published_status=RELEASED", fwd)
+)
+ok("context includes TRUTH CUTOFFS", grepl("TRUTH CUTOFFS", ctx, fixed = TRUE))
+ok("prompt forbids inventing published", grepl("NOT_RELEASED", ctx, fixed = TRUE))
+
 cat("\n=== Summary: ", n_pass, " passed, ", n_fail, " failed ===\n", sep = "")
 if (n_fail > 0L) quit(status = 1L)
 cat("Done.\n")
