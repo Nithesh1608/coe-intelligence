@@ -2056,20 +2056,11 @@ body {
 }
 
 .coe-bot-desk-panel {
-  border-top: 1px solid var(--line);
-  padding: 0.75rem 1rem 0.35rem;
+  margin-top: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.75rem 1rem 0.5rem;
   background: #0a0a0a;
-}
-
-/* visibility/height — not display:none — so echarts can measure on first paint */
-.coe-bot-desk-panel--hidden {
-  visibility: hidden;
-  height: 0;
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  overflow: hidden;
-  border-top-color: transparent;
 }
 
 .coe-bot-desk-panel .nx-kicker {

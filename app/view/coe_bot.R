@@ -3,18 +3,16 @@ box::use(
     NS, moduleServer, div, tags, tagList, HTML,
     textAreaInput, actionButton, observeEvent,
     reactiveVal, renderUI, uiOutput,
-    updateTextAreaInput, updateActionButton
+    updateTextAreaInput, updateActionButton, req, outputOptions
   ],
-  echarts4r[
-    renderEcharts4r, echarts4rOutput, e_charts, e_line, e_bar,
-    e_tooltip, e_color, e_legend, e_grid, e_x_axis, e_y_axis
-  ],
+  echarts4r[renderEcharts4r, echarts4rOutput, e_charts, e_bar, e_tooltip, e_color, e_legend, e_grid, e_x_axis, e_y_axis],
 )
 box::use(
   app/logic/chat/provider[ensure_chat_env, chat_ready, chat_complete, chat_model_label],
   app/logic/chat/context[system_prompt, build_project_context],
   app/logic/chat/desk_answers[suggestion_chips],
   app/logic/chat/desk_run[handle_desk_turn],
+  app/logic/viewdata/scenario_viz[chart_scenario_quota],
 )
 
 `%||%` <- function(a, b) {
@@ -206,13 +204,6 @@ ui <- function(id) {
     div(
       class = "coe-bot-shell",
       div(class = "coe-bot-thread", id = ns("thread_scroll"), uiOutput(ns("thread"))),
-      # Keep echarts host in the initial UI — recreating it inside renderUI blanks the widget.
-      div(
-        id = ns("desk_wrap"),
-        class = "coe-bot-desk-panel coe-bot-desk-panel--hidden",
-        tags$span(class = "nx-kicker", id = ns("desk_title"), "Desk chart"),
-        echarts4rOutput(ns("desk_chart"), height = "320px")
-      ),
       div(
         class = "coe-bot-composer",
         textAreaInput(
@@ -229,6 +220,12 @@ ui <- function(id) {
         )
       )
     ),
+    # Always-mounted chart host (never height:0 / display:none — that breaks echarts).
+    div(
+      class = "coe-bot-desk-panel",
+      uiOutput(ns("desk_title")),
+      echarts4rOutput(ns("desk_chart"), height = "340px")
+    ),
     tags$p(
       class = "footnote",
       "Enter to send · Shift+Enter for a new line. Method detail lives in About."
@@ -236,19 +233,6 @@ ui <- function(id) {
     tags$script(HTML(sprintf(
       "(function(){
         var ns='%s';
-        if (window.Shiny) {
-          Shiny.addCustomMessageHandler('coe-bot-desk', function(msg) {
-            var wrap = document.getElementById(msg.id);
-            if (!wrap) return;
-            if (msg.show) wrap.classList.remove('coe-bot-desk-panel--hidden');
-            else wrap.classList.add('coe-bot-desk-panel--hidden');
-            var title = document.getElementById(msg.titleId);
-            if (title && msg.title) title.textContent = msg.title;
-            if (msg.show) {
-              setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 80);
-            }
-          });
-        }
         var gate=false;
         function threadHost(){ return document.getElementById(ns+'thread'); }
         function scrollThread(){
@@ -331,17 +315,38 @@ ui <- function(id) {
   )
 }
 
-finish_turn <- function(history, busy, session, out) {
+friendly_model_from_out <- function(out) {
+  if (is.null(out) || !isTRUE(out$ok)) return(NULL)
+  id <- as.character(out$model %||% "")
+  prov <- as.character(out$provider %||% "")
+  if (grepl("nova-pro", id, ignore.case = TRUE)) return("Amazon Nova Pro")
+  if (grepl("nova-2-lite", id, ignore.case = TRUE)) return("Amazon Nova 2 Lite")
+  if (grepl("nova-lite", id, ignore.case = TRUE)) return("Amazon Nova Lite")
+  if (grepl("nemotron-3\\.5-bolt|nemotron-3.5-bolt", id, ignore.case = TRUE)) return("Nemotron 3.5 Bolt")
+  if (grepl("nemotron", id, ignore.case = TRUE)) return("Nemotron")
+  if (nzchar(id)) {
+    base <- sub("^.*/", "", id)
+    base <- sub(":.*$", "", base)
+    return(gsub("[-_]+", " ", base))
+  }
+  if (identical(prov, "bedrock")) return("Amazon Nova Pro")
+  if (identical(prov, "nim")) return("NIM")
+  NULL
+}
+
+finish_turn <- function(history, busy, session, out, live_label = NULL) {
   done <- Filter(function(m) !isTRUE(m$pending), history())
   if (isTRUE(out$ok)) {
     history(c(done, list(list(role = "assistant", content = as.character(out$text)))))
+    nm <- friendly_model_from_out(out)
+    if (!is.null(live_label) && !is.null(nm)) live_label(nm)
   } else {
     history(c(done, list(list(
       role = "assistant",
       content = paste0(
         "I could not reach the model just now. ",
         out$error %||% "unknown error",
-        "\n\nTry again in a moment — every reply comes from the live model."
+        "\n\nTry again in a moment."
       )
     ))))
   }
@@ -372,17 +377,21 @@ server <- function(id, store) {
     busy <- reactiveVal(FALSE)
     desk_pending <- reactiveVal(NULL)
     desk_viz <- reactiveVal(NULL)
+    live_label <- reactiveVal(NULL)
 
     output$status <- renderUI({
       ensure_chat_env(root)
-      if (chat_ready()) {
-        tags$p(
-          class = "coe-bot-status coe-bot-status--ok",
-          paste0("Model live · ", chat_model_label())
-        )
-      } else {
-        tags$p(class = "coe-bot-status coe-bot-status--bad", "Model offline")
+      if (!chat_ready()) {
+        return(tags$p(class = "coe-bot-status coe-bot-status--bad", "Model offline"))
       }
+      nm <- live_label()
+      if (is.null(nm) || !nzchar(nm)) {
+        # Preferred configured model until the first successful reply.
+        lab <- chat_model_label()
+        nm <- sub("^Bedrock · ", "", lab)
+        nm <- sub("^NIM · ", "", nm)
+      }
+      tags$p(class = "coe-bot-status coe-bot-status--ok", paste0("Live · ", nm))
     })
 
     output$thread <- renderUI({
@@ -398,102 +407,68 @@ server <- function(id, store) {
       }))
     })
 
-    show_desk_panel <- function(viz) {
-      title <- if (is.null(viz)) {
-        "Desk chart"
-      } else if (identical(viz$type, "scenario")) {
-        "Desk chart — Scenarios"
-      } else {
-        "Desk chart — Your risk"
+    output$desk_title <- renderUI({
+      viz <- desk_viz()
+      if (is.null(viz)) {
+        return(tags$span(
+          class = "nx-kicker",
+          "Desk chart — run a scenario or price a pooled book to populate"
+        ))
       }
-      session$sendCustomMessage("coe-bot-desk", list(
-        id = session$ns("desk_wrap"),
-        titleId = session$ns("desk_title"),
-        show = !is.null(viz),
-        title = title
-      ))
-    }
-
-    # Plot-ready frames only — avoids echarts choking on full prep objects.
-    desk_chart_data <- function(viz) {
-      if (is.null(viz) || is.null(viz$type)) return(NULL)
-      if (identical(viz$type, "scenario")) {
-        q <- viz$prep$quarters
-        if (is.null(q) || !nrow(q)) return(NULL)
-        data.frame(
-          label = as.character(q$label),
-          baseline = suppressWarnings(as.numeric(q$quota_base)),
-          scenario = suppressWarnings(as.numeric(q$quota_scenario)),
-          stringsAsFactors = FALSE
-        )
-      } else if (identical(viz$type, "exposure")) {
-        r <- viz$result
-        if (is.null(r$base$portfolio$dealer_pnl)) return(NULL)
-        pnl <- as.numeric(r$base$portfolio$dealer_pnl) / 1000
-        h <- graphics::hist(pnl, breaks = 24, plot = FALSE)
-        data.frame(
-          mid = as.numeric(h$mids),
-          n = as.numeric(h$counts),
-          stringsAsFactors = FALSE
-        )
-      } else {
-        NULL
-      }
-    }
+      tags$span(
+        class = "nx-kicker",
+        if (identical(viz$type, "scenario")) "Desk chart — Scenarios" else "Desk chart — Your risk"
+      )
+    })
 
     output$desk_chart <- renderEcharts4r({
       viz <- desk_viz()
-      # cancelOutput avoids the red Shiny error banner when there is no desk run yet
-      req(!is.null(viz), cancelOutput = TRUE)
-      d <- tryCatch(desk_chart_data(viz), error = function(e) {
-        warning("desk_chart_data: ", conditionMessage(e))
-        NULL
-      })
-      req(!is.null(d), nrow(d) > 0L, cancelOutput = TRUE)
+      shiny::validate(shiny::need(!is.null(viz), "Run a scenario or pooled risk price to draw a chart."))
       if (identical(viz$type, "scenario")) {
-        d |>
-          e_charts(label) |>
-          e_line(baseline, name = "Baseline quota", symbol = "none",
-                 lineStyle = list(width = 1.8, type = "dashed", color = "#d4d4d4")) |>
-          e_line(scenario, name = "Scenario quota", symbol = "circle", symbolSize = 5,
-                 lineStyle = list(width = 2.4, color = "#ff5c1a")) |>
-          e_color(c("#d4d4d4", "#ff5c1a")) |>
-          e_tooltip(trigger = "axis") |>
-          e_legend(right = 8, top = 4, textStyle = list(color = "#a3a3a3", fontSize = 11)) |>
-          e_grid(left = 12, right = 16, top = 48, bottom = 16, containLabel = TRUE) |>
-          e_x_axis(
-            axisLine = list(show = FALSE), axisTick = list(show = FALSE),
-            axisLabel = list(color = "#a3a3a3"), splitLine = list(show = FALSE)
-          ) |>
-          e_y_axis(
-            axisLine = list(show = FALSE), axisTick = list(show = FALSE),
-            axisLabel = list(color = "#a3a3a3"),
-            splitLine = list(lineStyle = list(color = "rgba(255,255,255,0.06)"))
-          )
-      } else {
-        d |>
-          e_charts(mid) |>
-          e_bar(n, name = "Simulations") |>
-          e_tooltip() |>
-          e_color("#ff5c1a") |>
-          e_legend(show = FALSE) |>
-          e_grid(left = 48, right = 16, top = 28, bottom = 48, containLabel = FALSE) |>
-          e_x_axis(
-            name = "Dealer P&L vs quote ($k)", nameLocation = "middle", nameGap = 28,
-            axisLabel = list(color = "#a3a3a3"), splitLine = list(show = FALSE),
-            axisLine = list(show = FALSE), axisTick = list(show = FALSE)
-          ) |>
-          e_y_axis(
-            name = "Count", nameLocation = "middle", nameGap = 36,
-            axisLabel = list(color = "#a3a3a3"), splitLine = list(show = FALSE),
-            axisLine = list(show = FALSE), axisTick = list(show = FALSE)
-          )
+        shiny::validate(shiny::need(
+          !is.null(viz$prep) && !is.null(viz$prep$quarters) && nrow(viz$prep$quarters) > 0,
+          "Scenario path has no quarters to chart."
+        ))
+        ch <- tryCatch(chart_scenario_quota(viz$prep), error = function(e) {
+          warning("scenario chart: ", conditionMessage(e))
+          NULL
+        })
+        shiny::validate(shiny::need(!is.null(ch), "Could not build the scenario chart."))
+        return(ch)
       }
+      if (identical(viz$type, "exposure")) {
+        r <- viz$result
+        shiny::validate(shiny::need(
+          !is.null(r) && !is.null(r$base$portfolio$dealer_pnl),
+          "Exposure run has no P&L paths to chart."
+        ))
+        pnl <- as.numeric(r$base$portfolio$dealer_pnl) / 1000
+        h <- graphics::hist(pnl, breaks = 24, plot = FALSE)
+        d <- data.frame(mid = as.numeric(h$mids), n = as.numeric(h$counts))
+        return(
+          d |>
+            e_charts(mid) |>
+            e_bar(n, name = "Simulations") |>
+            e_tooltip() |>
+            e_color("#ff5c1a") |>
+            e_legend(show = FALSE) |>
+            e_grid(left = 48, right = 16, top = 28, bottom = 56, containLabel = FALSE) |>
+            e_x_axis(
+              name = "Dealer P&L vs quote ($k)", nameLocation = "middle", nameGap = 28,
+              axisLabel = list(color = "#a3a3a3"), splitLine = list(show = FALSE),
+              axisLine = list(show = FALSE), axisTick = list(show = FALSE)
+            ) |>
+            e_y_axis(
+              name = "Count", nameLocation = "middle", nameGap = 36,
+              axisLabel = list(color = "#a3a3a3"), splitLine = list(show = FALSE),
+              axisLine = list(show = FALSE), axisTick = list(show = FALSE)
+            )
+        )
+      }
+      shiny::validate(shiny::need(FALSE, "Unknown desk chart type."))
     })
-
-    observeEvent(desk_viz(), {
-      show_desk_panel(desk_viz())
-    }, ignoreNULL = FALSE)
+    # Bot tab is often hidden at startup; don't freeze the first chart paint.
+    outputOptions(output, "desk_chart", suspendWhenHidden = FALSE)
 
     observeEvent(input$clear, {
       if (isTRUE(busy())) return()
@@ -524,7 +499,7 @@ server <- function(id, store) {
       if (identical(desk$action, "reply")) {
         if (isTRUE(desk$clear_pending)) desk_pending(NULL)
         if (!is.null(desk$pending)) desk_pending(desk$pending)
-        finish_turn(history, busy, session, list(ok = TRUE, text = desk$text %||% ""))
+        finish_turn(history, busy, session, list(ok = TRUE, text = desk$text %||% ""), live_label)
         return()
       }
 
@@ -536,7 +511,7 @@ server <- function(id, store) {
       # 2) Live model always writes the user-facing answer (chips included).
       ensure_chat_env(root)
       if (!chat_ready()) {
-        finish_turn(history, busy, session, list(ok = TRUE, text = key_missing_msg()))
+        finish_turn(history, busy, session, list(ok = TRUE, text = key_missing_msg()), live_label)
         return()
       }
 
@@ -554,7 +529,7 @@ server <- function(id, store) {
         chat_complete(api_msgs, max_tokens = 1600L, timeout_sec = 45L),
         error = function(e) list(ok = FALSE, error = conditionMessage(e))
       )
-      finish_turn(history, busy, session, out)
+      finish_turn(history, busy, session, out, live_label)
     }, ignoreInit = TRUE, ignoreNULL = TRUE)
   })
 }
