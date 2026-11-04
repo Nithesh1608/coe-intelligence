@@ -80,10 +80,18 @@ ui <- function(id) {
 #' @export
 server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    tryCatch(ensure_chat_env(project_root()), error = function(e) {
+    root <- tryCatch(project_root(), error = function(e) getwd())
+    # Force absolute project .Renviron before any chat/provider checks.
+    renviron <- file.path(root, ".Renviron")
+    if (file.exists(renviron)) {
+      tryCatch(readRenviron(renviron), error = function(e) {
+        warning("Could not read .Renviron: ", conditionMessage(e))
+      })
+    }
+    tryCatch(ensure_chat_env(root), error = function(e) {
       warning("Chat env load skipped: ", conditionMessage(e))
     })
-    store <- tryCatch(load_store(), error = function(e) {
+    store <- tryCatch(load_store(root), error = function(e) {
       warning("Data load failed: ", conditionMessage(e))
       stop(e)
     })

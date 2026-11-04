@@ -335,9 +335,9 @@ finish_turn <- function(history, busy, session, out) {
 
 key_missing_msg <- function() {
   paste(
-    "The bot needs a live model to answer.",
-    "Preferred: **COEINTEL_AWS_ACCESS_KEY_ID** / **COEINTEL_AWS_SECRET_ACCESS_KEY** (IAM `coeintel_cursor`) for Bedrock Amazon Nova.",
-    "Fallback: **NVIDIA_API_KEY** for NIM. Add keys to `.Renviron` (or Posit Variables), then reload.",
+    "Bedrock keys are not loaded in this R session.",
+    "Local: put `COEINTEL_AWS_ACCESS_KEY_ID` and `COEINTEL_AWS_SECRET_ACCESS_KEY` in the project `.Renviron`, then **restart the app** (not just reload the browser).",
+    "Posit Connect: set those same names under Variables. IAM user must be `coeintel_cursor`.",
     sep = "\n\n"
   )
 }
@@ -360,16 +360,16 @@ server <- function(id, store) {
     # Lock status to configured Bedrock/Nova label — never rename to Nemotron after a turn.
     live_label <- reactiveVal({
       ensure_chat_env(root)
-      chat_model_label()
+      chat_model_label(root)
     })
 
     output$status <- renderUI({
       ensure_chat_env(root)
-      if (!chat_ready()) {
-        return(tags$p(class = "coe-bot-status coe-bot-status--bad", "Model offline"))
+      if (!chat_ready(root)) {
+        return(tags$p(class = "coe-bot-status coe-bot-status--bad", "Model offline — check .Renviron Bedrock keys"))
       }
       nm <- live_label()
-      if (is.null(nm) || !nzchar(nm)) nm <- chat_model_label()
+      if (is.null(nm) || !nzchar(nm)) nm <- chat_model_label(root)
       tags$p(class = "coe-bot-status coe-bot-status--ok", paste0("Live · ", nm))
     })
 
@@ -491,7 +491,7 @@ server <- function(id, store) {
 
       # 2) Live model writes the answer; keep last desk facts for follow-ups.
       ensure_chat_env(root)
-      if (!chat_ready()) {
+      if (!chat_ready(root)) {
         finish_turn(history, busy, session, list(ok = TRUE, text = key_missing_msg()))
         return()
       }

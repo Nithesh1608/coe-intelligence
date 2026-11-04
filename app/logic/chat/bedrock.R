@@ -13,56 +13,20 @@ BEDROCK_MODEL_FALLBACKS <- c(
 
 `%||%` <- function(a, b) if (is.null(a) || !length(a) || !nzchar(a[[1]])) b else a
 
-renviron_candidate_dirs <- function(root = NULL) {
-  starts <- character()
-  if (!is.null(root) && nzchar(as.character(root)[[1]])) {
-    starts <- c(starts, as.character(root)[[1]])
-  }
-  bp <- getOption("box.path", "")
-  if (is.character(bp) && length(bp) && nzchar(bp[[1]])) {
-    starts <- c(starts, bp[[1]])
-  }
-  starts <- c(starts, getwd())
-  tryCatch({
-    box::use(app/logic/viewdata/store[project_root])
-    starts <- c(starts, project_root())
-  }, error = function(e) NULL)
-
-  dirs <- character()
-  for (start in unique(starts[nzchar(starts)])) {
-    here <- normalizePath(start, winslash = "/", mustWork = FALSE)
-    for (i in seq_len(12)) {
-      dirs <- c(dirs, here)
-      parent <- dirname(here)
-      if (identical(parent, here)) break
-      here <- parent
-    }
-  }
-  unique(dirs)
-}
-
 #' Load COEINTEL_AWS_* / BEDROCK_* from .Renviron into this process only.
 #' @export
 ensure_aws_env <- function(root = NULL) {
-  if (nzchar(Sys.getenv("COEINTEL_AWS_ACCESS_KEY_ID", ""))) {
-    return(invisible(TRUE))
-  }
-  for (dir in renviron_candidate_dirs(root)) {
-    path <- file.path(dir, ".Renviron")
-    if (!file.exists(path)) next
-    readRenviron(path)
-    if (nzchar(Sys.getenv("COEINTEL_AWS_ACCESS_KEY_ID", ""))) {
-      return(invisible(TRUE))
-    }
-  }
-  invisible(FALSE)
+  box::use(app/logic/chat/env[ensure_project_renviron, coeintel_aws_ready])
+  if (coeintel_aws_ready()) return(invisible(TRUE))
+  ensure_project_renviron(root)
+  invisible(coeintel_aws_ready())
 }
 
 #' @export
-bedrock_ok <- function() {
-  ensure_aws_env()
-  nzchar(Sys.getenv("COEINTEL_AWS_ACCESS_KEY_ID", "")) &&
-    nzchar(Sys.getenv("COEINTEL_AWS_SECRET_ACCESS_KEY", ""))
+bedrock_ok <- function(root = NULL) {
+  ensure_aws_env(root)
+  box::use(app/logic/chat/env[coeintel_aws_ready])
+  coeintel_aws_ready()
 }
 
 bedrock_region <- function() {

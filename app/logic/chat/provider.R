@@ -6,9 +6,12 @@
 #' @export
 ensure_chat_env <- function(root = NULL) {
   box::use(
+    app/logic/chat/env[ensure_project_renviron],
     app/logic/chat/bedrock[ensure_aws_env],
     app/logic/chat/nim[ensure_nvidia_env]
   )
+  # Always try project .Renviron first (Shiny often starts with a non-repo cwd).
+  ensure_project_renviron(root)
   ensure_aws_env(root)
   ensure_nvidia_env(root)
   invisible(TRUE)
@@ -20,14 +23,15 @@ provider_pref <- function() {
 
 #' Resolved provider: "bedrock", "nim", or "none".
 #' @export
-chat_provider <- function() {
+chat_provider <- function(root = NULL) {
   box::use(
     app/logic/chat/bedrock[bedrock_ok],
     app/logic/chat/nim[nvidia_key_ok]
   )
+  ensure_chat_env(root)
   pref <- provider_pref()
   if (identical(pref, "bedrock")) {
-    if (bedrock_ok()) return("bedrock")
+    if (bedrock_ok(root)) return("bedrock")
     return("none")
   }
   if (identical(pref, "nim")) {
@@ -35,23 +39,23 @@ chat_provider <- function() {
     return("none")
   }
   # auto
-  if (bedrock_ok()) return("bedrock")
+  if (bedrock_ok(root)) return("bedrock")
   if (nvidia_key_ok()) return("nim")
   "none"
 }
 
 #' @export
-chat_ready <- function() !identical(chat_provider(), "none")
+chat_ready <- function(root = NULL) !identical(chat_provider(root), "none")
 
 #' Human label for the live status line (configured model — no silent NIM rename).
 #' @export
-chat_model_label <- function() {
+chat_model_label <- function(root = NULL) {
   box::use(
     app/logic/chat/bedrock[bedrock_model_label],
     app/logic/chat/nim[nim_model_label]
   )
   switch(
-    chat_provider(),
+    chat_provider(root),
     bedrock = bedrock_model_label(),
     nim = nim_model_label(),
     "No model configured"

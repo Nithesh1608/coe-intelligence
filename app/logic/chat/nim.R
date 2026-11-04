@@ -11,48 +11,14 @@ NIM_MODEL_FALLBACKS <- c(
 
 `%||%` <- function(a, b) if (is.null(a) || !length(a) || !nzchar(a[[1]])) b else a
 
-renviron_candidate_dirs <- function(root = NULL) {
-  starts <- character()
-  if (!is.null(root) && nzchar(as.character(root)[[1]])) {
-    starts <- c(starts, as.character(root)[[1]])
-  }
-  bp <- getOption("box.path", "")
-  if (is.character(bp) && length(bp) && nzchar(bp[[1]])) {
-    starts <- c(starts, bp[[1]])
-  }
-  starts <- c(starts, getwd())
-  tryCatch({
-    box::use(app/logic/viewdata/store[project_root])
-    starts <- c(starts, project_root())
-  }, error = function(e) NULL)
-
-  dirs <- character()
-  for (start in unique(starts[nzchar(starts)])) {
-    here <- normalizePath(start, winslash = "/", mustWork = FALSE)
-    for (i in seq_len(12)) {
-      dirs <- c(dirs, here)
-      parent <- dirname(here)
-      if (identical(parent, here)) break
-      here <- parent
-    }
-  }
-  unique(dirs)
-}
-
 #' @export
 ensure_nvidia_env <- function(root = NULL) {
+  box::use(app/logic/chat/env[ensure_project_renviron])
   if (nzchar(Sys.getenv("NVIDIA_API_KEY", ""))) {
     return(invisible(TRUE))
   }
-  for (dir in renviron_candidate_dirs(root)) {
-    path <- file.path(dir, ".Renviron")
-    if (!file.exists(path)) next
-    readRenviron(path)
-    if (nzchar(Sys.getenv("NVIDIA_API_KEY", ""))) {
-      return(invisible(TRUE))
-    }
-  }
-  invisible(FALSE)
+  ensure_project_renviron(root)
+  invisible(nzchar(Sys.getenv("NVIDIA_API_KEY", "")))
 }
 
 #' @export
