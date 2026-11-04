@@ -44,8 +44,35 @@ is_unsupported_category <- function(q) {
 #' Clarifying question mid slot-fill (keep pending; answer then re-ask).
 is_slot_clarify <- function(q) {
   ql <- tolower(q)
-  grepl("\\b(means? what|what (does|is|do)|explain|tell me (about|what)|how does)\\b", ql) ||
-    grepl("\\?\\s*$", ql) && grepl("renew|inject|pqp|claw|baseline|preset|\\+\\s*5", ql)
+  # Do not treat "Is December… published?" as preset help.
+  if (grepl("published|forecast|outlook|mape|accur|held-?out|quota for|when .{0,20}bid", ql)) {
+    return(FALSE)
+  }
+  grepl("\\b(means? what|what (does|is|do) (renew|inject|pqp|claw|baseline|preset|\\+?5)|explain (renew|inject|pqp|claw|baseline|preset)|tell me (about|what).{0,20}(renew|inject|pqp|claw|baseline|preset|\\+\\s*5)|how does (renew|inject|pqp|claw|baseline))\\b", ql) ||
+    (grepl("\\?\\s*$", ql) && grepl("renew|inject|pqp|claw|baseline|preset|\\+\\s*5", ql) &&
+       !grepl("published|forecast|quota for|december|2026", ql))
+}
+
+#' Short answers that continue slot-fill (not a topic change).
+is_slot_value <- function(q) {
+  ql <- tolower(trimws(q))
+  if (grepl("^\\s*[ab]\\s*$", ql)) return(TRUE)
+  if (grepl("^\\s*\\d{1,3}\\s*$", ql)) return(TRUE)
+  if (grepl("^\\s*\\$?\\s*\\d{4,7}\\s*$", ql)) return(TRUE)
+  if (!is.null(detect_category(q)) && nchar(ql) < 24) return(TRUE)
+  if (!is.null(detect_preset(q)) && !grepl("\\?", ql) && nchar(ql) < 48) return(TRUE)
+  if (!is.null(parse_orders(q)) && nchar(ql) < 48) return(TRUE)
+  if (!is.null(parse_money(q)) && nchar(ql) < 48 && !grepl("published|forecast", ql)) return(TRUE)
+  FALSE
+}
+
+#' User abandoned the slot wizard for a new question.
+is_topic_switch <- function(q) {
+  if (is_slot_value(q) || is_slot_clarify(q) || desk_cancel_request(q)) return(FALSE)
+  ql <- tolower(q)
+  grepl("\\?\\s*$", ql) ||
+    grepl("^(is|are|was|were|what|when|where|why|how|can|could|should|do|does|did)\\b", ql) ||
+    grepl("\\b(published|not released|forecast|outlook|mape|held-?out|track record|accur)\\b", ql)
 }
 
 preset_help_text <- function(q) {
@@ -103,6 +130,13 @@ desk_refuse_reason <- function(q) {
   }
   if (grepl("refit|retrain|clean(ing)? the data|scrape|etl|sql", ql)) {
     return("I don't run cleaning, scrapes, or refits from chat — only live desk artefacts and the Scenarios / Your risk engines.")
+  }
+  if (grepl("financial advise|financial advice|investment advice", ql) &&
+        !grepl("exposure|coe|quota|order|book|var\\b|loss", ql)) {
+    return(paste(
+      "I don't give general financial advice.",
+      "I can price **COE financial exposure** for a pooled Cat A/B book — say **financial exposure** (or give orders, category, and quoted $)."
+    ))
   }
   NULL
 }
@@ -196,6 +230,7 @@ detect_desk_intent <- function(q, pending = NULL) {
     if (desk_cancel_request(q)) return("cancel")
     ql <- tolower(q)
     if (is_slot_clarify(q)) return("clarify")
+    if (is_topic_switch(q)) return("chat")
     if (identical(pending$kind, "scenario") &&
           grepl("risk|exposure|price (the |my )?book|var\\b|cvar|\\blose\\b|\\bloose\\b|\\bloss\\b", ql) &&
           !grepl("inject|pqp|renew|claw", ql)) {
@@ -519,6 +554,11 @@ handle_desk_turn <- function(q, store, pending = NULL) {
     ))
   }
 
+  # Mid-slot topic change (e.g. "Is Dec 2026 published?") — drop wizard, answer in chat.
+  if (!is.null(pending) && is_topic_switch(q)) {
+    return(list(action = "chat", clear_pending = TRUE))
+  }
+
   refuse <- desk_refuse_reason(q)
   intent <- detect_desk_intent(q, pending)
 
@@ -532,7 +572,10 @@ handle_desk_turn <- function(q, store, pending = NULL) {
   }
 
   if (identical(intent, "chat") || identical(intent, "clarify")) {
-    return(list(action = "chat"))
+    return(list(
+      action = "chat",
+      clear_pending = isTRUE(!is.null(pending) && is_topic_switch(q))
+    ))
   }
 
   kind <- intent

@@ -508,6 +508,11 @@ server <- function(id, store) {
         if (nzchar(desk$facts %||% "")) last_desk_facts(desk$facts)
       }
 
+      # Chat path (incl. mid-slot topic switch): honour clear_pending.
+      if (identical(desk$action, "chat") && isTRUE(desk$clear_pending)) {
+        desk_pending(NULL)
+      }
+
       # 2) Live model writes the answer; keep last desk facts for follow-ups.
       box::use(app/logic/chat/env[ensure_project_renviron, chat_env_diag])
       ensure_project_renviron(root)
