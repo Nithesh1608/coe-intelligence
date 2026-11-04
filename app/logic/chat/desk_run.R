@@ -171,9 +171,12 @@ detect_desk_intent <- function(q, pending = NULL) {
         (!is.null(detect_preset(q)) && grepl("run|show|apply|compare|quota|dereg", ql))) {
     return("scenario")
   }
+  # Pooled exposure in-chat (slot-fill). CSV uploads stay on the Your risk tab.
   if (grepl("\\b(price|price my|var95|bad-?case|pooled book)\\b", ql) ||
         (grepl("\\b(orders?|cars?)\\b", ql) && grepl("\\b(quote|quoted|premium|risk|cost|loss)\\b", ql)) ||
-        (grepl("\\b(exposure|your risk)\\b", ql) && grepl("\\b(price|run|simulate|for \\d|orders?)\\b", ql))) {
+        grepl("\\b(financial\\s+)?exposure\\b", ql) ||
+        grepl("\\b(get|show|give|need|want|run|price|calculate|compute)\\b.{0,48}\\b(exposure|var\\b|cvar|dealer (pnl|p&l)|book risk)\\b", ql) ||
+        grepl("\\b(your risk)\\b", ql) && grepl("\\b(price|run|simulate|for \\d|orders?|here|in chat|in (the )?bot)\\b", ql)) {
     return("exposure")
   }
   "chat"

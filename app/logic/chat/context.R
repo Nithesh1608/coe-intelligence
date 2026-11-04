@@ -82,6 +82,10 @@ system_prompt <- function() {
     "When asked for a past held-out month, quote heldout_published and heldout_outlook only.",
     "When asked for the live forward outlook, quote forward_mid / forward_lo80 / forward_hi80 (or quarterly sums) exactly.",
     "If DESK RUN FACTS appear below, treat them as authoritative live engine output and write a fresh answer from them — never paste a canned script.",
+    "CHAT EXPOSURE: Users can price a pooled Cat A/B book HERE in COE bot — do not send them to the Your risk tab for that.",
+    "When they ask for exposure / financial risk / VaR in chat and no DESK RUN FACTS are present yet, ask only for the missing inputs:",
+    "orders (1–200), category A or B, and quoted premium ($) — the desk runner collects these; do not invent sample VaR/CVaR numbers.",
+    "Only custom CSV / fleet uploads belong on the Your risk tab. Never invent example figures like ‘VaR $20,000’.",
     "Exposure reading rules: Expected COE cost is the expected clearing spend (usually large and positive) — it is NOT ‘profit’.",
     "Dealer P&L vs quote is what matters for loss: negative expected dealer P&L / high prob_loss means the quote is cheap vs simulated premiums.",
     "If the user asks when to bid or compares months, use the timing rows (+0Q/+1Q/+2Q) from DESK RUN FACTS when present — do not invent a bidding calendar from quota mid alone.",
@@ -280,11 +284,12 @@ build_project_context <- function(store = NULL, root = NULL, question = NULL) {
       extras,
       paste(
         c(
-          "## Your risk (exposure) — same as the tab",
-          "Paths: block-bootstrap of historical A/B tender-to-tender premium moves.",
-          "Optional supply tilt from Scenarios preset forward quota.",
-          "Outputs: expected loss, percentiles, VaR / CVaR, timing shifts (+1Q / +2Q).",
-          "Personalised book P&L needs an uploaded schedule in the Your risk tab — bot explains mechanics and cites shared supply numbers only."
+          "## Exposure — chat pooled book vs Your risk tab",
+          "In COE bot: price a pooled book (orders × category A|B × quoted premium) via the desk runner; numbers come from DESK RUN FACTS only.",
+          "Paths: block-bootstrap of historical A/B tender-to-tender premium moves; optional supply tilt from a Scenarios preset.",
+          "Outputs: expected COE cost, dealer P&L vs quote, VaR / CVaR, timing (+1Q / +2Q).",
+          "Your risk tab: only needed for custom CSV / fleet schedule uploads — not for ordinary pooled pricing in chat.",
+          "Never invent sample VaR/CVaR or P&L figures."
         ),
         collapse = "\n"
       )
