@@ -17,7 +17,6 @@ BEDROCK_MODEL_FALLBACKS <- c(
 #' @export
 ensure_aws_env <- function(root = NULL) {
   box::use(app/logic/chat/env[ensure_project_renviron, coeintel_aws_ready])
-  if (coeintel_aws_ready()) return(invisible(TRUE))
   ensure_project_renviron(root)
   invisible(coeintel_aws_ready())
 }

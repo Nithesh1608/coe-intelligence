@@ -80,14 +80,13 @@ ui <- function(id) {
 #' @export
 server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    root <- tryCatch(project_root(), error = function(e) getwd())
-    # Force absolute project .Renviron before any chat/provider checks.
-    renviron <- file.path(root, ".Renviron")
-    if (file.exists(renviron)) {
-      tryCatch(readRenviron(renviron), error = function(e) {
-        warning("Could not read .Renviron: ", conditionMessage(e))
-      })
-    }
+    box::use(app/logic/chat/env[find_project_root, ensure_project_renviron])
+    root <- tryCatch(find_project_root(), error = function(e) project_root())
+    if (is.na(root) || !nzchar(root)) root <- tryCatch(project_root(), error = function(e) getwd())
+    # Always apply secrets before modules mount (manual parse — Windows-safe).
+    tryCatch(ensure_project_renviron(root), error = function(e) {
+      warning("Could not load .Renviron: ", conditionMessage(e))
+    })
     tryCatch(ensure_chat_env(root), error = function(e) {
       warning("Chat env load skipped: ", conditionMessage(e))
     })

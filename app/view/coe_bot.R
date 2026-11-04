@@ -364,12 +364,31 @@ server <- function(id, store) {
     })
 
     output$status <- renderUI({
-      ensure_chat_env(root)
-      if (!chat_ready(root)) {
-        return(tags$p(class = "coe-bot-status coe-bot-status--bad", "Model offline — check .Renviron Bedrock keys"))
+      box::use(app/logic/chat/env[ensure_project_renviron, chat_env_diag, coeintel_aws_ready])
+      tryCatch(ensure_project_renviron(root), error = function(e) NULL)
+      tryCatch(ensure_chat_env(root), error = function(e) NULL)
+      ready <- tryCatch(chat_ready(root), error = function(e) FALSE)
+      aws <- tryCatch(coeintel_aws_ready(), error = function(e) FALSE)
+      if (!isTRUE(ready) && !isTRUE(aws)) {
+        diag <- tryCatch(chat_env_diag(root), error = function(e) conditionMessage(e))
+        return(tags$p(
+          class = "coe-bot-status coe-bot-status--bad",
+          paste0("Model offline — restart the R session. ", diag)
+        ))
       }
-      nm <- live_label()
-      if (is.null(nm) || !nzchar(nm)) nm <- chat_model_label(root)
+      # Keys present: show Live even if provider probe hiccuped once.
+      nm <- tryCatch({
+        x <- live_label()
+        if (is.null(x) || !nzchar(x) || identical(x, "No model configured")) {
+          chat_model_label(root)
+        } else {
+          x
+        }
+      }, error = function(e) "Amazon Nova Pro")
+      if (is.null(nm) || !nzchar(nm) || identical(nm, "No model configured")) {
+        nm <- "Amazon Nova Pro"
+      }
+      live_label(nm)
       tags$p(class = "coe-bot-status coe-bot-status--ok", paste0("Live · ", nm))
     })
 
@@ -490,9 +509,14 @@ server <- function(id, store) {
       }
 
       # 2) Live model writes the answer; keep last desk facts for follow-ups.
+      box::use(app/logic/chat/env[ensure_project_renviron, chat_env_diag])
+      ensure_project_renviron(root)
       ensure_chat_env(root)
       if (!chat_ready(root)) {
-        finish_turn(history, busy, session, list(ok = TRUE, text = key_missing_msg()))
+        finish_turn(
+          history, busy, session,
+          list(ok = TRUE, text = paste(key_missing_msg(), "\n\nDebug:", chat_env_diag(root)))
+        )
         return()
       }
 
