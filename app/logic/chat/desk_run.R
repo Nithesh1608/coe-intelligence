@@ -45,8 +45,8 @@ desk_refuse_reason <- function(q) {
       "Here I can price a **pooled** book if you give orders, category (A or B), and quoted premium."
     ))
   }
-  if (grepl("premium", ql) &&
-        grepl("forecast|predict|next tender|what will|will .{0,40}be|clearing", ql)) {
+  if ((grepl("\\bpremium\\b", ql) || grepl("\\bclearing\\b", ql)) &&
+        grepl("forecast|predict|next tender|what will|will .{0,40}be|next month|upcoming", ql)) {
     return(paste(
       "We do **not** forecast the next clearing premium.",
       "I can price risk on simulated paths, or show supply scenarios / quota outlook."
@@ -323,6 +323,18 @@ desk_exposure_facts <- function(res) {
       )
     })
   }
+  pl <- suppressWarnings(as.numeric(s$prob_loss[[1]]))
+  reading <- if (is.finite(pl) && pl >= 0.9) {
+    paste(
+      "reading=UNDERPRICED_QUOTE",
+      "instruction=First sentence: fix the quoted premium first — timing will not save this book.",
+      "Do not lead with bid-now."
+    )
+  } else if (is.finite(pl) && pl >= 0.5) {
+    "reading=QUOTE_AT_RISK | say the quote looks cheap vs simulated paths; timing is secondary."
+  } else {
+    "reading=QUOTE_OK_OR_MIXED | summarise cost, VaR, and timing plainly."
+  }
   paste(
     c(
       "# DESK RUN FACTS (authoritative — quote these numbers; do not invent)",
@@ -341,6 +353,7 @@ desk_exposure_facts <- function(res) {
       sprintf("var95_loss=%s", fmt_sgd(s$var95_loss)),
       sprintf("prob_loss=%s", fmt_pct(s$prob_loss)),
       sprintf("expected_customer_topup=%s", fmt_sgd(s$expected_customer_topup)),
+      reading,
       "timing:",
       timing_lines
     ),
