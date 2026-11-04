@@ -29,13 +29,62 @@ desk_cancel_request <- function(q) {
   grepl("^\\s*(cancel|never\\s*mind|nevermind|stop|abort|forget it)\\s*$", q, ignore.case = TRUE)
 }
 
+unsupported_category_reply <- function() {
+  "This desk covers **Cat A/B only** — not C/D/E or motorcycles. Reply **A** or **B**."
+}
+
+is_unsupported_category <- function(q) {
+  ql <- tolower(trimws(q))
+  grepl("^\\s*cat(?:egory)?\\s*[cde]\\s*$", ql) ||
+    grepl("^\\s*[cde]\\s*$", ql) ||
+    grepl("\\bcat(?:egory)?\\s*[cde]\\b", ql) ||
+    grepl("\\bmotorcycle\\b|\\bcommercial\\b", ql)
+}
+
+#' Clarifying question mid slot-fill (keep pending; answer then re-ask).
+is_slot_clarify <- function(q) {
+  ql <- tolower(q)
+  grepl("\\b(means? what|what (does|is|do)|explain|tell me (about|what)|how does)\\b", ql) ||
+    grepl("\\?\\s*$", ql) && grepl("renew|inject|pqp|claw|baseline|preset|\\+\\s*5", ql)
+}
+
+preset_help_text <- function(q) {
+  ql <- tolower(q)
+  if (grepl("renew|\\+\\s*5", ql)) {
+    return(paste(
+      "**Renewal +5**: renewal share +5 percentage points (lever only).",
+      "More renewals → fewer deregistrations → tighter forward quota.",
+      "It does not move PQP or inject certificates."
+    ))
+  }
+  if (grepl("inject\\s*750|750", ql)) {
+    return("**Inject 750**: LTA adds 750 car COEs per quarter, split A/B by recent published shares.")
+  }
+  if (grepl("80\\s*k|80000", ql)) {
+    return("**PQP 80k**: PQP glides down to $80k; fitted renewal response raises renewals and cuts deregistrations.")
+  }
+  if (grepl("160\\s*k|160000", ql)) {
+    return("**PQP 160k**: PQP glides up to $160k; renewals fall and deregistrations rise.")
+  }
+  if (grepl("claw", ql)) {
+    return("**Clawback**: LTA claws back brought-forward certificates over 8 quarters (negative injection).")
+  }
+  if (grepl("baseline", ql)) {
+    return("**Baseline**: flat PQP, no injection — the reference forward quota path.")
+  }
+  paste(
+    "Presets stress supply only (not premiums):",
+    "baseline; inject 750; PQP 80k / 160k; clawback; renewal +5 (renewal share +5 pts)."
+  )
+}
+
 #' Hard refusals the bot must not run as a desk tool.
 #' @export
 desk_refuse_reason <- function(q) {
   ql <- tolower(q)
-  if (grepl("cat(?:egory)?\\s*[cde]\\b|motorcycle|commercial", ql) &&
-        grepl("forecast|quota|outlook|scenario|risk|price|exposure", ql)) {
-    return("This desk covers Cat A/B only — not C/D/E or motorcycles.")
+  if (is_unsupported_category(q) &&
+        grepl("forecast|quota|outlook|scenario|risk|price|exposure|lose|loss|bid", ql)) {
+    return(unsupported_category_reply())
   }
   if (grepl("upload|csv|spreadsheet|excel|fleet schedule|order book file", ql) &&
         grepl("risk|exposure|price|book", ql)) {
@@ -145,14 +194,15 @@ injection_extra <- function(q) {
 detect_desk_intent <- function(q, pending = NULL) {
   if (!is.null(pending) && !is.null(pending$kind)) {
     if (desk_cancel_request(q)) return("cancel")
-    # Continue slot fill unless user clearly switches domain.
     ql <- tolower(q)
-    if (identical(pending$kind, "scenario") && grepl("risk|exposure|price (the |my )?book|var\\b|cvar", ql) &&
-          !grepl("scenario|inject|pqp|renew", ql)) {
+    if (is_slot_clarify(q)) return("clarify")
+    if (identical(pending$kind, "scenario") &&
+          grepl("risk|exposure|price (the |my )?book|var\\b|cvar|\\blose\\b|\\bloose\\b|\\bloss\\b", ql) &&
+          !grepl("inject|pqp|renew|claw", ql)) {
       return("exposure")
     }
     if (identical(pending$kind, "exposure") && grepl("scenario|inject|clawback|pqp (to|at)|renewal \\+", ql) &&
-          !grepl("risk|exposure|price", ql)) {
+          !grepl("risk|exposure|price|lose|loose|loss", ql)) {
       return("scenario")
     }
     return(pending$kind)
@@ -167,9 +217,10 @@ detect_desk_intent <- function(q, pending = NULL) {
         !grepl("\\brun\\b|inject|price \\d|orders? at", ql)) {
     return("chat")
   }
-  if (grepl("scenario|inject|clawback|stress (renew|quota|supply)|pqp (to|at|falls|rises)|what if .{0,40}(renew|inject|pqp|quota)", ql) ||
-        (!is.null(detect_preset(q)) && grepl("run|show|apply|compare|quota|dereg", ql))) {
-    return("scenario")
+  # Money loss / VaR on a book → exposure (even if user says “scenarios”).
+  if (grepl("\\b(lose|loose|loss|var95|cvar|underwater|how much .{0,40}(lose|loose|loss|cost))\\b", ql) ||
+        grepl("\\b(calculate|compute|price)\\b.{0,40}\\b(lose|loose|loss|risk|exposure|var)\\b", ql)) {
+    return("exposure")
   }
   # Pooled exposure in-chat (slot-fill). CSV uploads stay on the Your risk tab.
   if (grepl("\\b(price|price my|var95|bad-?case|pooled book)\\b", ql) ||
@@ -178,6 +229,10 @@ detect_desk_intent <- function(q, pending = NULL) {
         grepl("\\b(get|show|give|need|want|run|price|calculate|compute)\\b.{0,48}\\b(exposure|var\\b|cvar|dealer (pnl|p&l)|book risk)\\b", ql) ||
         grepl("\\b(your risk)\\b", ql) && grepl("\\b(price|run|simulate|for \\d|orders?|here|in chat|in (the )?bot)\\b", ql)) {
     return("exposure")
+  }
+  if (grepl("scenario|inject|clawback|stress (renew|quota|supply)|pqp (to|at|falls|rises)|what if .{0,40}(renew|inject|pqp|quota)", ql) ||
+        (!is.null(detect_preset(q)) && grepl("run|show|apply|compare|quota|dereg", ql))) {
+    return("scenario")
   }
   "chat"
 }
@@ -430,6 +485,40 @@ handle_desk_turn <- function(q, store, pending = NULL) {
     ))
   }
 
+  # Mid-slot: unsupported Cat C/D/E — keep pending and re-ask.
+  if (!is.null(pending) && is_unsupported_category(q)) {
+    miss <- missing_slots(pending$kind, pending$slots %||% list())
+    if (!length(miss)) miss <- "category"
+    return(list(
+      action = "reply",
+      pending = pending,
+      text = paste(
+        unsupported_category_reply(),
+        slot_prompt(pending$kind, miss, store = store, slots = pending$slots),
+        sep = "\n\n"
+      ),
+      viz = NULL
+    ))
+  }
+
+  # Mid-slot clarifying question — answer briefly, keep slots, re-ask.
+  if (!is.null(pending) && is_slot_clarify(q)) {
+    miss <- missing_slots(pending$kind, pending$slots %||% list())
+    if (!length(miss)) {
+      miss <- if (identical(pending$kind, "scenario")) "preset_id" else "n_cars"
+    }
+    return(list(
+      action = "reply",
+      pending = pending,
+      text = paste(
+        preset_help_text(q),
+        slot_prompt(pending$kind, miss, store = store, slots = pending$slots),
+        sep = "\n\n"
+      ),
+      viz = NULL
+    ))
+  }
+
   refuse <- desk_refuse_reason(q)
   intent <- detect_desk_intent(q, pending)
 
@@ -442,7 +531,7 @@ handle_desk_turn <- function(q, store, pending = NULL) {
     ))
   }
 
-  if (identical(intent, "chat")) {
+  if (identical(intent, "chat") || identical(intent, "clarify")) {
     return(list(action = "chat"))
   }
 
