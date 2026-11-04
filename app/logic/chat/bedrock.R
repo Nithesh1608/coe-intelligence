@@ -1,7 +1,7 @@
 # AWS Bedrock Converse for COE bot.
-# Credentials: COEINTEL_AWS_* from project .Renviron only (IAM: coeintel_cursor).
-# Never writes ~/.aws and never selects another named profile.
-# Transport: AWS CLI with process-scoped env (same reliability pattern as NIM/curl).
+# Credentials: COEINTEL_AWS_* (IAM: coeintel_cursor) — never another profile.
+# Transport: httr2 + AWS SigV4 HTTP (works on Posit Cloud without AWS CLI).
+# Optional: AWS CLI used only as a last-resort fallback when httr2 fails and CLI exists.
 
 BEDROCK_MODEL_DEFAULT <- "apac.amazon.nova-pro-v1:0"
 # Amazon Nova on-demand inference profiles — no marketplace / use-case request.
@@ -62,10 +62,7 @@ find_aws <- function() {
     path <- Sys.which(cand)
     if (nzchar(path)) return(unname(path))
   }
-  stop(
-    "AWS CLI is required for Bedrock calls but was not found on PATH.",
-    call. = FALSE
-  )
+  NULL
 }
 
 require_coeintel_creds <- function() {
@@ -75,7 +72,7 @@ require_coeintel_creds <- function() {
   if (!nzchar(key) || !nzchar(secret)) {
     stop(
       "COEINTEL_AWS_ACCESS_KEY_ID / COEINTEL_AWS_SECRET_ACCESS_KEY missing. ",
-      "Add coeintel_cursor keys to .Renviron (never other IAM profiles).",
+      "Local: project .Renviron. Posit Cloud: Vars. IAM user: coeintel_cursor.",
       call. = FALSE
     )
   }
@@ -130,9 +127,9 @@ parse_converse_text <- function(body) {
   out
 }
 
-error_from_cli <- function(lines, status) {
-  txt <- paste(lines, collapse = "\n")
-  if (grepl("AccessDenied|UnrecognizedClient|InvalidClientTokenId|ExpiredToken", txt)) {
+format_bedrock_error <- function(txt, status = NULL) {
+  txt <- as.character(txt %||% "")
+  if (grepl("AccessDenied|UnrecognizedClient|InvalidClientTokenId|ExpiredToken|SignatureDoesNotMatch", txt)) {
     return(paste0(
       "Bedrock rejected coeintel_cursor credentials. ",
       "Confirm the access key is active and has bedrock:InvokeModel. ",
@@ -146,7 +143,7 @@ error_from_cli <- function(lines, status) {
     return(paste("Bedrock busy:", trimws(txt)))
   }
   if (!nzchar(trimws(txt))) {
-    return(sprintf("AWS CLI failed (exit %s).", status %||% "?"))
+    return(sprintf("Bedrock request failed%s.", if (!is.null(status)) paste0(" (HTTP ", status, ")") else ""))
   }
   trimws(txt)
 }
@@ -159,10 +156,7 @@ is_retryable_bedrock <- function(err) {
   )
 }
 
-#' Converse via AWS CLI with env scoped to this child process only.
-bedrock_cli_exchange <- function(messages, model, creds, temperature, max_tokens,
-                                 timeout_sec = 45L) {
-  box::use(jsonlite[toJSON, fromJSON])
+converse_payload <- function(messages, temperature, max_tokens) {
   prepared <- prepare_converse(messages)
   payload <- list(
     messages = prepared$messages,
@@ -172,17 +166,98 @@ bedrock_cli_exchange <- function(messages, model, creds, temperature, max_tokens
     )
   )
   if (!is.null(prepared$system)) payload$system <- prepared$system
+  payload
+}
+
+#' Converse via HTTPS + SigV4 (no AWS CLI). Preferred on Posit Cloud.
+bedrock_http_exchange <- function(messages, model, creds, temperature, max_tokens,
+                                  timeout_sec = 45L) {
+  box::use(
+    httr2[
+      request, req_url_path_append, req_body_json, req_auth_aws_v4,
+      req_timeout, req_error, req_perform, resp_body_json, resp_status,
+      resp_body_string
+    ]
+  )
+
+  payload <- converse_payload(messages, temperature, max_tokens)
+  host <- sprintf("https://bedrock-runtime.%s.amazonaws.com", creds$region)
+
+  req <- request(host)
+  req <- req_url_path_append(req, "model", model, "converse")
+  req <- req_body_json(req, payload)
+  # Signing service must be "bedrock" (not "bedrock-runtime" from the hostname).
+  req <- req_auth_aws_v4(
+    req,
+    aws_access_key_id = creds$key,
+    aws_secret_access_key = creds$secret,
+    aws_service = "bedrock",
+    aws_region = creds$region
+  )
+  req <- req_timeout(req, as.numeric(timeout_sec))
+  req <- req_error(req, is_error = function(resp) FALSE)
+
+  resp <- tryCatch(
+    req_perform(req),
+    error = function(e) e
+  )
+  if (inherits(resp, "error")) {
+    err <- format_bedrock_error(conditionMessage(resp))
+    return(list(ok = FALSE, error = err, retryable = is_retryable_bedrock(err)))
+  }
+
+  status <- resp_status(resp)
+  body <- tryCatch(resp_body_json(resp, simplifyVector = FALSE), error = function(e) NULL)
+
+  if (status < 200L || status >= 300L) {
+    msg <- NULL
+    if (is.list(body)) {
+      msg <- body$message %||% body$Message %||% body$msg
+    }
+    if (is.null(msg) || !nzchar(as.character(msg)[[1]])) {
+      msg <- tryCatch(resp_body_string(resp), error = function(e) paste("HTTP", status))
+    }
+    err <- format_bedrock_error(msg, status)
+    return(list(ok = FALSE, error = err, retryable = is_retryable_bedrock(err)))
+  }
+
+  if (is.null(body)) {
+    return(list(
+      ok = FALSE,
+      retryable = TRUE,
+      error = "Could not parse Bedrock JSON response."
+    ))
+  }
+
+  tryCatch(
+    list(ok = TRUE, text = parse_converse_text(body), model = model),
+    error = function(e) list(ok = FALSE, error = conditionMessage(e), retryable = FALSE)
+  )
+}
+
+#' Optional CLI fallback when present (local machines with AWS CLI).
+bedrock_cli_exchange <- function(messages, model, creds, temperature, max_tokens,
+                                 timeout_sec = 45L) {
+  aws_bin <- find_aws()
+  if (is.null(aws_bin)) {
+    return(list(
+      ok = FALSE,
+      retryable = FALSE,
+      error = "AWS CLI not on PATH."
+    ))
+  }
+
+  box::use(jsonlite[toJSON, fromJSON])
+  payload <- converse_payload(messages, temperature, max_tokens)
 
   body_path <- tempfile("bedrock_req_", fileext = ".json")
   on.exit(unlink(body_path, force = TRUE), add = TRUE)
-
   writeLines(
     toJSON(payload, auto_unbox = TRUE, null = "null"),
     body_path,
     useBytes = TRUE
   )
 
-  aws_bin <- find_aws()
   args <- c(
     "bedrock-runtime", "converse",
     "--model-id", model,
@@ -191,8 +266,6 @@ bedrock_cli_exchange <- function(messages, model, creds, temperature, max_tokens
     "--output", "json"
   )
 
-  # Process-scoped creds only for this call. Avoid system2(env=) on Windows —
-  # Cursor/sandbox env blobs get mis-parsed as AWS CLI argv.
   aws_vars <- c(
     "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
     "AWS_SECURITY_TOKEN", "AWS_PROFILE", "AWS_DEFAULT_PROFILE",
@@ -229,7 +302,7 @@ bedrock_cli_exchange <- function(messages, model, creds, temperature, max_tokens
   exit_st <- attr(code_chr, "status")
 
   if (!is.null(exit_st) && !identical(as.integer(exit_st), 0L)) {
-    err <- error_from_cli(code_chr, exit_st)
+    err <- format_bedrock_error(paste(code_chr, collapse = "\n"), exit_st)
     return(list(ok = FALSE, error = err, retryable = is_retryable_bedrock(err)))
   }
 
@@ -249,6 +322,27 @@ bedrock_cli_exchange <- function(messages, model, creds, temperature, max_tokens
   )
 }
 
+bedrock_exchange <- function(messages, model, creds, temperature, max_tokens,
+                             timeout_sec = 45L) {
+  out <- bedrock_http_exchange(
+    messages, model, creds, temperature, max_tokens,
+    timeout_sec = timeout_sec
+  )
+  if (isTRUE(out$ok)) return(out)
+
+  # Only try CLI if it exists — Posit Cloud has none.
+  if (!is.null(find_aws())) {
+    cli_out <- bedrock_cli_exchange(
+      messages, model, creds, temperature, max_tokens,
+      timeout_sec = timeout_sec
+    )
+    if (isTRUE(cli_out$ok)) return(cli_out)
+    # Prefer the HTTP error (more relevant on Cloud); keep CLI note if HTTP was empty.
+    if (!nzchar(out$error %||% "")) out <- cli_out
+  }
+  out
+}
+
 #' Sync Bedrock chat used by the Shiny bot.
 #' @export
 bedrock_chat <- function(messages, temperature = 0.25, max_tokens = 1600L,
@@ -261,7 +355,7 @@ bedrock_chat <- function(messages, temperature = 0.25, max_tokens = 1600L,
     attempts <- as.integer(retries) + 1L
     for (attempt in seq_len(attempts)) {
       out <- tryCatch(
-        bedrock_cli_exchange(
+        bedrock_exchange(
           messages, model, creds, temperature, max_tokens,
           timeout_sec = as.integer(timeout_sec)
         ),
