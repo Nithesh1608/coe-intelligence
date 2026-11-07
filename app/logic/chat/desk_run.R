@@ -434,13 +434,22 @@ desk_exposure_facts <- function(res) {
   reading <- if (is.finite(pl) && pl >= 0.9) {
     paste(
       "reading=UNDERPRICED_QUOTE",
-      "instruction=First sentence: fix the quoted premium first — timing will not save this book.",
-      "Do not lead with bid-now."
+      "instruction=State as fact: quote looks cheap vs simulated paths (high prob_loss).",
+      "Show cost, VaR, and +0Q/+1Q/+2Q timing. Do NOT say bid/wait/fix/should.",
+      "Close politely: they can choose based on their risk appetite."
     )
   } else if (is.finite(pl) && pl >= 0.5) {
-    "reading=QUOTE_AT_RISK | say the quote looks cheap vs simulated paths; timing is secondary."
+    paste(
+      "reading=QUOTE_AT_RISK",
+      "instruction=Summarise cost, VaR, and timing as facts only — no bid/wait recommendation.",
+      "Close politely: they can choose based on their risk appetite."
+    )
   } else {
-    "reading=QUOTE_OK_OR_MIXED | summarise cost, VaR, and timing plainly."
+    paste(
+      "reading=QUOTE_OK_OR_MIXED",
+      "instruction=Summarise cost, VaR, and timing plainly — no bid/wait recommendation.",
+      "Close politely: they can choose based on their risk appetite."
+    )
   }
   paste(
     c(
