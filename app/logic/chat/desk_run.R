@@ -165,7 +165,7 @@ detect_preset <- function(q) {
 }
 
 parse_orders <- function(q) {
-  # "40 cars", "30 Cat A orders", "orders: 25", bare number during slot fill
+  # "40 cars", "20 Cat A vehicles", "30 Cat A orders", "orders: 25", bare number during slot fill
   m <- regmatches(
     q,
     regexpr("(?i)\\b(\\d{1,3})\\b(?:\\s+cat(?:egory)?\\s*[ab])?\\s*(cars?|orders?|units?|vehicles?)\\b", q, perl = TRUE)
@@ -174,7 +174,16 @@ parse_orders <- function(q) {
     n <- suppressWarnings(as.integer(sub(".*?(\\d{1,3}).*", "\\1", m, perl = TRUE)))
     if (is.finite(n) && n >= 1L && n <= 200L) return(n)
   }
-  m2 <- regmatches(q, regexpr("(?i)\\b(orders?|cars?|book)\\s*(of|=|:)?\\s*(\\d{1,3})\\b", q, perl = TRUE))
+  # "bid for 20 Cat A" / "for 20 Cat A vehicles"
+  m_for <- regmatches(
+    q,
+    regexpr("(?i)\\b(?:bid\\s+for|for)\\s+(\\d{1,3})\\s+cat(?:egory)?\\s*[ab]\\b", q, perl = TRUE)
+  )
+  if (length(m_for) && nzchar(m_for)) {
+    n <- suppressWarnings(as.integer(sub(".*?(\\d{1,3}).*", "\\1", m_for, perl = TRUE)))
+    if (is.finite(n) && n >= 1L && n <= 200L) return(n)
+  }
+  m2 <- regmatches(q, regexpr("(?i)\\b(orders?|cars?|vehicles?|book)\\s*(of|=|:)?\\s*(\\d{1,3})\\b", q, perl = TRUE))
   if (length(m2) && nzchar(m2)) {
     n <- suppressWarnings(as.integer(gsub("[^0-9]", "", m2)))
     if (is.finite(n) && n >= 1L && n <= 200L) return(n)
@@ -258,8 +267,16 @@ detect_desk_intent <- function(q, pending = NULL) {
     return("exposure")
   }
   # Pooled exposure in-chat (slot-fill). CSV uploads stay on the Your risk tab.
+  has_book_units <- grepl("\\b(orders?|cars?|vehicles?|units?)\\b", ql) ||
+    grepl("\\bbid for\\s+\\d{1,3}\\s+cat", ql)
+  has_quote <- grepl("\\b(quote|quoted|premium)\\b", ql) ||
+    grepl("(?:quoted|quote|at)\\s*\\$?\\s*\\d", ql) ||
+    grepl("\\$?\\s*\\d+(?:\\.\\d+)?\\s*k\\b", ql)
+  bid_timing_q <- grepl("\\bbid\\b", ql) &&
+    grepl("this month|next month|now or|or wait|or the next|should i (bid|wait)", ql)
   if (grepl("\\b(price|price my|var95|bad-?case|pooled book)\\b", ql) ||
-        (grepl("\\b(orders?|cars?)\\b", ql) && grepl("\\b(quote|quoted|premium|risk|cost|loss)\\b", ql)) ||
+        (has_book_units && has_quote) ||
+        (bid_timing_q && has_book_units && has_quote) ||
         grepl("\\b(financial\\s+)?exposure\\b", ql) ||
         grepl("\\b(get|show|give|need|want|run|price|calculate|compute)\\b.{0,48}\\b(exposure|var\\b|cvar|dealer (pnl|p&l)|book risk)\\b", ql) ||
         grepl("\\b(your risk)\\b", ql) && grepl("\\b(price|run|simulate|for \\d|orders?|here|in chat|in (the )?bot)\\b", ql)) {
