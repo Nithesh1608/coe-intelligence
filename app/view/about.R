@@ -72,8 +72,8 @@ ui <- function(id) {
         class = "about-list",
         tags$li(
           tags$strong("Dealers and parallel importers. "),
-          "Guaranteed, capped, or rebate package deals on a forward order book. ",
-          "Your risk turns that book into expected loss, VaR / CVaR, and timing shifts."
+          "Package quotes on a forward order book (or a pooled book in COE bot). ",
+          "Your risk turns that book into Expected COE cost, Bad-case loss, Chance book loses, Customer top-up, and delay timing."
         ),
         tags$li(
           tags$strong("Fleet, leasing, and ride-hail operators. "),
@@ -111,11 +111,13 @@ ui <- function(id) {
         tags$li(
           tags$strong("Your risk. "),
           "Dealer book / fleet schedule settled against block-bootstrap premium paths, ",
-          "optionally tilted by the forward quota path under a chosen scenario."
+          "optionally tilted by the forward quota path under a chosen scenario. ",
+          "Lead metrics: Expected COE cost, Bad-case loss, Chance book loses, Customer top-up, plus If you delay +1Q / +2Q."
         ),
         tags$li(
           tags$strong("COE bot. "),
-          "Q&A on the live outlook and track record, grounded on desk artefacts (optional NVIDIA NIM phrasing)."
+          "Desk Q&A on Amazon Bedrock (Nova). It can run the same pooled Cat A/B exposure engine and scenario presets as the tabs, ",
+          "then narrate only those live artefacts — no premium oracle, no bid/wait decision."
         )
       )
     ),
@@ -226,11 +228,21 @@ ui <- function(id) {
     ),
 
     section(
+      "Prevailing Quota Premium (PQP)",
+      tags$p(
+        "PQP is the price an owner pays to renew a COE instead of scrapping. In practice it tracks recent clearing premiums. ",
+        "We use it in two places: the renewal response on Scenarios (how PQP moves renewals → exits → later quota), ",
+        "and as the trailing premium level on Your risk simulated paths. Baseline scenarios hold PQP flat at its last value."
+      )
+    ),
+
+    section(
       "Exposure calculator (Your risk)",
       tags$p(
         "Your risk does not invent a premium forecast. It resamples historical tender-to-tender premium shocks ",
         "(block bootstrap on log changes), optionally tilts those paths by the forward quota path, then settles ",
-        "a dealer order book or fleet schedule against the simulated premiums."
+        "a dealer order book or fleet schedule against the simulated premiums. ",
+        "Use it to stress what quote to lock — not to ask whether a single bid wins the next tender."
       ),
       tags$ul(
         class = "about-list",
@@ -241,20 +253,26 @@ ui <- function(id) {
         ),
         tags$li(
           tags$strong("Supply tilt. "),
-          "Each path gets a drift of elasticity x change in log quota per exercise, with quota-to-premium ",
-          "elasticities of about -0.22 estimated on quarterly history, and the quota path taken from Home under ",
+          "Each path gets a drift of elasticity × change in log quota per exercise, with quota-to-premium ",
+          "elasticities of about −0.22 estimated on quarterly history, and the quota path taken from Home under ",
           "the scenario you select. Tighter supply pushes simulated premiums up; looser pulls them down."
         ),
         tags$li(
           tags$strong("Dealer book. "),
           "Orders are guaranteed, capped, or rebate contracts. Each order attempts successive tenders with a success ",
-          "probability you set; the premium at first win settles it. Outputs are expectation, percentiles, VaR / CVaR, ",
-          "P(loss) and the effect of shifting the whole book by one or two quarters."
+          "probability you set; the premium at first win settles it. Lead outputs match the page labels: ",
+          "Expected COE cost, Bad-case loss (1-in-20 VaR), Chance book loses (share of sims with P&L < 0), ",
+          "Customer top-up, and If you delay +1Q / +2Q. Guaranteed quotes usually show Customer top-up of $0 — the dealer absorbs the gap."
         ),
         tags$li(
           tags$strong("Fleet. "),
           "A quarterly A/B replacement schedule chooses bid-new versus 5-year / 10-year renew under simulated QP / PQP, ",
           "with optional PARF and amortisation."
+        ),
+        tags$li(
+          tags$strong("COE bot parity. "),
+          "Chat can price a pooled Cat A/B book with the same engine and the same lead metric names. ",
+          "CSV / fleet uploads stay on this tab. The bot presents figures and leaves timing / quote choice to the user’s risk appetite."
         )
       )
     ),
@@ -358,9 +376,10 @@ server <- function(id, store) {
         class = "about-list",
         tags$li(
           tags$strong("Estimator. "),
-          tags$code("glmnet::cv.glmnet"), " with mixing parameter 0.5 (elastic net), MAE loss, penalty at ",
-          tags$code(spec$lambda_rule %||% "lambda.min"),
-          ". Predictions are floored at 20% of the trailing 12-month mean."
+          tags$code("glmnet::cv.glmnet"), " with mixing parameter 0.5 (elastic net), MAE loss, and the live desk penalty at ",
+          tags$code("lambda.1se"),
+          " (1-SE rule — a slightly more regularised choice than the pure CV minimum). ",
+          "Predictions are floored at 20% of the trailing 12-month mean."
         ),
         tags$li(
           tags$strong("Two fits. "),
@@ -463,7 +482,8 @@ server <- function(id, store) {
         class = "about-list",
         tags$li(
           tags$strong("We forecast supply, not premiums. "),
-          "Premiums also depend on demand, credit, and policy. Your risk stresses premiums with history and an optional supply drift; it does not predict the next clearing price."
+          "Premiums also depend on demand, credit, and policy. Your risk stresses premiums with history and an optional supply drift; it does not predict the next clearing price. ",
+          "COE bot refuses next-tender premium questions and does not say bid now / wait."
         ),
         tags$li(
           tags$strong("Where the model is weak. "),
@@ -489,8 +509,8 @@ server <- function(id, store) {
 
     output$footer <- renderText({
       sprintf(
-        "DBA3702 - Cat A/B supply desk - open LTA / SingStat data - elastic net alpha 0.5, %s - last observed deregistrations %s.",
-        spec$lambda_rule %||% "lambda.min", format(as.Date(spec$last_observed_month %||% "2026-08-01"), "%b %Y")
+        "DBA3702 - Cat A/B supply desk - open LTA / SingStat data - elastic net alpha 0.5, lambda 1-SE - last observed deregistrations %s.",
+        format(as.Date(spec$last_observed_month %||% "2026-08-01"), "%b %Y")
       )
     })
   })

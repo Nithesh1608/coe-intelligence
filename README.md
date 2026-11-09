@@ -9,17 +9,19 @@ renv::restore()
 rhino::app()
 ```
 
+Local secrets (optional, for COE bot / Bedrock) go in a project `.Renviron` — never commit that file.
+
 ## Tabs
 
-| Tab | Proposal view | Purpose |
-| --- | --- | --- |
-| Home | Supply pipeline | Released quota vs the held-out model, then the production model rolled 36 months forward with 50% / 80% bootstrap bands and a quarterly table |
-| Scenarios | Feedback and scenarios | Renewal share as a fitted function of PQP, renewal lever, premium glides, LTA injection or clawback, merged A+B |
-| Market | Category dynamics | Cohort flow, within-quarter premium swings, A/B spread and volume shares, supporting EDA |
-| Track record | Calibration | One-step held-out scores, period totals where the model missed, 24-month recursive backtest with 80% coverage |
-| Your risk | Exposure calculator | Dealer book and fleet schedule priced on simulated premium paths, optionally tilted by the forward quota path |
-| COE bot | | Instant desk answers on forward quota / accuracy; optional NIM for open phrasing |
-| About | | Data, cleaning, features, model, scenarios, exposure, limits |
+| Tab | Purpose |
+| --- | --- |
+| Home | Released quota vs the held-out model, then ~36 months forward with 50% / 80% bootstrap bands and a quarterly table |
+| Scenarios | Renewal share as a fitted function of PQP, renewal lever, premium glides, LTA injection or clawback, merged A+B |
+| Market | Cohort flow, within-quarter premium swings, A/B spread and volume shares, supporting EDA |
+| Track record | One-step held-out scores, period totals where the model missed |
+| Your risk | Dealer book and fleet schedule priced on simulated premium paths, optionally tilted by the forward quota path |
+| COE bot | Desk Q&A on Amazon Bedrock; can run pooled Cat A/B exposure and scenario presets, then narrate live artefacts only |
+| About | Data, cleaning, features, model, scenarios, exposure, limits |
 
 ## Rebuild everything
 
@@ -48,10 +50,9 @@ Covers date helpers, feature engineering and cohort projection, quota mapping an
 | `app/logic/model/` | Features, elastic net + recursive bootstrap, scenario layer (shared by scripts, app and tests) |
 | `app/logic/viewdata/` | Store loader and chart preparation |
 | `app/logic/exposure/` | Exposure engine + API |
+| `app/logic/chat/` | COE bot context, desk runner, Bedrock / provider |
 | `app/logic/eda/` | Static EDA sources and renderer |
 | `app/view/` | Shiny modules, one per tab |
 | `data/data_cleaning.Rmd` | Cleaning notebook |
 | `data/raw/` | Official extracts (DataMall, SingStat); `data/raw/datagov/api/` holds httr2 pulls |
 | `data/processed/` | Cleaned RDS + model artefacts (`model_experiment/`) + exposure inputs (`exposure/`) |
-
-Proposal: `Project Proposal.md`.
