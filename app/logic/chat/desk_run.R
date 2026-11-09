@@ -461,7 +461,7 @@ desk_exposure_facts <- function(res) {
       sprintf("Chance book loses=%s (share of runs with dealer P&L < 0 — frequency, not amount)", fmt_pct(s$prob_loss)),
       chance_read,
       sprintf("Customer top-up=%s (expected across sims; guaranteed books are usually $0)", fmt_sgd(s$expected_customer_topup)),
-      "instruction=Use ONLY these Your risk labels. If you explain Chance book loses, use the reading line (P&L frequency). No tender win-rate. No bid/wait/should. Close: risk appetite.",
+      "instruction=Use ONLY these Your risk labels. Warm polite tone. If you explain Chance book loses, use the reading line (P&L frequency). No tender win-rate. No bid/wait/should. Close politely with risk appetite.",
       "If you delay +1Q / +2Q (same paths as the delay chart):",
       timing_lines
     ),
