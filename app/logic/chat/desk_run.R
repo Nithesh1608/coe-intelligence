@@ -105,10 +105,72 @@ preset_help_text <- function(q) {
   )
 }
 
+#' Desk-domain vocabulary (quota / risk / app tabs).
+is_desk_on_topic <- function(q) {
+  ql <- tolower(as.character(q %||% ""))
+  grepl(paste(
+    "\\b(coe|quota|dereg|deregistration|premium|tender|pqp|lta|singstat)\\b",
+    "\\b(cat(?:egory)?\\s*[ab]|scenario|inject|clawback|renewal|outlook|forecast)\\b",
+    "\\b(exposure|var95|cvar|mape|held-?out|elastic\\s*net|track\\s*record|your\\s*risk)\\b",
+    "\\b(orders?|fleet|dealer|book|bad-?case|chance\\s+book|top-?up|certificate|supply)\\b",
+    "\\b(published|not released|bid(?:ding)?|home|market|about)\\b",
+    sep = "|"
+  ), ql, perl = TRUE)
+}
+
+is_desk_greeting_or_help <- function(q) {
+  ql <- tolower(trimws(as.character(q %||% "")))
+  grepl(paste(
+    "^(hi|hello|hey|yo|thanks|thank you|good (morning|afternoon|evening))\\b",
+    "\\b(what can you (do|help)|who are you|what (are|do) you|how (do|can) i use|help me)\\b",
+    "\\b(show (me )?(chips|examples)|what (questions|topics))\\b",
+    sep = "|"
+  ), ql, perl = TRUE)
+}
+
+off_topic_reply <- function() {
+  paste(
+    "I’m the **COE desk bot** — I only cover Singapore COE supply, scenarios, track record, and pooled book exposure.",
+    "I can’t help with personal / love / general life advice (or other off-desk topics).",
+    "Ask something like a Cat A/B quota outlook, a scenario, or price a pooled book (orders + category + quoted $)."
+  )
+}
+
 #' Hard refusals the bot must not run as a desk tool.
 #' @export
 desk_refuse_reason <- function(q) {
   ql <- tolower(q)
+
+  # Jailbreak / prompt-injection — never reach the model.
+  if (grepl(paste(
+    "ignore (all |any |the )?(previous|prior|above|earlier|your) (instructions|rules|prompt|system)",
+    "disregard (your|the|all) (instructions|rules|prompt|system)",
+    "jailbreak|dan mode|developer mode|god mode",
+    "reveal (your |the )?(system )?prompt|show (me )?(your |the )?system prompt",
+    "pretend you (are|can)|act as (if you|an? unrestricted)|you are now (a |an )?",
+    "bypass (your |the )?(rules|guardrails|restrictions|filters)",
+    sep = "|"
+  ), ql, perl = TRUE)) {
+    return(off_topic_reply())
+  }
+
+  # Clear lifestyle / personal / creative off-desk asks.
+  if (grepl(paste(
+    "\\b(love|dating|relationship|romance|marriage|girlfriend|boyfriend|crush|breakup|divorce)\\b",
+    "\\b(recipe|cook(?:ing)?|horoscope|astrology|tarot|poem|joke|story|song lyrics)\\b",
+    "\\b(therapy|therapist|counsel(?:l)?or|medical advice|diagnos)\\b",
+    "\\b(write (me |a )?(essay|homework|cover letter))\\b",
+    sep = "|"
+  ), ql, perl = TRUE) && !is_desk_on_topic(q)) {
+    return(off_topic_reply())
+  }
+
+  # Generic “advice” with no desk signal.
+  if (grepl("\\b(advice|advise me what to do|life tips)\\b", ql) &&
+        !is_desk_on_topic(q) && !is_desk_greeting_or_help(q)) {
+    return(off_topic_reply())
+  }
+
   if (is_unsupported_category(q) &&
         grepl("forecast|quota|outlook|scenario|risk|price|exposure|lose|loss|bid", ql)) {
     return(unsupported_category_reply())
@@ -235,6 +297,9 @@ injection_extra <- function(q) {
 #' Classify desk intent from text (rules only).
 #' @export
 detect_desk_intent <- function(q, pending = NULL) {
+  refuse <- desk_refuse_reason(q)
+  if (!is.null(refuse)) return("refuse")
+
   if (!is.null(pending) && !is.null(pending$kind)) {
     if (desk_cancel_request(q)) return("cancel")
     ql <- tolower(q)
@@ -251,9 +316,6 @@ detect_desk_intent <- function(q, pending = NULL) {
     }
     return(pending$kind)
   }
-
-  refuse <- desk_refuse_reason(q)
-  if (!is.null(refuse)) return("refuse")
 
   ql <- tolower(q)
   # Explanatory questions stay with the live model — never canned desk replies.
@@ -572,19 +634,29 @@ handle_desk_turn <- function(q, store, pending = NULL) {
     ))
   }
 
+  # Off-topic / jailbreak before any mid-slot topic switch (never send those to Bedrock).
+  refuse <- desk_refuse_reason(q)
+  if (!is.null(refuse)) {
+    return(list(
+      action = "reply",
+      clear_pending = TRUE,
+      text = refuse,
+      viz = NULL
+    ))
+  }
+
   # Mid-slot topic change (e.g. "Is Dec 2026 published?") — drop wizard, answer in chat.
   if (!is.null(pending) && is_topic_switch(q)) {
     return(list(action = "chat", clear_pending = TRUE))
   }
 
-  refuse <- desk_refuse_reason(q)
   intent <- detect_desk_intent(q, pending)
 
   if (identical(intent, "refuse")) {
     return(list(
       action = "reply",
       clear_pending = TRUE,
-      text = refuse %||% "I can't run that from chat.",
+      text = desk_refuse_reason(q) %||% "I can't run that from chat.",
       viz = NULL
     ))
   }
