@@ -78,7 +78,7 @@ system_prompt <- function() {
     "NAMING: live model = “elastic net” (alpha=0.5, lambda 1-SE). Never say core_forecast / simple_average.",
     "Baseline comparator = “12-month average”. MAPE/hit-rates are already % — write 11.9%, not 0.119.",
     "No LaTeX. Plain text only.",
-    "DATA DISCIPLINE (marks-critical):",
+    "DATA DISCIPLINE (do not invent published figures):",
     "1) Obey TRUTH CUTOFFS. Never invent dates or published quotas.",
     "2) heldout_published / heldout_outlook only for months listed under Held-out monthly quota.",
     "3) Forward months: forward_mid / forward_lo80 / forward_hi80 — call them forecast/outlook, never ‘published’.",
