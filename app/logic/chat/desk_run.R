@@ -430,6 +430,16 @@ desk_exposure_facts <- function(res) {
       )
     })
   }
+  pl <- suppressWarnings(as.numeric(s$prob_loss[[1]]))
+  chance_read <- if (is.finite(pl) && pl >= 0.65) {
+    "Chance book loses reading=well above 50% — quote looks cheap vs simulated paths (P&L underwater often); not a tender win-rate."
+  } else if (is.finite(pl) && pl <= 0.35) {
+    "Chance book loses reading=well below 50% — margin built in vs simulated paths; still check Bad-case loss for cushion; not a tender win-rate."
+  } else if (is.finite(pl)) {
+    "Chance book loses reading=near 50% — quote near the model’s view / little P&L edge; carrying premium risk; not a tender win-rate."
+  } else {
+    "Chance book loses = share of sims with dealer P&L < 0 (frequency, not tender win-rate)."
+  }
   # Labels mirror Your risk tab lead strip exactly.
   paste(
     c(
@@ -448,9 +458,10 @@ desk_exposure_facts <- function(res) {
       ),
       sprintf("Expected COE cost=%s", fmt_sgd(s$expected_cost)),
       sprintf("Bad-case loss=%s (1-in-20 VaR; exceeded in only 1 of 20 runs)", fmt_sgd(s$var95_loss)),
-      sprintf("Chance book loses=%s (share of runs with P&L < 0)", fmt_pct(s$prob_loss)),
+      sprintf("Chance book loses=%s (share of runs with dealer P&L < 0 — frequency, not amount)", fmt_pct(s$prob_loss)),
+      chance_read,
       sprintf("Customer top-up=%s (expected across sims; guaranteed books are usually $0)", fmt_sgd(s$expected_customer_topup)),
-      "instruction=Use ONLY these Your risk labels. No extra metrics. No bid/wait/should. Close: choose timing that fits risk appetite.",
+      "instruction=Use ONLY these Your risk labels. If you explain Chance book loses, use the reading line (P&L frequency). No tender win-rate. No bid/wait/should. Close: risk appetite.",
       "If you delay +1Q / +2Q (same paths as the delay chart):",
       timing_lines
     ),
