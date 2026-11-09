@@ -423,39 +423,20 @@ desk_exposure_facts <- function(res) {
   if (nrow(sh)) {
     timing_lines <- apply(sh, 1L, function(r) {
       sprintf(
-        "+%sQ expected_dealer_pnl=%s var95_loss=%s",
+        "+%sQ Expected P&L=%s | Bad-case loss=%s",
         as.character(r[["shift_quarters"]]),
         fmt_sgd(r[["expected_dealer_pnl"]]),
         fmt_sgd(r[["var95_loss"]])
       )
     })
   }
-  pl <- suppressWarnings(as.numeric(s$prob_loss[[1]]))
-  reading <- if (is.finite(pl) && pl >= 0.9) {
-    paste(
-      "reading=UNDERPRICED_QUOTE",
-      "instruction=State as fact: quote looks cheap vs simulated paths (high prob_loss).",
-      "Show cost, VaR, and +0Q/+1Q/+2Q timing. Do NOT say bid/wait/fix/should.",
-      "Close politely: they can choose based on their risk appetite."
-    )
-  } else if (is.finite(pl) && pl >= 0.5) {
-    paste(
-      "reading=QUOTE_AT_RISK",
-      "instruction=Summarise cost, VaR, and timing as facts only — no bid/wait recommendation.",
-      "Close politely: they can choose based on their risk appetite."
-    )
-  } else {
-    paste(
-      "reading=QUOTE_OK_OR_MIXED",
-      "instruction=Summarise cost, VaR, and timing plainly — no bid/wait recommendation.",
-      "Close politely: they can choose based on their risk appetite."
-    )
-  }
+  # Labels mirror Your risk tab lead strip exactly.
   paste(
     c(
-      "# DESK RUN FACTS (authoritative — quote these numbers; do not invent)",
+      "# DESK RUN FACTS (authoritative — same metrics as Your risk tab; do not invent)",
+      "ui_parity=Your risk dealer book",
       sprintf(
-        "kind=pooled_exposure | orders=%s | category=%s | quoted=%s | win_rate=%s | vol=%sx | tilt=%s | tilt_scn=%s | nsim=%s",
+        "book=%s orders | Cat %s | quoted=%s | win_rate=%s | vol=%sx | supply_tilt=%s | tilt_scenario=%s | sims=%s",
         fmt_int(res$n_orders),
         res$category,
         fmt_sgd(res$quoted_premium),
@@ -465,12 +446,12 @@ desk_exposure_facts <- function(res) {
         res$tilt_scn,
         fmt_int(res$nsim)
       ),
-      sprintf("expected_coe_cost=%s", fmt_sgd(s$expected_cost)),
-      sprintf("var95_loss=%s", fmt_sgd(s$var95_loss)),
-      sprintf("prob_loss=%s", fmt_pct(s$prob_loss)),
-      sprintf("expected_customer_topup=%s", fmt_sgd(s$expected_customer_topup)),
-      reading,
-      "timing:",
+      sprintf("Expected COE cost=%s", fmt_sgd(s$expected_cost)),
+      sprintf("Bad-case loss=%s (1-in-20 VaR; exceeded in only 1 of 20 runs)", fmt_sgd(s$var95_loss)),
+      sprintf("Chance book loses=%s (share of runs with P&L < 0)", fmt_pct(s$prob_loss)),
+      sprintf("Customer top-up=%s (expected across sims; guaranteed books are usually $0)", fmt_sgd(s$expected_customer_topup)),
+      "instruction=Use ONLY these Your risk labels. No extra metrics. No bid/wait/should. Close: choose timing that fits risk appetite.",
+      "If you delay +1Q / +2Q (same paths as the delay chart):",
       timing_lines
     ),
     collapse = "\n"
