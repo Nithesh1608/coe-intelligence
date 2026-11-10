@@ -2,6 +2,11 @@
 
 DBA3702 dealer/fleet **COE supply** desk. Forecasts Category A/B deregistrations and the quota they imply twelve quarters ahead with bootstrap bands, lets you move that path with renewal, premium and policy scenarios, and prices the exposure of a locked order book or fleet schedule. It does **not** forecast premiums.
 
+## Live app (for demo)
+
+**Posit Connect:** [https://nithesh-coe-intelligence.share.connect.posit.cloud/](https://nithesh-coe-intelligence.share.connect.posit.cloud/)
+
+
 ## Run
 
 ```r
@@ -9,7 +14,7 @@ renv::restore()
 rhino::app()
 ```
 
-Local secrets (optional, for COE bot / Bedrock) go in a project `.Renviron` — never commit that file.
+Local secrets for COE bot / Bedrock live in the project `.Renviron` (gitignored). That file stays on the machine / grader zip so the bot can run locally; it is not committed to the public repo.
 
 ## Tabs
 
